@@ -51,6 +51,13 @@ internal static class VRControllers
         laser.line = line;
         laser.trigger = trigger;
 
+        if (PeakAssets.Controller != null)
+        {
+            var model = Object.Instantiate(PeakAssets.Controller, obj.transform);
+            model.transform.localPosition = Vector3.zero;
+            model.transform.localRotation = Quaternion.identity;
+        }
+
         Plugin.Log.LogInfo($"[PeakVR] Created {name}");
     }
 

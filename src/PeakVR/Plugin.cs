@@ -62,6 +62,8 @@ public partial class Plugin : BaseUnityPlugin
 
         InitializeVR();
 
+        PeakAssets.Load();
+
         new Harmony(Id).PatchAll(typeof(Plugin).Assembly);
         // BepInEx also gives us a config file for easy configuration.
         // See https://lethal.wiki/dev/intermediate/custom-configs
