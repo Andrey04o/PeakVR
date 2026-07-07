@@ -43,6 +43,14 @@ internal static class VRControllers
         line.startColor = line.endColor = Color.cyan;
         line.material = CreateLaserMaterial();
 
+        var trigger = new InputAction($"{hand} Trigger", InputActionType.Button,
+            $"<XRController>{{{hand}}}/triggerPressed");
+        trigger.Enable();
+
+        var laser = obj.AddComponent<VRLaser>();
+        laser.line = line;
+        laser.trigger = trigger;
+
         Plugin.Log.LogInfo($"[PeakVR] Created {name}");
     }
 

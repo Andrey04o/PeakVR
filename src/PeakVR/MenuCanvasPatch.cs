@@ -1,6 +1,7 @@
 using HarmonyLib;
 using UnityEngine;
-using UnityEngine.UI;
+using UnityEngine.EventSystems;
+using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace PeakVR;
 
@@ -10,6 +11,9 @@ internal static class MenuCanvasPatch
     private const float Scale = 0.003f;
     private const float Distance = 4f;
     private const float Height = 0.6f;
+
+    internal static Canvas MenuCanvas;
+    internal static TrackedDeviceGraphicRaycaster MenuRaycaster;
 
     [HarmonyPostfix]
     private static void Postfix(MainMenu __instance)
@@ -26,8 +30,15 @@ internal static class MenuCanvasPatch
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
 
-        if (canvas.GetComponent<GraphicRaycaster>() == null)
-            canvas.gameObject.AddComponent<GraphicRaycaster>();
+        var raycaster = canvas.GetComponent<TrackedDeviceGraphicRaycaster>();
+        if (raycaster == null)
+            raycaster = canvas.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+
+        if (EventSystem.current == null)
+            new GameObject("PeakVR EventSystem").AddComponent<EventSystem>();
+
+        MenuCanvas = canvas;
+        MenuRaycaster = raycaster;
 
         var head = cam.transform;
         var fwd = head.forward;
