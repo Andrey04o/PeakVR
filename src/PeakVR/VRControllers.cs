@@ -6,6 +6,8 @@ namespace PeakVR;
 
 internal static class VRControllers
 {
+    private static Material controllerMat;
+
     public static void CreateLasers(Transform rig)
     {
         if (GameObject.Find("PeakVR Left Hand") != null)
@@ -55,7 +57,18 @@ internal static class VRControllers
         {
             var model = Object.Instantiate(PeakAssets.Controller, obj.transform);
             model.transform.localPosition = Vector3.zero;
-            model.transform.localRotation = Quaternion.identity;
+            model.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+
+            controllerMat ??= new Material(Shader.Find("Universal Render Pipeline/Lit"))
+            {
+                color = new Color(0.12f, 0.12f, 0.13f)
+            };
+
+            var renderers = model.GetComponentsInChildren<Renderer>();
+            foreach (var r in renderers)
+                r.sharedMaterial = controllerMat;
+
+            Plugin.Log.LogInfo($"[PeakVR] {name} model: renderers={renderers.Length}, active={model.activeInHierarchy}");
         }
 
         Plugin.Log.LogInfo($"[PeakVR] Created {name}");
