@@ -1,0 +1,82 @@
+<Project>
+  <!--
+    This is a special file that contains shared configuration
+    for all project files in subdirectories.
+  -->
+
+  <!-- Set extra NuGet sources -->
+  <PropertyGroup>
+    <RestoreAdditionalProjectSources>
+      https://nuget.bepinex.dev/v3/index.json;
+      https://nuget.windows10ce.com/nuget/v3/index.json
+    </RestoreAdditionalProjectSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="Preloader\**" />
+    <EmbeddedResource Remove="Preloader\**" />
+    <None Remove="Preloader\**" />
+  </ItemGroup>
+
+
+  <!-- Modding dependencies -->
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.AssemblyPublicizer.MSBuild" Version="0.4.3" PrivateAssets="all" />
+    <PackageReference Include="Hamunii.BepInEx.AutoPlugin" Version="2.0.*" PrivateAssets="all" />
+    <PackageReference Include="PEAKModding.PEAKLib.Core" Version="1.7.2" PrivateAssets="all" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
+    <PackageReference Include="Unity.Animation.Rigging" Version="1.2.1" />
+    <PackageReference Include="Unity.InputSystem" Version="1.14.2" />
+    <PackageReference Include="Unity.Netcode.Runtime" Version="1.6.0" />
+    <PackageReference Include="Unity.RenderPipelines.Core" Version="14.0.12" />
+    <PackageReference Include="Unity.RenderPipelines.HighDefinition" Version="14.0.12" />
+    <PackageReference Include="Unity.TextMeshPro" Version="3.0.6" />
+    <PackageReference Include="Unity.XR.CoreUtils" Version="2.3.0" />
+    <PackageReference Include="Unity.XR.Interaction.Toolkit" Version="3.0.9" />
+    <PackageReference Include="Unity.XR.Management" Version="4.5.3" />
+    <PackageReference Include="Unity.XR.OpenXR" Version="1.15.1" />
+    <PackageReference Include="UnityEngine.SpatialTracking" Version="2.1.10" />
+    <PackageReference Include="UnityEngine.UI" Version="1.0.0" />
+    <PackageReference Include="Unity.PEAK.XR" Version="1.0.0" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3"/>
+  </ItemGroup>
+
+  <!-- NuGet fallback stripped game references -->
+  <ItemGroup Condition="!Exists('$(ManagedDir)')">
+    <PackageReference Include="UnityEngine.Modules" Version="6000.0.62" PrivateAssets="all" />
+  </ItemGroup>
+
+  <!-- Local game references -->
+  <ItemGroup Condition="Exists('$(ManagedDir)')">
+    <!--
+      Reference all assemblies except ones that come
+      with our target framework or would cause conflicts
+    -->
+    <LocalReferences
+      Include="$(ManagedDir)*.dll"
+      Exclude="$(ManagedDir)Mono*.dll;$(ManagedDir)netstandard.dll;$(ManagedDir)System*.dll;$(ManagedDir)mscorlib.dll"
+    />
+    <Reference Include="@(LocalReferences)" Private="false" />
+    <!-- Publicize these assemblies so we can access their internal members -->
+    <Reference Include="$(ManagedDir)Assembly-CSharp.dll" Private="false" Publicize="true" />
+  </ItemGroup>
+
+  <!--
+    Build Thunderstore package by calling `dotnet build -c Release -target:PackTS -v d` (verbosity detailed).
+    Publish to Thunderstore by including `-property:PublishTS=true` in the command.
+  -->
+  <Target Name="PackTS" DependsOnTargets="Build" Condition="$(ThunderstorePackable) != 'false'">
+    <Error
+      Text=" PackTS must be called with Release configuration."
+      Condition="'$(Configuration)' != 'Release'"
+    />
+    <PropertyGroup>
+      <BuildArgument Condition="'$(PublishTS)' != 'true'">build</BuildArgument>
+      <BuildArgument Condition="'$(PublishTS)' == 'true'">publish</BuildArgument>
+    </PropertyGroup>
+    <Exec Command="dotnet tool restore" />
+    <Exec Command="dotnet tcli $(BuildArgument) --package-version $(Version)" />
+  </Target>
+
+</Project>
