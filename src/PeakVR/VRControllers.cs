@@ -1,6 +1,6 @@
 using UnityEngine;
-using TrackedPoseDriver = UnityEngine.SpatialTracking.TrackedPoseDriver;
-using TrackedPose = UnityEngine.SpatialTracking.TrackedPoseDriver.TrackedPose;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.XR;
 
 namespace PeakVR;
 
@@ -11,21 +11,29 @@ internal static class VRControllers
         if (GameObject.Find("PeakVR Left Hand") != null)
             return;
 
-        CreateHand(rig, TrackedPose.LeftPose, "PeakVR Left Hand");
-        CreateHand(rig, TrackedPose.RightPose, "PeakVR Right Hand");
+        CreateHand(rig, "LeftHand", "PeakVR Left Hand");
+        CreateHand(rig, "RightHand", "PeakVR Right Hand");
     }
 
-    private static void CreateHand(Transform rig, TrackedPose pose, string name)
+    private static void CreateHand(Transform rig, string hand, string name)
     {
-        var hand = new GameObject(name);
-        hand.transform.SetParent(rig, false);
+        var obj = new GameObject(name);
+        obj.transform.SetParent(rig, false);
 
-        var driver = hand.AddComponent<TrackedPoseDriver>();
-        driver.SetPoseSource(TrackedPoseDriver.DeviceType.GenericXRDevice, pose);
+        var posAction = new InputAction($"{hand} Position", InputActionType.Value,
+            $"<XRController>{{{hand}}}/pointer/position", expectedControlType: "Vector3");
+        var rotAction = new InputAction($"{hand} Rotation", InputActionType.Value,
+            $"<XRController>{{{hand}}}/pointer/rotation", expectedControlType: "Quaternion");
+        posAction.Enable();
+        rotAction.Enable();
+
+        var driver = obj.AddComponent<TrackedPoseDriver>();
         driver.trackingType = TrackedPoseDriver.TrackingType.RotationAndPosition;
         driver.updateType = TrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
+        driver.positionInput = new InputActionProperty(posAction);
+        driver.rotationInput = new InputActionProperty(rotAction);
 
-        var line = hand.AddComponent<LineRenderer>();
+        var line = obj.AddComponent<LineRenderer>();
         line.useWorldSpace = false;
         line.widthMultiplier = 0.005f;
         line.numCapVertices = 4;
