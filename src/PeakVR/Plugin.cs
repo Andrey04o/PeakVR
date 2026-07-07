@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using BepInEx;
 using BepInEx.Logging;
+using HarmonyLib;
 using PEAKLib.Core;
 using UnityEngine.InputSystem;
 using UnityEngine.XR.Interaction.Toolkit.Inputs.Composites;
@@ -60,6 +61,8 @@ public partial class Plugin : BaseUnityPlugin
         }
 
         InitializeVR();
+
+        new Harmony(Id).PatchAll(typeof(Plugin).Assembly);
         // BepInEx also gives us a config file for easy configuration.
         // See https://lethal.wiki/dev/intermediate/custom-configs
 
