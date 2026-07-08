@@ -63,6 +63,7 @@ public partial class Plugin : BaseUnityPlugin
         InitializeVR();
 
         PeakAssets.Load();
+        VRControls.Init();
 
         new Harmony(Id).PatchAll(typeof(Plugin).Assembly);
         // BepInEx also gives us a config file for easy configuration.
