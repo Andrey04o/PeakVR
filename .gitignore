@@ -226,3 +226,9 @@ artifacts/**/*.zip
 *.txt
 artifacts/**
 Config.Build.user.props
+
+# Unity XR runtime DLLs
+/RuntimeDeps/*
+
+# AssetBundles
+/Bundles/*
