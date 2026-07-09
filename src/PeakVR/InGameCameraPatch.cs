@@ -19,6 +19,7 @@ internal static class InGameCameraPatch
 
         var rig = new GameObject("PeakVR InGame Rig");
         rig.transform.SetPositionAndRotation(cam.transform.position, Quaternion.identity);
+        rig.transform.localScale = Vector3.one * VRHeadRig.HandScale;
 
         cam.transform.SetParent(rig.transform, false);
         cam.transform.localPosition = Vector3.zero;
@@ -30,6 +31,8 @@ internal static class InGameCameraPatch
         driver.updateType = TrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
 
         rig.AddComponent<VRHeadRig>();
+
+        VRHands.Create(rig.transform);
 
         Plugin.Log.LogInfo("[PeakVR] In-game VR camera rig created");
     }
