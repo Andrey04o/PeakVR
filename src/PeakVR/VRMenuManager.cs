@@ -14,23 +14,39 @@ internal class VRMenuManager : MonoBehaviour
     private static readonly FieldInfo PauseMenuField =
         typeof(GUIManager).GetField("pauseMenu", BindingFlags.NonPublic | BindingFlags.Instance);
 
-    private Canvas active;
+    private Canvas converted;
     private RenderMode savedMode;
 
     private void Update()
     {
-        var canvas = FindActiveCanvas();
-        if (canvas == active)
-            return;
+        var gui = GUIManager.instance;
+        var hud = gui != null ? gui.hudCanvas : null;
 
-        if (active != null)
-            active.renderMode = savedMode;
+        var menuCanvas = FindActiveCanvas();
+        var wheelCanvas = GetWheelCanvas(gui);
 
-        active = canvas;
+        var pointerTarget = menuCanvas != null ? menuCanvas : wheelCanvas;
+        var convertTarget = menuCanvas != null
+            ? menuCanvas
+            : (wheelCanvas != null && wheelCanvas != hud ? wheelCanvas : null);
 
-        if (active != null)
+        if (convertTarget != converted)
         {
-            Activate(active);
+            if (converted != null)
+                converted.renderMode = savedMode;
+
+            converted = convertTarget;
+
+            if (converted != null)
+                ConvertToWorld(converted);
+        }
+
+        if (pointerTarget != null)
+        {
+            EnsureEventSystem();
+            VRPointer.Canvas = pointerTarget;
+            VRPointer.Raycaster = EnsureRaycaster(pointerTarget);
+            VRHands.SetPointersActive(true);
         }
         else
         {
@@ -72,11 +88,26 @@ internal class VRMenuManager : MonoBehaviour
         return null;
     }
 
-    private void Activate(Canvas canvas)
+    private static Canvas GetWheelCanvas(GUIManager gui)
     {
-        if (EventSystem.current == null)
-            new GameObject("PeakVR EventSystem").AddComponent<EventSystem>();
+        if (gui == null || !gui.wheelActive)
+            return null;
 
+        GameObject wob = null;
+        if (gui.backpackWheel != null && gui.backpackWheel.gameObject.activeInHierarchy)
+            wob = gui.backpackWheel.gameObject;
+        else if (gui.emoteWheel != null && gui.emoteWheel.activeInHierarchy)
+            wob = gui.emoteWheel;
+
+        if (wob == null)
+            return null;
+
+        var c = wob.GetComponentInParent<Canvas>();
+        return c != null ? c.rootCanvas : null;
+    }
+
+    private void ConvertToWorld(Canvas canvas)
+    {
         var cam = MainCamera.instance != null ? MainCamera.instance.cam : Camera.main;
         if (cam == null)
             return;
@@ -84,10 +115,6 @@ internal class VRMenuManager : MonoBehaviour
         savedMode = canvas.renderMode;
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
-
-        var raycaster = canvas.GetComponent<TrackedDeviceGraphicRaycaster>();
-        if (raycaster == null)
-            raycaster = canvas.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
 
         var head = cam.transform;
         var fwd = head.forward;
@@ -99,10 +126,20 @@ internal class VRMenuManager : MonoBehaviour
         rt.position = head.position + fwd * Distance;
         rt.rotation = Quaternion.LookRotation(fwd, Vector3.up);
 
-        VRPointer.Canvas = canvas;
-        VRPointer.Raycaster = raycaster;
-        VRHands.SetPointersActive(true);
-
         Plugin.Log.LogInfo($"[PeakVR] Menu -> world space: {canvas.name}");
+    }
+
+    private static TrackedDeviceGraphicRaycaster EnsureRaycaster(Canvas canvas)
+    {
+        var r = canvas.GetComponent<TrackedDeviceGraphicRaycaster>();
+        if (r == null)
+            r = canvas.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+        return r;
+    }
+
+    private static void EnsureEventSystem()
+    {
+        if (EventSystem.current == null)
+            new GameObject("PeakVR EventSystem").AddComponent<EventSystem>();
     }
 }

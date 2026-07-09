@@ -24,6 +24,12 @@ internal class VRLaser : MonoBehaviour
 
     private readonly List<RaycastResult> results = new();
 
+    private void OnDisable()
+    {
+        if (reticle != null)
+            reticle.gameObject.SetActive(false);
+    }
+
     private void Update()
     {
         var canvas = VRPointer.Canvas;
