@@ -1,4 +1,5 @@
 using HarmonyLib;
+using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace PeakVR;
@@ -24,7 +25,11 @@ internal static class InteractionInputPatch
             __instance.selectSlotBackwardWasPressed = true;
 
         if (VRControls.Pause.WasPressedThisFrame())
+        {
             __instance.pauseWasPressed = true;
+            __instance.jumpWasPressed = false;
+            __instance.jumpIsPressed = false;
+        }
 
         if (!playerMovementActive)
             return;
@@ -33,6 +38,15 @@ internal static class InteractionInputPatch
             ref __instance.usePrimaryWasReleased);
         Inject(VRControls.LeftTrigger, ref __instance.useSecondaryWasPressed, ref __instance.useSecondaryIsPressed,
             ref __instance.useSecondaryWasReleased);
+
+        if (VRControls.Sprint.IsPressed())
+            __instance.sprintIsPressed = true;
+
+        var scroll = VRControls.TurnStick.ReadValue<Vector2>().y;
+        if (scroll > 0.6f)
+            __instance.scrollForwardIsPressed = true;
+        else if (scroll < -0.6f)
+            __instance.scrollBackwardIsPressed = true;
     }
 
     private static void Inject(InputAction action, ref bool wasPressed, ref bool isPressed, ref bool wasReleased)
