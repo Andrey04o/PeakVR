@@ -39,6 +39,8 @@ internal static class MenuCanvasPatch
 
         MenuCanvas = canvas;
         MenuRaycaster = raycaster;
+        VRPointer.Canvas = canvas;
+        VRPointer.Raycaster = raycaster;
 
         var head = cam.transform;
         var fwd = head.forward;

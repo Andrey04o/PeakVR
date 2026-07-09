@@ -20,13 +20,14 @@ internal class VRLaser : MonoBehaviour
     private bool wasPressed;
 
     private Image reticle;
+    private Canvas reticleCanvas;
 
     private readonly List<RaycastResult> results = new();
 
     private void Update()
     {
-        var canvas = MenuCanvasPatch.MenuCanvas;
-        var raycaster = MenuCanvasPatch.MenuRaycaster;
+        var canvas = VRPointer.Canvas;
+        var raycaster = VRPointer.Raycaster;
         if (canvas == null || raycaster == null)
             return;
 
@@ -83,16 +84,24 @@ internal class VRLaser : MonoBehaviour
 
     private void EnsureReticle(Canvas canvas)
     {
-        if (reticle != null || PeakAssets.Reticle == null)
+        if (PeakAssets.Reticle == null)
             return;
 
-        var go = new GameObject("PeakVR Reticle");
-        reticle = go.AddComponent<Image>();
-        reticle.sprite = PeakAssets.Reticle;
-        reticle.raycastTarget = false;
-        reticle.rectTransform.SetParent(canvas.transform, false);
-        reticle.rectTransform.sizeDelta = new Vector2(ReticlePixels, ReticlePixels);
-        reticle.gameObject.SetActive(false);
+        if (reticle == null)
+        {
+            var go = new GameObject("PeakVR Reticle");
+            reticle = go.AddComponent<Image>();
+            reticle.sprite = PeakAssets.Reticle;
+            reticle.raycastTarget = false;
+            reticle.rectTransform.sizeDelta = new Vector2(ReticlePixels, ReticlePixels);
+            reticle.gameObject.SetActive(false);
+        }
+
+        if (reticleCanvas != canvas)
+        {
+            reticle.rectTransform.SetParent(canvas.transform, false);
+            reticleCanvas = canvas;
+        }
     }
 
     private void UpdateReticle(Canvas canvas, bool onPanel, Vector3 hitPoint)

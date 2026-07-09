@@ -40,6 +40,7 @@ internal static class InGameCameraPatch
         driver.rotationInput = new InputActionProperty(rotAction);
 
         rig.AddComponent<VRHeadRig>();
+        rig.AddComponent<VRMenuManager>();
 
         VRHands.Create(rig.transform);
 

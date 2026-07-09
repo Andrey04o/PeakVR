@@ -23,6 +23,9 @@ internal static class InteractionInputPatch
         if (VRControls.LeftPrimary.WasPressedThisFrame())
             __instance.selectSlotBackwardWasPressed = true;
 
+        if (VRControls.Pause.WasPressedThisFrame())
+            __instance.pauseWasPressed = true;
+
         if (!playerMovementActive)
             return;
 

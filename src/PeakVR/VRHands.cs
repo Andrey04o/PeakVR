@@ -7,6 +7,10 @@ namespace PeakVR;
 internal static class VRHands
 {
     private static Material handMat;
+    private static Material laserMat;
+
+    private static VRLaser leftLaser;
+    private static VRLaser rightLaser;
 
     public static Transform Left { get; private set; }
     public static Transform Right { get; private set; }
@@ -16,11 +20,22 @@ internal static class VRHands
         if (Left != null)
             return;
 
-        Left = CreateHand(rig, "LeftHand", "PeakVR IG Left Hand");
-        Right = CreateHand(rig, "RightHand", "PeakVR IG Right Hand");
+        Left = CreateHand(rig, "LeftHand", "PeakVR IG Left Hand", out leftLaser);
+        Right = CreateHand(rig, "RightHand", "PeakVR IG Right Hand", out rightLaser);
     }
 
-    private static Transform CreateHand(Transform rig, string hand, string name)
+    public static void SetPointersActive(bool on)
+    {
+        if (leftLaser == null || rightLaser == null)
+            return;
+
+        leftLaser.enabled = on;
+        leftLaser.line.enabled = on;
+        rightLaser.enabled = on;
+        rightLaser.line.enabled = on;
+    }
+
+    private static Transform CreateHand(Transform rig, string hand, string name, out VRLaser laser)
     {
         var obj = new GameObject(name);
         obj.transform.SetParent(rig, false);
@@ -37,6 +52,26 @@ internal static class VRHands
         driver.updateType = TrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
         driver.positionInput = new InputActionProperty(pos);
         driver.rotationInput = new InputActionProperty(rot);
+
+        var line = obj.AddComponent<LineRenderer>();
+        line.useWorldSpace = false;
+        line.widthMultiplier = 0.005f;
+        line.numCapVertices = 4;
+        line.positionCount = 2;
+        line.SetPosition(0, Vector3.zero);
+        line.SetPosition(1, Vector3.forward * 5f);
+        line.startColor = line.endColor = Color.cyan;
+        line.material = CreateLaserMaterial();
+        line.enabled = false;
+
+        var trigger = new InputAction($"{hand} PointerTrigger", InputActionType.Button,
+            $"<XRController>{{{hand}}}/triggerPressed");
+        trigger.Enable();
+
+        laser = obj.AddComponent<VRLaser>();
+        laser.line = line;
+        laser.trigger = trigger;
+        laser.enabled = false;
 
         if (PeakAssets.Controller != null)
         {
@@ -55,5 +90,21 @@ internal static class VRHands
 
         Plugin.Log.LogInfo($"[PeakVR] Created in-game {name}");
         return obj.transform;
+    }
+
+    private static Material CreateLaserMaterial()
+    {
+        if (laserMat != null)
+            return laserMat;
+
+        var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+        laserMat = new Material(shader);
+
+        if (laserMat.HasProperty("_BaseColor"))
+            laserMat.SetColor("_BaseColor", Color.cyan);
+        else
+            laserMat.color = Color.cyan;
+
+        return laserMat;
     }
 }

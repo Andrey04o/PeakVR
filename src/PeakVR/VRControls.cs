@@ -13,6 +13,7 @@ internal static class VRControls
     public static InputAction RightTrigger { get; private set; }
     public static InputAction LeftPrimary { get; private set; }
     public static InputAction RightPrimary { get; private set; }
+    public static InputAction Pause { get; private set; }
 
     public static void Init()
     {
@@ -28,6 +29,12 @@ internal static class VRControls
         LeftPrimary = Button("VR LeftPrimary", "<XRController>{LeftHand}/primaryButton");
         RightPrimary = Button("VR RightPrimary", "<XRController>{RightHand}/primaryButton");
 
+        Pause = new InputAction("VR Pause", InputActionType.Button);
+        Pause.AddBinding("<XRController>{LeftHand}/menuButton");
+        Pause.AddBinding("<XRController>{LeftHand}/menu");
+        Pause.AddBinding("<XRController>{LeftHand}/thumbstickClicked");
+        Pause.AddBinding("<XRController>{LeftHand}/thumbstickpressed");
+
         MoveStick.Enable();
         TurnStick.Enable();
         LeftGrip.Enable();
@@ -36,6 +43,7 @@ internal static class VRControls
         RightTrigger.Enable();
         LeftPrimary.Enable();
         RightPrimary.Enable();
+        Pause.Enable();
     }
 
     private static InputAction Button(string name, string binding)
