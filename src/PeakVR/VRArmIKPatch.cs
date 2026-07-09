@@ -12,8 +12,9 @@ internal static class VRArmIKPatch
 
     private static readonly Vector3 ShoulderOffsetLeft = new(-0.18f, -0.2f, 0f);
     private static readonly Vector3 ShoulderOffsetRight = new(0.18f, -0.2f, 0f);
-    private static readonly Vector3 ElbowHintLeft = new(0.15f, -0.2f, -0.25f);
-    private static readonly Vector3 ElbowHintRight = new(-0.15f, -0.2f, -0.25f);
+    private static readonly Vector3 ElbowSeedLocal = new(0f, -0.7f, -0.5f);
+    private const float ElbowHintDistance = 0.3f;
+    private const float HandInfluence = 0.35f;
 
     [HarmonyPatch("HandleIK")]
     [HarmonyPostfix]
@@ -42,27 +43,46 @@ internal static class VRArmIKPatch
         var shoulderL = cam.rotation * ShoulderOffsetLeft;
         var shoulderR = cam.rotation * ShoulderOffsetRight;
 
-        refs.IKHandTargetLeft.position =
-            refs.ikLeft.data.root.position + ArmScale * (VRHands.Left.position - cam.position - shoulderL);
-        refs.IKHandTargetRight.position =
-            refs.ikRight.data.root.position + ArmScale * (VRHands.Right.position - cam.position - shoulderR);
+        var targetL = refs.ikLeft.data.root.position + ArmScale * (VRHands.Left.position - cam.position - shoulderL);
+        var targetR = refs.ikRight.data.root.position + ArmScale * (VRHands.Right.position - cam.position - shoulderR);
+
+        refs.IKHandTargetLeft.position = targetL;
+        refs.IKHandTargetRight.position = targetR;
 
         refs.IKHandTargetLeft.rotation = VRHands.Left.rotation * HandRotationOffset;
         refs.IKHandTargetRight.rotation = VRHands.Right.rotation * HandRotationOffset;
 
-        SetElbowHint(refs.ikLeft, refs.IKHandTargetLeft.position, VRHands.Left.rotation, ElbowHintLeft);
-        SetElbowHint(refs.ikRight, refs.IKHandTargetRight.position, VRHands.Right.rotation, ElbowHintRight);
+        SetElbowHint(refs.ikLeft, targetL, VRHands.Left.rotation);
+        SetElbowHint(refs.ikRight, targetR, VRHands.Right.rotation);
 
         refs.ikRig.weight = 1f;
         refs.ikLeft.weight = 1f;
         refs.ikRight.weight = 1f;
     }
 
-    private static void SetElbowHint(TwoBoneIKConstraint ik, Vector3 handPos, Quaternion ctrlRot, Vector3 localDir)
+    private static void SetElbowHint(TwoBoneIKConstraint ik, Vector3 handPos, Quaternion ctrlRot)
     {
         var hint = ik.data.hint;
-        if (hint != null)
-            hint.position = handPos + ctrlRot * localDir;
+        if (hint == null)
+            return;
+
+        var shoulderPos = ik.data.root.position;
+        var axis = handPos - shoulderPos;
+        if (axis.sqrMagnitude < 1e-4f)
+            return;
+        axis.Normalize();
+
+        var downPole = Vector3.ProjectOnPlane(Vector3.down, axis);
+        if (downPole.sqrMagnitude < 1e-4f)
+            downPole = Vector3.ProjectOnPlane(Vector3.back, axis);
+
+        var handPole = Vector3.ProjectOnPlane(ctrlRot * ElbowSeedLocal, axis);
+        if (handPole.sqrMagnitude < 1e-4f)
+            handPole = downPole;
+
+        var pole = Vector3.Slerp(downPole.normalized, handPole.normalized, HandInfluence);
+
+        hint.position = (shoulderPos + handPos) * 0.5f + pole.normalized * ElbowHintDistance;
     }
 
     private static bool ShouldDrive(CharacterAnimations anim, out Character c)
