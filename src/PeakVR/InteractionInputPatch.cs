@@ -16,6 +16,13 @@ internal static class InteractionInputPatch
         Inject(VRControls.RightGrip, ref __instance.interactWasPressed, ref __instance.interactIsPressed,
             ref __instance.interactWasReleased);
 
+        Inject(VRControls.LeftGrip, ref __instance.dropWasPressed, ref __instance.dropIsPressed,
+            ref __instance.dropWasReleased);
+        if (VRControls.RightPrimary.WasPressedThisFrame())
+            __instance.selectSlotForwardWasPressed = true;
+        if (VRControls.LeftPrimary.WasPressedThisFrame())
+            __instance.selectSlotBackwardWasPressed = true;
+
         if (!playerMovementActive)
             return;
 
@@ -23,9 +30,6 @@ internal static class InteractionInputPatch
             ref __instance.usePrimaryWasReleased);
         Inject(VRControls.LeftTrigger, ref __instance.useSecondaryWasPressed, ref __instance.useSecondaryIsPressed,
             ref __instance.useSecondaryWasReleased);
-
-        if (VRControls.LeftGrip.WasPressedThisFrame())
-            __instance.dropWasPressed = true;
     }
 
     private static void Inject(InputAction action, ref bool wasPressed, ref bool isPressed, ref bool wasReleased)

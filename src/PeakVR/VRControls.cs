@@ -11,6 +11,8 @@ internal static class VRControls
     public static InputAction RightGrip { get; private set; }
     public static InputAction LeftTrigger { get; private set; }
     public static InputAction RightTrigger { get; private set; }
+    public static InputAction LeftPrimary { get; private set; }
+    public static InputAction RightPrimary { get; private set; }
 
     public static void Init()
     {
@@ -23,6 +25,8 @@ internal static class VRControls
         RightGrip = Button("VR RightGrip", "<XRController>{RightHand}/gripPressed");
         LeftTrigger = Button("VR LeftTrigger", "<XRController>{LeftHand}/triggerPressed");
         RightTrigger = Button("VR RightTrigger", "<XRController>{RightHand}/triggerPressed");
+        LeftPrimary = Button("VR LeftPrimary", "<XRController>{LeftHand}/primaryButton");
+        RightPrimary = Button("VR RightPrimary", "<XRController>{RightHand}/primaryButton");
 
         MoveStick.Enable();
         TurnStick.Enable();
@@ -30,6 +34,8 @@ internal static class VRControls
         RightGrip.Enable();
         LeftTrigger.Enable();
         RightTrigger.Enable();
+        LeftPrimary.Enable();
+        RightPrimary.Enable();
     }
 
     private static InputAction Button(string name, string binding)
