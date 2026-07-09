@@ -1,5 +1,6 @@
 using HarmonyLib;
 using UnityEngine;
+using UnityEngine.Animations.Rigging;
 
 namespace PeakVR;
 
@@ -7,10 +8,12 @@ namespace PeakVR;
 internal static class VRArmIKPatch
 {
     public static Quaternion HandRotationOffset = Quaternion.Euler(-90f, 180f, 0f);
-    public static float ArmScale = 1f;
+    public static float ArmScale = 1.089f;
 
     private static readonly Vector3 ShoulderOffsetLeft = new(-0.18f, -0.2f, 0f);
     private static readonly Vector3 ShoulderOffsetRight = new(0.18f, -0.2f, 0f);
+    private static readonly Vector3 ElbowHintLeft = new(0.15f, -0.2f, -0.25f);
+    private static readonly Vector3 ElbowHintRight = new(-0.15f, -0.2f, -0.25f);
 
     [HarmonyPatch("HandleIK")]
     [HarmonyPostfix]
@@ -47,9 +50,19 @@ internal static class VRArmIKPatch
         refs.IKHandTargetLeft.rotation = VRHands.Left.rotation * HandRotationOffset;
         refs.IKHandTargetRight.rotation = VRHands.Right.rotation * HandRotationOffset;
 
+        SetElbowHint(refs.ikLeft, refs.IKHandTargetLeft.position, VRHands.Left.rotation, ElbowHintLeft);
+        SetElbowHint(refs.ikRight, refs.IKHandTargetRight.position, VRHands.Right.rotation, ElbowHintRight);
+
         refs.ikRig.weight = 1f;
         refs.ikLeft.weight = 1f;
         refs.ikRight.weight = 1f;
+    }
+
+    private static void SetElbowHint(TwoBoneIKConstraint ik, Vector3 handPos, Quaternion ctrlRot, Vector3 localDir)
+    {
+        var hint = ik.data.hint;
+        if (hint != null)
+            hint.position = handPos + ctrlRot * localDir;
     }
 
     private static bool ShouldDrive(CharacterAnimations anim, out Character c)
