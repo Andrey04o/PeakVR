@@ -7,6 +7,11 @@ internal static class VRControls
     public static InputAction MoveStick { get; private set; }
     public static InputAction TurnStick { get; private set; }
 
+    public static InputAction LeftGrip { get; private set; }
+    public static InputAction RightGrip { get; private set; }
+    public static InputAction LeftTrigger { get; private set; }
+    public static InputAction RightTrigger { get; private set; }
+
     public static void Init()
     {
         MoveStick = new InputAction("VR Move", InputActionType.Value,
@@ -14,7 +19,21 @@ internal static class VRControls
         TurnStick = new InputAction("VR Turn", InputActionType.Value,
             "<XRController>{RightHand}/thumbstick", expectedControlType: "Vector2");
 
+        LeftGrip = Button("VR LeftGrip", "<XRController>{LeftHand}/gripPressed");
+        RightGrip = Button("VR RightGrip", "<XRController>{RightHand}/gripPressed");
+        LeftTrigger = Button("VR LeftTrigger", "<XRController>{LeftHand}/triggerPressed");
+        RightTrigger = Button("VR RightTrigger", "<XRController>{RightHand}/triggerPressed");
+
         MoveStick.Enable();
         TurnStick.Enable();
+        LeftGrip.Enable();
+        RightGrip.Enable();
+        LeftTrigger.Enable();
+        RightTrigger.Enable();
+    }
+
+    private static InputAction Button(string name, string binding)
+    {
+        return new InputAction(name, InputActionType.Button, binding);
     }
 }
