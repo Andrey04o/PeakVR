@@ -23,7 +23,10 @@ internal class VRStereoCulling : MonoBehaviour
     {
         RenderPipelineManager.beginCameraRendering -= OnBeginCamera;
         if (cam != null)
+        {
             cam.ResetCullingMatrix();
+            cam.ResetProjectionMatrix();
+        }
     }
 
     private void OnBeginCamera(ScriptableRenderContext ctx, Camera rendering)
@@ -34,6 +37,8 @@ internal class VRStereoCulling : MonoBehaviour
         var proj = cam.GetStereoProjectionMatrix(Camera.StereoscopicEye.Left);
         if (proj.m11 == 0f || proj.m00 == 0f)
             return;
+
+        cam.projectionMatrix = proj;
 
         var vfov = Mathf.Atan(1f / proj.m11) * 2f * Mathf.Rad2Deg * Margin;
         var aspect = proj.m11 / proj.m00 * Margin;
