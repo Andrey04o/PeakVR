@@ -27,6 +27,7 @@ internal class VRHeadRig : MonoBehaviour
         if (cam != null)
             hmdOffset = cam.transform.localPosition;
 
+        RenderDiagnostics.Tick(cam);
         HandleSnapTurn();
     }
 

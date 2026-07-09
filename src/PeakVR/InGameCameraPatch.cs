@@ -39,10 +39,16 @@ internal static class InGameCameraPatch
         driver.positionInput = new InputActionProperty(posAction);
         driver.rotationInput = new InputActionProperty(rotAction);
 
+        cam.gameObject.AddComponent<VRStereoCulling>();
+
         rig.AddComponent<VRHeadRig>();
         rig.AddComponent<VRMenuManager>();
 
         VRHands.Create(rig.transform);
+
+        RenderDiagnostics.Apply();
+        RenderDiagnostics.ApplyLodBias();
+        RenderDiagnostics.ScheduleScan();
 
         Plugin.Log.LogInfo("[PeakVR] In-game VR camera rig created");
     }
