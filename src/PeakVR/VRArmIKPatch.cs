@@ -7,8 +7,10 @@ namespace PeakVR;
 internal static class VRArmIKPatch
 {
     public static Quaternion HandRotationOffset = Quaternion.Euler(-90f, 180f, 0f);
+    public static float ArmScale = 1f;
 
-    private static bool logged;
+    private static readonly Vector3 ShoulderOffsetLeft = new(-0.18f, -0.2f, 0f);
+    private static readonly Vector3 ShoulderOffsetRight = new(0.18f, -0.2f, 0f);
 
     [HarmonyPatch("HandleIK")]
     [HarmonyPostfix]
@@ -30,20 +32,24 @@ internal static class VRArmIKPatch
             return;
 
         var refs = c.refs;
-        refs.IKHandTargetLeft.position = VRHands.Left.position;
-        refs.IKHandTargetRight.position = VRHands.Right.position;
+        if (refs.ikLeft.data.root == null || refs.ikRight.data.root == null)
+            return;
+
+        var cam = MainCamera.instance.cam.transform;
+        var shoulderL = cam.rotation * ShoulderOffsetLeft;
+        var shoulderR = cam.rotation * ShoulderOffsetRight;
+
+        refs.IKHandTargetLeft.position =
+            refs.ikLeft.data.root.position + ArmScale * (VRHands.Left.position - cam.position - shoulderL);
+        refs.IKHandTargetRight.position =
+            refs.ikRight.data.root.position + ArmScale * (VRHands.Right.position - cam.position - shoulderR);
+
         refs.IKHandTargetLeft.rotation = VRHands.Left.rotation * HandRotationOffset;
         refs.IKHandTargetRight.rotation = VRHands.Right.rotation * HandRotationOffset;
 
         refs.ikRig.weight = 1f;
         refs.ikLeft.weight = 1f;
         refs.ikRight.weight = 1f;
-
-        if (!logged)
-        {
-            logged = true;
-            Plugin.Log.LogInfo($"[PeakVR] Arm IK driving hands (currentItem={c.data.currentItem})");
-        }
     }
 
     private static bool ShouldDrive(CharacterAnimations anim, out Character c)

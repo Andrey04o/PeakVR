@@ -1,6 +1,7 @@
 using HarmonyLib;
 using UnityEngine;
-using TrackedPoseDriver = UnityEngine.SpatialTracking.TrackedPoseDriver;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.XR;
 
 namespace PeakVR;
 
@@ -25,10 +26,18 @@ internal static class InGameCameraPatch
         cam.transform.localPosition = Vector3.zero;
         cam.transform.localRotation = Quaternion.identity;
 
+        var posAction = new InputAction("HeadPosition", InputActionType.Value,
+            "<XRHMD>/centerEyePosition", expectedControlType: "Vector3");
+        var rotAction = new InputAction("HeadRotation", InputActionType.Value,
+            "<XRHMD>/centerEyeRotation", expectedControlType: "Quaternion");
+        posAction.Enable();
+        rotAction.Enable();
+
         var driver = cam.gameObject.AddComponent<TrackedPoseDriver>();
-        driver.SetPoseSource(TrackedPoseDriver.DeviceType.GenericXRDevice, TrackedPoseDriver.TrackedPose.Center);
         driver.trackingType = TrackedPoseDriver.TrackingType.RotationAndPosition;
         driver.updateType = TrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
+        driver.positionInput = new InputActionProperty(posAction);
+        driver.rotationInput = new InputActionProperty(rotAction);
 
         rig.AddComponent<VRHeadRig>();
 

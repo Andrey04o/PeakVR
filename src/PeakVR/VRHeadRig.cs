@@ -6,7 +6,7 @@ namespace PeakVR;
 [DefaultExecutionOrder(1000)]
 internal class VRHeadRig : MonoBehaviour
 {
-    public static float HandScale = 0.95f;
+    public static float HandScale = 1f;
 
     private const float ForwardOffset = 0f;
     private const float SnapAngle = 45f;
@@ -95,13 +95,13 @@ internal class VRHeadRig : MonoBehaviour
         if (delta == 0f)
             return;
 
-        HandScale = Mathf.Clamp(HandScale + delta * ScaleRate * Time.deltaTime, 0.3f, 1.6f);
+        VRArmIKPatch.ArmScale = Mathf.Clamp(VRArmIKPatch.ArmScale + delta * ScaleRate * Time.deltaTime, 0.3f, 2f);
 
         sinceLog += Time.deltaTime;
         if (sinceLog > 0.3f)
         {
             sinceLog = 0f;
-            Plugin.Log.LogInfo($"[PeakVR] HandScale = {HandScale:F3}");
+            Plugin.Log.LogInfo($"[PeakVR] ArmScale = {VRArmIKPatch.ArmScale:F3}");
         }
     }
 
