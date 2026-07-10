@@ -42,6 +42,9 @@ internal static class InteractionInputPatch
         if (VRControls.Sprint.IsPressed())
             __instance.sprintIsPressed = true;
 
+        if (VRControls.Stash.WasPressedThisFrame())
+            __instance.unselectSlotWasPressed = true;
+
         var scroll = VRControls.TurnStick.ReadValue<Vector2>().y;
         if (scroll > 0.6f)
             __instance.scrollForwardIsPressed = true;

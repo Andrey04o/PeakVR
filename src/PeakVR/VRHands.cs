@@ -12,6 +12,9 @@ internal static class VRHands
     private static VRLaser leftLaser;
     private static VRLaser rightLaser;
 
+    private static LineRenderer interactRay;
+    private static bool menuPointersOn;
+
     public static Transform Left { get; private set; }
     public static Transform Right { get; private set; }
 
@@ -22,10 +25,13 @@ internal static class VRHands
 
         Left = CreateHand(rig, "LeftHand", "PeakVR IG Left Hand", out leftLaser);
         Right = CreateHand(rig, "RightHand", "PeakVR IG Right Hand", out rightLaser);
+        interactRay = CreateInteractRay(Right);
     }
 
     public static void SetPointersActive(bool on)
     {
+        menuPointersOn = on;
+
         if (leftLaser == null || rightLaser == null)
             return;
 
@@ -33,6 +39,46 @@ internal static class VRHands
         leftLaser.line.enabled = on;
         rightLaser.enabled = on;
         rightLaser.line.enabled = on;
+
+        if (on && interactRay != null)
+            interactRay.enabled = false;
+    }
+
+    public static void DrawInteractRay(bool hovering, float length)
+    {
+        if (interactRay == null)
+            return;
+
+        if (menuPointersOn)
+        {
+            if (interactRay.enabled)
+                interactRay.enabled = false;
+            return;
+        }
+
+        interactRay.enabled = true;
+        interactRay.SetPosition(1, Vector3.forward * length);
+        var col = hovering ? new Color(0.35f, 1f, 0.45f) : new Color(0.4f, 0.8f, 1f, 0.5f);
+        interactRay.startColor = col;
+        interactRay.endColor = hovering ? col : new Color(col.r, col.g, col.b, 0f);
+    }
+
+    private static LineRenderer CreateInteractRay(Transform hand)
+    {
+        var obj = new GameObject("PeakVR Interact Ray");
+        obj.transform.SetParent(hand, false);
+
+        var line = obj.AddComponent<LineRenderer>();
+        line.useWorldSpace = false;
+        line.widthMultiplier = 0.004f;
+        line.numCapVertices = 4;
+        line.positionCount = 2;
+        line.SetPosition(0, Vector3.zero);
+        line.SetPosition(1, Vector3.forward * 2.5f);
+        line.startColor = line.endColor = new Color(0.4f, 0.8f, 1f, 0.5f);
+        line.material = CreateLaserMaterial();
+        line.enabled = false;
+        return line;
     }
 
     private static Transform CreateHand(Transform rig, string hand, string name, out VRLaser laser)

@@ -15,6 +15,7 @@ internal static class VRControls
     public static InputAction RightPrimary { get; private set; }
     public static InputAction Pause { get; private set; }
     public static InputAction Sprint { get; private set; }
+    public static InputAction Stash { get; private set; }
 
     public static void Init()
     {
@@ -36,6 +37,10 @@ internal static class VRControls
         Sprint.AddBinding("<XRController>{LeftHand}/thumbstickClicked");
         Sprint.AddBinding("<XRController>{LeftHand}/thumbstickpressed");
 
+        Stash = new InputAction("VR Stash", InputActionType.Button);
+        Stash.AddBinding("<XRController>{RightHand}/thumbstickClicked");
+        Stash.AddBinding("<XRController>{RightHand}/thumbstickpressed");
+
         MoveStick.Enable();
         TurnStick.Enable();
         LeftGrip.Enable();
@@ -46,6 +51,7 @@ internal static class VRControls
         RightPrimary.Enable();
         Pause.Enable();
         Sprint.Enable();
+        Stash.Enable();
     }
 
     private static InputAction Button(string name, string binding)
