@@ -7,6 +7,13 @@ namespace PeakVR;
 [HarmonyPatch(typeof(CharacterInput), "Sample")]
 internal static class InteractionInputPatch
 {
+    private const float ScrollOn = 0.6f;
+    private const float ScrollOff = 0.4f;
+    private const float ScrollRepeat = 0.18f;
+
+    private static int scrollDir;
+    private static float scrollTickTime;
+
     [HarmonyPostfix]
     private static void Postfix(CharacterInput __instance, bool playerMovementActive)
     {
@@ -45,11 +52,36 @@ internal static class InteractionInputPatch
         if (VRControls.Stash.WasPressedThisFrame())
             __instance.unselectSlotWasPressed = true;
 
-        var scroll = VRControls.TurnStick.ReadValue<Vector2>().y;
-        if (scroll > 0.6f)
-            __instance.scrollForwardIsPressed = true;
-        else if (scroll < -0.6f)
-            __instance.scrollBackwardIsPressed = true;
+        InjectScroll(__instance);
+    }
+
+    private static void InjectScroll(CharacterInput input)
+    {
+        var scrollY = VRControls.TurnStick.ReadValue<Vector2>().y;
+        var dir = scrollY > ScrollOn ? 1 : scrollY < -ScrollOn ? -1 : 0;
+
+        if (scrollDir != 0 && Mathf.Abs(scrollY) < ScrollOff)
+            scrollDir = 0;
+
+        if (dir == 0)
+            return;
+
+        if (dir > 0)
+            input.scrollForwardIsPressed = true;
+        else
+            input.scrollBackwardIsPressed = true;
+
+        var now = Time.time;
+        if (dir != scrollDir || now - scrollTickTime >= ScrollRepeat)
+        {
+            scrollDir = dir;
+            scrollTickTime = now;
+
+            if (dir > 0)
+                input.scrollForwardWasPressed = true;
+            else
+                input.scrollBackwardWasPressed = true;
+        }
     }
 
     private static void Inject(InputAction action, ref bool wasPressed, ref bool isPressed, ref bool wasReleased)
