@@ -41,6 +41,9 @@ internal class VRMenuManager : MonoBehaviour
                 ConvertToWorld(converted);
         }
 
+        if (converted != null)
+            UIOverlay.MakeAlwaysVisible(converted);
+
         if (pointerTarget != null)
         {
             EnsureEventSystem();

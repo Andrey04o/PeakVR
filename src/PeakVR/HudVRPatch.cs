@@ -19,28 +19,35 @@ internal class VRHud : MonoBehaviour
     private const float Scale = 0.001f;
 
     private bool done;
+    private int frame;
 
     private void Update()
     {
-        if (done)
+        if (!done)
+        {
+            var canvas = GUIManager.instance != null ? GUIManager.instance.hudCanvas : null;
+            var cam = MainCamera.instance != null ? MainCamera.instance.cam : null;
+            if (canvas == null || cam == null)
+                return;
+
+            done = true;
+
+            canvas.renderMode = RenderMode.WorldSpace;
+            canvas.worldCamera = cam;
+
+            var rt = (RectTransform)canvas.transform;
+            rt.SetParent(cam.transform, false);
+            rt.localScale = Vector3.one * Scale;
+            rt.localPosition = new Vector3(0f, 0f, Distance);
+            rt.localRotation = Quaternion.identity;
+
+            UIOverlay.MakeAlwaysVisible(canvas);
+
+            Plugin.Log.LogInfo("[PeakVR] HUD converted to world space");
             return;
+        }
 
-        var canvas = GUIManager.instance != null ? GUIManager.instance.hudCanvas : null;
-        var cam = MainCamera.instance != null ? MainCamera.instance.cam : null;
-        if (canvas == null || cam == null)
-            return;
-
-        done = true;
-
-        canvas.renderMode = RenderMode.WorldSpace;
-        canvas.worldCamera = cam;
-
-        var rt = (RectTransform)canvas.transform;
-        rt.SetParent(cam.transform, false);
-        rt.localScale = Vector3.one * Scale;
-        rt.localPosition = new Vector3(0f, 0f, Distance);
-        rt.localRotation = Quaternion.identity;
-
-        Plugin.Log.LogInfo("[PeakVR] HUD converted to world space");
+        if (++frame % 30 == 0 && GUIManager.instance != null)
+            UIOverlay.MakeAlwaysVisible(GUIManager.instance.hudCanvas);
     }
 }
