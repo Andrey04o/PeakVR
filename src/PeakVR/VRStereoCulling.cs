@@ -8,7 +8,6 @@ internal class VRStereoCulling : MonoBehaviour
     private const float Margin = 1.15f;
 
     private Camera cam;
-    private int eyeLogCount;
     private int lastFrame = -1;
     private int passIndex;
 
@@ -52,12 +51,6 @@ internal class VRStereoCulling : MonoBehaviour
         var proj = cam.GetStereoProjectionMatrix(eye);
         if (proj.m11 == 0f || proj.m00 == 0f)
             return;
-
-        if (eyeLogCount < 8)
-        {
-            eyeLogCount++;
-            Plugin.Log.LogInfo($"[PeakVR] beginCameraRendering frame={Time.frameCount} pass={passIndex} eye={eye} m02={proj.m02:F4}");
-        }
 
         cam.projectionMatrix = proj;
 
