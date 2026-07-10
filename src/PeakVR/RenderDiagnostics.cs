@@ -24,14 +24,13 @@ internal static class RenderDiagnostics
     }
 
     private static readonly List<BigLod> bigLods = new();
+    private static readonly HashSet<LODGroup> tracked = new();
 
     private static bool featuresDisabled;
     private static float nextScan;
-    private static float scanUntil;
 
     private const float LodBias = 2.5f;
-    private const float ScanWindow = 12f;
-    private const float ScanInterval = 2f;
+    private const float ScanInterval = 3f;
 
     public static void Apply()
     {
@@ -83,13 +82,14 @@ internal static class RenderDiagnostics
 
     public static void ScheduleScan()
     {
-        scanUntil = Time.time + ScanWindow;
+        tracked.Clear();
+        bigLods.Clear();
         nextScan = 0f;
     }
 
     public static void Tick(Camera cam)
     {
-        if (Time.time <= scanUntil && Time.time >= nextScan)
+        if (Time.time >= nextScan)
         {
             nextScan = Time.time + ScanInterval;
             Rescan();
@@ -100,12 +100,18 @@ internal static class RenderDiagnostics
 
     private static void Rescan()
     {
+        for (int i = bigLods.Count - 1; i >= 0; i--)
+            if (bigLods[i].group == null)
+                bigLods.RemoveAt(i);
+
+        tracked.RemoveWhere(g => g == null);
+
         var groups = Object.FindObjectsByType<LODGroup>(FindObjectsSortMode.None);
-        bigLods.Clear();
+        var added = 0;
 
         foreach (var g in groups)
         {
-            if (g == null)
+            if (g == null || !tracked.Add(g))
                 continue;
 
             g.fadeMode = LODFadeMode.None;
@@ -130,9 +136,11 @@ internal static class RenderDiagnostics
                 worldSize = g.size * maxScale,
                 lastLevel = -2
             });
+            added++;
         }
 
-        Plugin.Log.LogInfo($"[PeakVR] LOD scan: {bigLods.Count} groups driven, {groups.Length} total");
+        if (added > 0)
+            Plugin.Log.LogInfo($"[PeakVR] LOD scan: +{added} new (driving {bigLods.Count})");
     }
 
     private static void ForceLods(Camera cam)
