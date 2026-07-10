@@ -36,6 +36,8 @@ internal static class MainCameraPatch
         driver.trackingType = TrackedPoseDriver.TrackingType.RotationAndPosition;
         driver.updateType = TrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
 
+        cam.gameObject.AddComponent<VRStereoCulling>();
+
         VRControllers.CreateLasers(rig.transform);
 
         Plugin.Log.LogInfo($"[PeakVR] Menu VR camera ready in '{sceneName}', rig at {rig.transform.position}");
