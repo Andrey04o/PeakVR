@@ -13,6 +13,7 @@ internal static class VRHands
     private static VRLaser rightLaser;
 
     private static LineRenderer interactRay;
+    private static Material interactRayMat;
     private static bool menuPointersOn;
 
     public static Transform Left { get; private set; }
@@ -58,9 +59,12 @@ internal static class VRHands
 
         interactRay.enabled = true;
         interactRay.SetPosition(1, Vector3.forward * length);
-        var col = hovering ? new Color(0.35f, 1f, 0.45f) : new Color(0.4f, 0.8f, 1f, 0.5f);
-        interactRay.startColor = col;
-        interactRay.endColor = hovering ? col : new Color(col.r, col.g, col.b, 0f);
+
+        var col = hovering ? new Color(0.3f, 1f, 0.4f) : new Color(0.35f, 0.75f, 1f);
+        if (interactRayMat.HasProperty("_BaseColor"))
+            interactRayMat.SetColor("_BaseColor", col);
+        else
+            interactRayMat.color = col;
     }
 
     private static LineRenderer CreateInteractRay(Transform hand)
@@ -75,8 +79,11 @@ internal static class VRHands
         line.positionCount = 2;
         line.SetPosition(0, Vector3.zero);
         line.SetPosition(1, Vector3.forward * 2.5f);
-        line.startColor = line.endColor = new Color(0.4f, 0.8f, 1f, 0.5f);
-        line.material = CreateLaserMaterial();
+        line.startColor = line.endColor = Color.white;
+
+        var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+        interactRayMat = new Material(shader);
+        line.material = interactRayMat;
         line.enabled = false;
         return line;
     }

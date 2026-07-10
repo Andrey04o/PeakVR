@@ -43,6 +43,7 @@ internal static class InGameCameraPatch
 
         rig.AddComponent<VRHeadRig>();
         rig.AddComponent<VRMenuManager>();
+        rig.AddComponent<VRInteractPrompt>();
 
         VRHands.Create(rig.transform);
 

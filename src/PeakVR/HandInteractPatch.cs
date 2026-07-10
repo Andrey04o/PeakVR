@@ -23,11 +23,11 @@ internal static class HandInteractPatch
         if (local == null)
             return;
 
-        var hand = interactableResult is ClimbHandle ? null : FindHandInteractable(__instance, local);
-        if (hand != null)
-            interactableResult = hand;
+        if (!(interactableResult is ClimbHandle))
+            interactableResult = FindHandInteractable(__instance, local);
 
-        VRHands.DrawInteractRay(hand != null, RayLength(__instance, local));
+        var hovering = interactableResult != null && !(interactableResult is ClimbHandle);
+        VRHands.DrawInteractRay(hovering, RayLength(__instance, local));
     }
 
     private static bool ValidHandTarget(RaycastHit h, Character local, out IInteractible interactible)
