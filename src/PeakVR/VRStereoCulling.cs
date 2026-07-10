@@ -8,6 +8,7 @@ internal class VRStereoCulling : MonoBehaviour
     private const float Margin = 1.15f;
 
     private Camera cam;
+    private int eyeLogCount;
 
     private void Awake()
     {
@@ -34,7 +35,17 @@ internal class VRStereoCulling : MonoBehaviour
         if (rendering != cam)
             return;
 
-        var proj = cam.GetStereoProjectionMatrix(Camera.StereoscopicEye.Left);
+        var eye = cam.stereoActiveEye == Camera.MonoOrStereoscopicEye.Right
+            ? Camera.StereoscopicEye.Right
+            : Camera.StereoscopicEye.Left;
+
+        if (eyeLogCount < 8)
+        {
+            eyeLogCount++;
+            Plugin.Log.LogInfo($"[PeakVR] beginCameraRendering frame={Time.frameCount} stereoActiveEye={cam.stereoActiveEye}");
+        }
+
+        var proj = cam.GetStereoProjectionMatrix(eye);
         if (proj.m11 == 0f || proj.m00 == 0f)
             return;
 
