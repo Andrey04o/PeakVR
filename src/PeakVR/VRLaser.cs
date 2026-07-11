@@ -23,6 +23,7 @@ internal class VRLaser : MonoBehaviour
     private Canvas reticleCanvas;
 
     private readonly List<RaycastResult> results = new();
+    private readonly List<TrackedDeviceGraphicRaycaster> raycasters = new();
 
     private void OnDisable()
     {
@@ -33,11 +34,11 @@ internal class VRLaser : MonoBehaviour
     private void Update()
     {
         var canvas = VRPointer.Canvas;
-        var raycaster = VRPointer.Raycaster;
-        if (canvas == null || raycaster == null)
+        if (canvas == null)
             return;
 
         EnsureReticle(canvas);
+        GatherRaycasters(canvas);
 
         var origin = transform.position;
         var dir = transform.forward;
@@ -52,9 +53,7 @@ internal class VRLaser : MonoBehaviour
             rayPoints = new List<Vector3> { origin, origin + dir * MaxDistance }
         };
 
-        results.Clear();
-        raycaster.Raycast(eventData, results);
-        var hitGo = results.Count > 0 ? results[0].gameObject : null;
+        var hitGo = RaycastTopmost(eventData);
 
         var enterTarget = hitGo != null ? ExecuteEvents.GetEventHandler<IPointerEnterHandler>(hitGo) : null;
         if (enterTarget != hovered)
@@ -86,6 +85,47 @@ internal class VRLaser : MonoBehaviour
         }
 
         wasPressed = pressed;
+    }
+
+    private GameObject RaycastTopmost(TrackedDeviceEventData eventData)
+    {
+        foreach (var rc in raycasters)
+        {
+            results.Clear();
+            rc.Raycast(eventData, results);
+            if (results.Count > 0)
+                return results[0].gameObject;
+        }
+
+        return null;
+    }
+
+    private void GatherRaycasters(Canvas canvas)
+    {
+        raycasters.Clear();
+
+        var root = canvas.rootCanvas != null ? canvas.rootCanvas : canvas;
+
+        foreach (var c in root.GetComponentsInChildren<Canvas>(false))
+        {
+            if (c == null || !c.isActiveAndEnabled)
+                continue;
+
+            var tdgr = c.GetComponent<TrackedDeviceGraphicRaycaster>();
+            if (tdgr == null)
+            {
+                if (c != root && c.GetComponent<GraphicRaycaster>() == null)
+                    continue;
+
+                tdgr = c.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+            }
+
+            raycasters.Add(tdgr);
+        }
+
+        raycasters.Sort((a, b) =>
+            ((Canvas)b.GetComponent(typeof(Canvas))).sortingOrder
+            .CompareTo(((Canvas)a.GetComponent(typeof(Canvas))).sortingOrder));
     }
 
     private void EnsureReticle(Canvas canvas)

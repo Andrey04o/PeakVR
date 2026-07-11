@@ -22,6 +22,7 @@ namespace PeakVR;
 // NuGet package, and it will generate the BepInPlugin attribute for you!
 // For more info, see https://github.com/Hamunii/BepInEx.AutoPlugin
 [BepInAutoPlugin]
+[BepInDependency("com.pharmacomaniac.settingsextenderforked", BepInDependency.DependencyFlags.SoftDependency)]
 public partial class Plugin : BaseUnityPlugin
 {
     internal static ManualLogSource Log { get; private set; } = null!;
@@ -66,6 +67,8 @@ public partial class Plugin : BaseUnityPlugin
         VRControls.Init();
 
         new Harmony(Id).PatchAll(typeof(Plugin).Assembly);
+
+        StartCoroutine(RegisterSettings());
         // BepInEx also gives us a config file for easy configuration.
         // See https://lethal.wiki/dev/intermediate/custom-configs
 
@@ -75,6 +78,22 @@ public partial class Plugin : BaseUnityPlugin
         // Log our awake here so we can see it in LogOutput.log file
         Log.LogInfo($"Plugin {Name} is loaded!");
         //Peak.UI.KickButton kickButton;
+    }
+
+    private static System.Collections.IEnumerator RegisterSettings()
+    {
+        while (SettingsHandler.Instance == null)
+            yield return null;
+
+        try
+        {
+            SettingsHandler.Instance.AddSetting(new OpenXRRuntimeSetting());
+            Log.LogInfo("Registered PeakVR settings");
+        }
+        catch (Exception ex)
+        {
+            Log.LogWarning($"Failed to register PeakVR settings (SettingsExtender missing?): {ex.Message}");
+        }
     }
 
     private bool PreloadRuntimeDependencies()
