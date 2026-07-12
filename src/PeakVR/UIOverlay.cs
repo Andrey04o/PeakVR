@@ -16,7 +16,7 @@ internal static class UIOverlay
     private static readonly HashSet<Graphic> Handled = new HashSet<Graphic>();
     private static readonly List<Material> Materials = new List<Material>();
 
-    public static void MakeAlwaysVisible(Canvas canvas)
+    public static void MakeAlwaysVisible(Canvas canvas, bool foreground)
     {
         if (canvas == null)
             return;
@@ -26,7 +26,7 @@ internal static class UIOverlay
             if (g == null || Handled.Contains(g))
                 continue;
 
-            Apply(g);
+            Apply(g, foreground);
             Handled.Add(g);
         }
 
@@ -40,7 +40,7 @@ internal static class UIOverlay
         }
     }
 
-    private static void Apply(Graphic g)
+    private static void Apply(Graphic g, bool foreground)
     {
         Material mat;
 
@@ -63,7 +63,7 @@ internal static class UIOverlay
         mat.SetInt(ZTestUI, Always);
         mat.SetInt(ZTestTMP, Always);
 
-        if (!InStencilMask(g))
+        if (foreground && !InStencilMask(g))
             mat.renderQueue = Foreground;
 
         Materials.Add(mat);

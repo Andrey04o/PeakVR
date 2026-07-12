@@ -18,7 +18,7 @@ internal class VRTunneling : MonoBehaviour
     private const float ClearRadius = 0.35f;
     private const float DarkRadius = 0.70f;
     private const float MinSpeed = 0.6f;
-    private const float MaxSpeed = 6f;
+    private const float TurnThreshold = 0.5f;
     private const float LogInterval = 0.5f;
 
     private MeshRenderer rend;
@@ -91,7 +91,7 @@ internal class VRTunneling : MonoBehaviour
         }
 
         var cfg = Plugin.Config;
-        var target = cfg.MovementTunneling.Value ? SpeedAmount() : 0f;
+        var target = cfg.MovementTunneling.Value ? MovementTarget() : 0f;
         var dt = Time.deltaTime;
 
         if (target >= current)
@@ -127,7 +127,7 @@ internal class VRTunneling : MonoBehaviour
         mesh.uv = uv;
     }
 
-    private float SpeedAmount()
+    private float MovementTarget()
     {
         var character = Character.localCharacter;
         if (character == null || character.data == null)
@@ -142,11 +142,10 @@ internal class VRTunneling : MonoBehaviour
             Plugin.Log.LogInfo($"[PeakVR][Tunnel] speed={speed:F2} current={current:F2}");
         }
 
-        var turn = Plugin.Config.SmoothTurn.Value && VRControls.TurnStick != null
-            ? Mathf.Abs(VRControls.TurnStick.ReadValue<Vector2>().x)
-            : 0f;
+        var turning = Plugin.Config.SmoothTurn.Value && VRControls.TurnStick != null
+            && Mathf.Abs(VRControls.TurnStick.ReadValue<Vector2>().x) > TurnThreshold;
 
-        return Mathf.Max(Mathf.InverseLerp(MinSpeed, MaxSpeed, speed), turn);
+        return speed > MinSpeed || turning ? 1f : 0f;
     }
 
     private static Texture2D GenerateRadial(int size)

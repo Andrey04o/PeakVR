@@ -16,13 +16,14 @@ internal class VRMenuManager : MonoBehaviour
 
     private Canvas converted;
     private RenderMode savedMode;
+    private bool convertedForeground;
 
     private void Update()
     {
         var gui = GUIManager.instance;
         var hud = gui != null ? gui.hudCanvas : null;
 
-        var menuCanvas = FindActiveCanvas();
+        var menuCanvas = FindActiveCanvas(out var menuIsPause);
         var wheelCanvas = GetWheelCanvas(gui);
 
         var pointerTarget = menuCanvas != null ? menuCanvas : wheelCanvas;
@@ -36,13 +37,14 @@ internal class VRMenuManager : MonoBehaviour
                 converted.renderMode = savedMode;
 
             converted = convertTarget;
+            convertedForeground = convertTarget != null && convertTarget == menuCanvas && menuIsPause;
 
             if (converted != null)
                 ConvertToWorld(converted);
         }
 
         if (converted != null)
-            UIOverlay.MakeAlwaysVisible(converted);
+            UIOverlay.MakeAlwaysVisible(converted, convertedForeground);
 
         if (pointerTarget != null)
         {
@@ -59,8 +61,10 @@ internal class VRMenuManager : MonoBehaviour
         }
     }
 
-    private static Canvas FindActiveCanvas()
+    private static Canvas FindActiveCanvas(out bool isPauseMenu)
     {
+        isPauseMenu = false;
+
         if (GUIManager.InPauseMenu && PauseMenuField != null && GUIManager.instance != null)
         {
             var pauseMenu = PauseMenuField.GetValue(GUIManager.instance) as GameObject;
@@ -68,7 +72,10 @@ internal class VRMenuManager : MonoBehaviour
             {
                 var c = pauseMenu.GetComponentInParent<Canvas>();
                 if (c != null)
+                {
+                    isPauseMenu = true;
                     return c.rootCanvas;
+                }
             }
         }
 

@@ -41,13 +41,13 @@ internal class VRHud : MonoBehaviour
             rt.localPosition = new Vector3(0f, 0f, Distance);
             rt.localRotation = Quaternion.identity;
 
-            UIOverlay.MakeAlwaysVisible(canvas);
+            UIOverlay.MakeAlwaysVisible(canvas, false);
 
             Plugin.Log.LogInfo("[PeakVR] HUD converted to world space");
             return;
         }
 
         if (++frame % 30 == 0 && GUIManager.instance != null)
-            UIOverlay.MakeAlwaysVisible(GUIManager.instance.hudCanvas);
+            UIOverlay.MakeAlwaysVisible(GUIManager.instance.hudCanvas, false);
     }
 }
