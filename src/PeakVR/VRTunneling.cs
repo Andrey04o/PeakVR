@@ -4,25 +4,27 @@ using UnityEngine.Rendering;
 namespace PeakVR;
 
 [DefaultExecutionOrder(1100)]
-internal class VRVignette : MonoBehaviour
+internal class VRTunneling : MonoBehaviour
 {
     private const float Distance = 0.12f;
     private const float Coverage = 3.7f;
     private const float FadeInSpeed = 6f;
     private const float FadeOutSpeed = 3.5f;
     private const float MaxAlpha = 1f;
-    private const float MaxTiling = 2.4f;
+    private const float MinClose = 1.5f;
+    private const float MaxClose = 3f;
     private const float ClearRadius = 0.35f;
     private const float DarkRadius = 0.70f;
-    private const float MinSpeed = 1.2f;
-    private const float MaxSpeed = 9f;
+    private const float MinSpeed = 0.6f;
+    private const float MaxSpeed = 6f;
+    private const float LogInterval = 0.5f;
 
     private Transform quad;
+    private MeshRenderer rend;
     private Material mat;
     private Texture2D tex;
     private float current;
-    private Vector3 lastPos;
-    private bool hasLast;
+    private float logTimer;
 
     private void Start()
     {
@@ -36,7 +38,7 @@ internal class VRVignette : MonoBehaviour
         if (col != null)
             Object.Destroy(col);
 
-        go.name = "PeakVR Vignette";
+        go.name = "PeakVR Tunneling";
         go.transform.SetParent(transform, false);
         go.transform.localPosition = Vector3.forward * Distance;
         go.transform.localRotation = Quaternion.identity;
@@ -59,11 +61,11 @@ internal class VRVignette : MonoBehaviour
         mat.renderQueue = 4000;
         mat.SetColor("_BaseColor", new Color(0f, 0f, 0f, 0f));
 
-        var r = go.GetComponent<MeshRenderer>();
-        r.sharedMaterial = mat;
-        r.shadowCastingMode = ShadowCastingMode.Off;
-        r.receiveShadows = false;
-        r.enabled = false;
+        rend = go.GetComponent<MeshRenderer>();
+        rend.sharedMaterial = mat;
+        rend.shadowCastingMode = ShadowCastingMode.Off;
+        rend.receiveShadows = false;
+        rend.enabled = false;
 
         quad = go.transform;
     }
@@ -74,12 +76,11 @@ internal class VRVignette : MonoBehaviour
             return;
 
         var cfg = Plugin.Config;
-        var target = cfg.MovementVignette.Value ? ComputeIntensity(cfg) : 0f;
-        var speed = target > current ? FadeInSpeed : FadeOutSpeed;
-        current = Mathf.MoveTowards(current, target, speed * Time.deltaTime);
+        var target = cfg.MovementTunneling.Value ? SpeedAmount() : 0f;
+        var fade = target > current ? FadeInSpeed : FadeOutSpeed;
+        current = Mathf.MoveTowards(current, target, fade * Time.deltaTime);
 
         var visible = current > 0.002f;
-        var rend = quad.GetComponent<MeshRenderer>();
         if (rend.enabled != visible)
             rend.enabled = visible;
 
@@ -88,40 +89,33 @@ internal class VRVignette : MonoBehaviour
 
         mat.SetColor("_BaseColor", new Color(0f, 0f, 0f, current * MaxAlpha));
 
-        var tiling = Mathf.Lerp(1f, MaxTiling, current);
+        var maxTiling = Mathf.Lerp(MinClose, MaxClose, Mathf.Clamp01(cfg.TunnelingStrength.Value));
+        var tiling = Mathf.Lerp(1f, maxTiling, current);
         var offset = 0.5f * (1f - tiling);
         mat.SetTextureScale("_BaseMap", new Vector2(tiling, tiling));
         mat.SetTextureOffset("_BaseMap", new Vector2(offset, offset));
     }
 
-    private float ComputeIntensity(LCVR.Config cfg)
+    private float SpeedAmount()
     {
-        var speedAmount = 0f;
         var character = Character.localCharacter;
-        var dt = Time.deltaTime;
+        if (character == null || character.data == null)
+            return 0f;
 
-        if (character == null || dt <= 0f)
+        var speed = character.data.avarageVelocity.magnitude;
+
+        logTimer += Time.deltaTime;
+        if (logTimer >= LogInterval && speed > 0.05f)
         {
-            hasLast = false;
-        }
-        else
-        {
-            var pos = character.transform.position;
-            if (hasLast)
-            {
-                var speed = (pos - lastPos).magnitude / dt;
-                speedAmount = Mathf.InverseLerp(MinSpeed, MaxSpeed, speed);
-            }
-            lastPos = pos;
-            hasLast = true;
+            logTimer = 0f;
+            Plugin.Log.LogInfo($"[PeakVR][Tunnel] speed={speed:F2} current={current:F2}");
         }
 
-        var turn = cfg.SmoothTurn.Value && VRControls.TurnStick != null
+        var turn = Plugin.Config.SmoothTurn.Value && VRControls.TurnStick != null
             ? Mathf.Abs(VRControls.TurnStick.ReadValue<Vector2>().x)
             : 0f;
 
-        var amount = Mathf.Clamp01(Mathf.Max(speedAmount, turn));
-        return amount * Mathf.Clamp01(cfg.VignetteStrength.Value);
+        return Mathf.Max(Mathf.InverseLerp(MinSpeed, MaxSpeed, speed), turn);
     }
 
     private static Texture2D GenerateRadial(int size)

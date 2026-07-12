@@ -14,8 +14,8 @@ public class Config
     public ConfigEntry<float> SnapTurnAngle { get; }
     public ConfigEntry<float> SmoothTurnSpeed { get; }
 
-    public ConfigEntry<bool> MovementVignette { get; }
-    public ConfigEntry<float> VignetteStrength { get; }
+    public ConfigEntry<bool> MovementTunneling { get; }
+    public ConfigEntry<float> TunnelingStrength { get; }
 
     public ConfigEntry<string> OpenXRRuntimeFile { get; }
 
@@ -41,10 +41,10 @@ public class Config
             new ConfigDescription("Smooth turn speed in degrees per second.",
                 new AcceptableValueRange<float>(45f, 240f)));
 
-        MovementVignette = file.Bind("Comfort", "MovementVignette", true,
-            "Darken the edges of your view while moving to reduce motion sickness.");
-        VignetteStrength = file.Bind("Comfort", "VignetteStrength", 1f,
-            new ConfigDescription("How dark the movement vignette gets.",
+        MovementTunneling = file.Bind("Comfort", "MovementTunneling", true,
+            "Close a tunnel around your view while moving or falling to reduce motion sickness.");
+        TunnelingStrength = file.Bind("Comfort", "TunnelingStrength", 1f,
+            new ConfigDescription("How much the tunnel closes in (smaller circle) at full speed.",
                 new AcceptableValueRange<float>(0f, 1f)));
 
         OpenXRRuntimeFile = file.Bind("Internal", "OpenXRRuntimeFile", "",

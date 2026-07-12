@@ -40,7 +40,7 @@ internal static class InGameCameraPatch
         driver.rotationInput = new InputActionProperty(rotAction);
 
         cam.gameObject.AddComponent<VRStereoCulling>();
-        cam.gameObject.AddComponent<VRVignette>();
+        cam.gameObject.AddComponent<VRTunneling>();
 
         rig.AddComponent<VRHeadRig>();
         rig.AddComponent<VRMenuManager>();
