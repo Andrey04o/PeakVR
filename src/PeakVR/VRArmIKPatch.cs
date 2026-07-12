@@ -9,13 +9,14 @@ internal static class VRArmIKPatch
 {
     public static Quaternion HandRotationOffset = Quaternion.Euler(-90f, 180f, 0f);
     public static float ArmScale = 1.089f;
+    public static bool ElbowClampEnabled = true;
 
     private static readonly Vector3 ShoulderOffsetLeft = new(-0.18f, -0.2f, 0f);
     private static readonly Vector3 ShoulderOffsetRight = new(0.18f, -0.2f, 0f);
     private static readonly Vector3 ElbowSeedLocal = new(0f, -0.7f, -0.5f);
     private const float ElbowHintDistance = 0.3f;
     private const float HandInfluence = 0.35f;
-    private const float MinElbowAngle = 40f;
+    public const float MinElbowAngle = 40f;
 
     [HarmonyPatch("HandleIK")]
     [HarmonyPostfix]
@@ -47,8 +48,11 @@ internal static class VRArmIKPatch
         var targetL = refs.ikLeft.data.root.position + ArmScale * (VRHands.Left.position - cam.position - shoulderL);
         var targetR = refs.ikRight.data.root.position + ArmScale * (VRHands.Right.position - cam.position - shoulderR);
 
-        targetL = ClampMinElbowBend(refs.ikLeft, targetL);
-        targetR = ClampMinElbowBend(refs.ikRight, targetR);
+        if (ElbowClampEnabled)
+        {
+            targetL = ClampMinElbowBend(refs.ikLeft, targetL);
+            targetR = ClampMinElbowBend(refs.ikRight, targetR);
+        }
 
         refs.IKHandTargetLeft.position = targetL;
         refs.IKHandTargetRight.position = targetR;
@@ -77,8 +81,7 @@ internal static class VRArmIKPatch
         if (upper < 1e-4f || fore < 1e-4f)
             return target;
 
-        var cos = Mathf.Cos(MinElbowAngle * Mathf.Deg2Rad);
-        var minDist = Mathf.Sqrt(Mathf.Max(0f, upper * upper + fore * fore - 2f * upper * fore * cos));
+        var minDist = MinReachDistance(upper, fore);
 
         var toHand = target - root.position;
         var dist = toHand.magnitude;
@@ -86,6 +89,12 @@ internal static class VRArmIKPatch
             return target;
 
         return root.position + toHand * (minDist / dist);
+    }
+
+    public static float MinReachDistance(float upper, float fore)
+    {
+        var cos = Mathf.Cos(MinElbowAngle * Mathf.Deg2Rad);
+        return Mathf.Sqrt(Mathf.Max(0f, upper * upper + fore * fore - 2f * upper * fore * cos));
     }
 
     private static void SetElbowHint(TwoBoneIKConstraint ik, Vector3 handPos, Quaternion ctrlRot)
