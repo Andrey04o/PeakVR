@@ -8,16 +8,21 @@ internal class VRVignette : MonoBehaviour
 {
     private const float Distance = 0.12f;
     private const float Coverage = 3.7f;
-    private const float FadeInSpeed = 8f;
-    private const float FadeOutSpeed = 4f;
-    private const float MaxAlpha = 0.92f;
+    private const float FadeInSpeed = 6f;
+    private const float FadeOutSpeed = 3.5f;
+    private const float MaxAlpha = 1f;
+    private const float MaxTiling = 2.4f;
     private const float ClearRadius = 0.35f;
     private const float DarkRadius = 0.70f;
+    private const float MinSpeed = 1.2f;
+    private const float MaxSpeed = 9f;
 
     private Transform quad;
     private Material mat;
     private Texture2D tex;
     private float current;
+    private Vector3 lastPos;
+    private bool hasLast;
 
     private void Start()
     {
@@ -78,21 +83,44 @@ internal class VRVignette : MonoBehaviour
         if (rend.enabled != visible)
             rend.enabled = visible;
 
-        if (visible)
-            mat.SetColor("_BaseColor", new Color(0f, 0f, 0f, current * MaxAlpha));
+        if (!visible)
+            return;
+
+        mat.SetColor("_BaseColor", new Color(0f, 0f, 0f, current * MaxAlpha));
+
+        var tiling = Mathf.Lerp(1f, MaxTiling, current);
+        var offset = 0.5f * (1f - tiling);
+        mat.SetTextureScale("_BaseMap", new Vector2(tiling, tiling));
+        mat.SetTextureOffset("_BaseMap", new Vector2(offset, offset));
     }
 
-    private static float ComputeIntensity(LCVR.Config cfg)
+    private float ComputeIntensity(LCVR.Config cfg)
     {
-        var move = VRControls.MoveStick != null
-            ? VRControls.MoveStick.ReadValue<Vector2>().magnitude
-            : 0f;
+        var speedAmount = 0f;
+        var character = Character.localCharacter;
+        var dt = Time.deltaTime;
+
+        if (character == null || dt <= 0f)
+        {
+            hasLast = false;
+        }
+        else
+        {
+            var pos = character.transform.position;
+            if (hasLast)
+            {
+                var speed = (pos - lastPos).magnitude / dt;
+                speedAmount = Mathf.InverseLerp(MinSpeed, MaxSpeed, speed);
+            }
+            lastPos = pos;
+            hasLast = true;
+        }
 
         var turn = cfg.SmoothTurn.Value && VRControls.TurnStick != null
             ? Mathf.Abs(VRControls.TurnStick.ReadValue<Vector2>().x)
             : 0f;
 
-        var amount = Mathf.Clamp01(Mathf.Max(move, turn));
+        var amount = Mathf.Clamp01(Mathf.Max(speedAmount, turn));
         return amount * Mathf.Clamp01(cfg.VignetteStrength.Value);
     }
 
