@@ -6,8 +6,9 @@ namespace PeakVR;
 [DefaultExecutionOrder(1100)]
 internal class VRTunneling : MonoBehaviour
 {
-    private const float Distance = 0.12f;
-    private const float Coverage = 3.7f;
+    private const float Distance = 2f;
+    private const float Size = 12f;
+    private const int RenderQueue = 2900;
     private const float InTime = 0.3f;
     private const float OutTime = 1f;
     private const float HoldTime = 0.5f;
@@ -20,10 +21,11 @@ internal class VRTunneling : MonoBehaviour
     private const float MaxSpeed = 6f;
     private const float LogInterval = 0.5f;
 
-    private Transform quad;
     private MeshRenderer rend;
     private Material mat;
     private Texture2D tex;
+    private Mesh mesh;
+    private readonly Vector2[] uv = new Vector2[4];
     private float current;
     private float holdTimer;
     private float logTimer;
@@ -35,41 +37,43 @@ internal class VRTunneling : MonoBehaviour
 
     private void Build()
     {
-        var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        var col = go.GetComponent<Collider>();
-        if (col != null)
-            Object.Destroy(col);
-
-        go.name = "PeakVR Tunneling";
+        var go = new GameObject("PeakVR Tunneling");
         go.transform.SetParent(transform, false);
         go.transform.localPosition = Vector3.forward * Distance;
         go.transform.localRotation = Quaternion.identity;
-        go.transform.localScale = new Vector3(Distance * Coverage, Distance * Coverage, 1f);
+        go.transform.localScale = Vector3.one * Size;
+
+        mesh = new Mesh { name = "PeakVR Tunneling Quad" };
+        mesh.vertices = new[]
+        {
+            new Vector3(-0.5f, -0.5f, 0f),
+            new Vector3(0.5f, -0.5f, 0f),
+            new Vector3(-0.5f, 0.5f, 0f),
+            new Vector3(0.5f, 0.5f, 0f)
+        };
+        mesh.triangles = new[] { 0, 2, 1, 2, 3, 1 };
+        mesh.colors = new[] { Color.white, Color.white, Color.white, Color.white };
+        mesh.bounds = new Bounds(Vector3.zero, Vector3.one * 2f);
+        mesh.MarkDynamic();
+        ApplyUv(1f);
+
+        go.AddComponent<MeshFilter>().sharedMesh = mesh;
 
         tex = GenerateRadial(256);
 
-        var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
-        mat = new Material(shader);
-        mat.SetTexture("_BaseMap", tex);
-        mat.mainTexture = tex;
-        mat.SetFloat("_Surface", 1f);
-        mat.SetFloat("_Blend", 0f);
-        mat.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-        mat.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-        mat.SetInt("_ZWrite", 0);
-        mat.SetInt("_ZTest", (int)CompareFunction.Always);
-        mat.SetInt("_Cull", (int)CullMode.Off);
-        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        mat.renderQueue = 4000;
-        mat.SetColor("_BaseColor", new Color(0f, 0f, 0f, 0f));
+        mat = new Material(Shader.Find("UI/Default"))
+        {
+            mainTexture = tex,
+            renderQueue = RenderQueue
+        };
+        mat.SetInt("unity_GUIZTestMode", (int)CompareFunction.Always);
+        mat.SetColor("_Color", new Color(0f, 0f, 0f, MaxAlpha));
 
-        rend = go.GetComponent<MeshRenderer>();
+        rend = go.AddComponent<MeshRenderer>();
         rend.sharedMaterial = mat;
         rend.shadowCastingMode = ShadowCastingMode.Off;
         rend.receiveShadows = false;
         rend.enabled = false;
-
-        quad = go.transform;
     }
 
     private void LateUpdate()
@@ -100,13 +104,18 @@ internal class VRTunneling : MonoBehaviour
         if (!visible)
             return;
 
-        mat.SetColor("_BaseColor", new Color(0f, 0f, 0f, MaxAlpha));
-
         var maxTiling = Mathf.Lerp(MinClose, MaxClose, Mathf.Clamp01(cfg.TunnelingStrength.Value));
-        var tiling = Mathf.Lerp(1f, maxTiling, current);
-        var offset = 0.5f * (1f - tiling);
-        mat.SetTextureScale("_BaseMap", new Vector2(tiling, tiling));
-        mat.SetTextureOffset("_BaseMap", new Vector2(offset, offset));
+        ApplyUv(Mathf.Lerp(1f, maxTiling, current));
+    }
+
+    private void ApplyUv(float tiling)
+    {
+        var o = 0.5f * (1f - tiling);
+        uv[0] = new Vector2(o, o);
+        uv[1] = new Vector2(o + tiling, o);
+        uv[2] = new Vector2(o, o + tiling);
+        uv[3] = new Vector2(o + tiling, o + tiling);
+        mesh.uv = uv;
     }
 
     private float SpeedAmount()
