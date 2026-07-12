@@ -8,8 +8,9 @@ internal class VRTunneling : MonoBehaviour
 {
     private const float Distance = 0.12f;
     private const float Coverage = 3.7f;
-    private const float FadeInSpeed = 6f;
-    private const float FadeOutSpeed = 3.5f;
+    private const float InTime = 0.3f;
+    private const float OutTime = 1f;
+    private const float HoldTime = 0.5f;
     private const float MaxAlpha = 1f;
     private const float MinClose = 1.5f;
     private const float MaxClose = 3f;
@@ -24,6 +25,7 @@ internal class VRTunneling : MonoBehaviour
     private Material mat;
     private Texture2D tex;
     private float current;
+    private float holdTimer;
     private float logTimer;
 
     private void Start()
@@ -77,8 +79,19 @@ internal class VRTunneling : MonoBehaviour
 
         var cfg = Plugin.Config;
         var target = cfg.MovementTunneling.Value ? SpeedAmount() : 0f;
-        var fade = target > current ? FadeInSpeed : FadeOutSpeed;
-        current = Mathf.MoveTowards(current, target, fade * Time.deltaTime);
+        var dt = Time.deltaTime;
+
+        if (target >= current)
+        {
+            holdTimer = 0f;
+            current = Mathf.MoveTowards(current, target, dt / InTime);
+        }
+        else
+        {
+            holdTimer += dt;
+            if (holdTimer >= HoldTime)
+                current = Mathf.MoveTowards(current, target, dt / OutTime);
+        }
 
         var visible = current > 0.002f;
         if (rend.enabled != visible)
@@ -87,7 +100,7 @@ internal class VRTunneling : MonoBehaviour
         if (!visible)
             return;
 
-        mat.SetColor("_BaseColor", new Color(0f, 0f, 0f, current * MaxAlpha));
+        mat.SetColor("_BaseColor", new Color(0f, 0f, 0f, MaxAlpha));
 
         var maxTiling = Mathf.Lerp(MinClose, MaxClose, Mathf.Clamp01(cfg.TunnelingStrength.Value));
         var tiling = Mathf.Lerp(1f, maxTiling, current);
