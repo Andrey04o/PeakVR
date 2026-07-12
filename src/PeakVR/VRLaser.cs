@@ -17,7 +17,11 @@ internal class VRLaser : MonoBehaviour
 
     private GameObject hovered;
     private GameObject pressTarget;
+    private GameObject dragTarget;
+    private bool dragging;
     private bool wasPressed;
+    private Vector2 pressScreenPos;
+    private RaycastResult pressRaycast;
 
     private Image reticle;
     private Canvas reticleCanvas;
@@ -50,10 +54,15 @@ internal class VRLaser : MonoBehaviour
         var eventData = new TrackedDeviceEventData(EventSystem.current)
         {
             layerMask = ~0,
-            rayPoints = new List<Vector3> { origin, origin + dir * MaxDistance }
+            rayPoints = new List<Vector3> { origin, origin + dir * MaxDistance },
+            button = PointerEventData.InputButton.Left
         };
 
-        var hitGo = RaycastTopmost(eventData);
+        var hasHit = RaycastTopmost(eventData, out var hit);
+        var hitGo = hasHit ? hit.gameObject : null;
+
+        eventData.pointerCurrentRaycast = hit;
+        eventData.position = hasHit ? hit.screenPosition : pressScreenPos;
 
         var enterTarget = hitGo != null ? ExecuteEvents.GetEventHandler<IPointerEnterHandler>(hitGo) : null;
         if (enterTarget != hovered)
@@ -69,35 +78,85 @@ internal class VRLaser : MonoBehaviour
 
         if (pressed && !wasPressed)
         {
+            pressScreenPos = eventData.position;
+            pressRaycast = hit;
+
+            eventData.pressPosition = pressScreenPos;
+            eventData.pointerPressRaycast = hit;
+
             pressTarget = hitGo != null ? ExecuteEvents.GetEventHandler<IPointerClickHandler>(hitGo) : null;
+            dragTarget = hitGo != null ? ExecuteEvents.GetEventHandler<IDragHandler>(hitGo) : null;
+            dragging = false;
+
             eventData.pointerPress = pressTarget;
+            eventData.pointerDrag = dragTarget;
+            eventData.useDragThreshold = true;
+
             if (pressTarget != null)
                 ExecuteEvents.Execute(pressTarget, eventData, ExecuteEvents.pointerDownHandler);
+            if (dragTarget != null)
+                ExecuteEvents.Execute(dragTarget, eventData, ExecuteEvents.initializePotentialDrag);
+        }
+        else if (pressed && wasPressed)
+        {
+            eventData.pressPosition = pressScreenPos;
+            eventData.pointerPressRaycast = pressRaycast;
+            eventData.pointerPress = pressTarget;
+            eventData.pointerDrag = dragTarget;
+            eventData.delta = eventData.position - pressScreenPos;
+
+            if (dragTarget != null && !dragging)
+            {
+                var moved = (eventData.position - pressScreenPos).sqrMagnitude;
+                var threshold = EventSystem.current.pixelDragThreshold;
+                if (!eventData.useDragThreshold || moved >= threshold * threshold)
+                {
+                    dragging = true;
+                    eventData.dragging = true;
+                    ExecuteEvents.Execute(dragTarget, eventData, ExecuteEvents.beginDragHandler);
+                }
+            }
+
+            if (dragging && dragTarget != null)
+                ExecuteEvents.Execute(dragTarget, eventData, ExecuteEvents.dragHandler);
         }
         else if (!pressed && wasPressed)
         {
-            var upTarget = hitGo != null ? ExecuteEvents.GetEventHandler<IPointerClickHandler>(hitGo) : null;
+            eventData.pointerPressRaycast = pressRaycast;
+
+            if (dragging && dragTarget != null)
+                ExecuteEvents.Execute(dragTarget, eventData, ExecuteEvents.endDragHandler);
+
             if (pressTarget != null)
                 ExecuteEvents.Execute(pressTarget, eventData, ExecuteEvents.pointerUpHandler);
-            if (upTarget != null && upTarget == pressTarget)
+
+            var upTarget = hitGo != null ? ExecuteEvents.GetEventHandler<IPointerClickHandler>(hitGo) : null;
+            if (!dragging && upTarget != null && upTarget == pressTarget)
                 ExecuteEvents.Execute(upTarget, eventData, ExecuteEvents.pointerClickHandler);
+
             pressTarget = null;
+            dragTarget = null;
+            dragging = false;
         }
 
         wasPressed = pressed;
     }
 
-    private GameObject RaycastTopmost(TrackedDeviceEventData eventData)
+    private bool RaycastTopmost(TrackedDeviceEventData eventData, out RaycastResult hit)
     {
         foreach (var rc in raycasters)
         {
             results.Clear();
             rc.Raycast(eventData, results);
             if (results.Count > 0)
-                return results[0].gameObject;
+            {
+                hit = results[0];
+                return true;
+            }
         }
 
-        return null;
+        hit = default;
+        return false;
     }
 
     private void GatherRaycasters(Canvas canvas)

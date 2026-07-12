@@ -11,9 +11,12 @@ internal class VRVignette : MonoBehaviour
     private const float FadeInSpeed = 8f;
     private const float FadeOutSpeed = 4f;
     private const float MaxAlpha = 0.92f;
+    private const float ClearRadius = 0.35f;
+    private const float DarkRadius = 0.70f;
 
     private Transform quad;
     private Material mat;
+    private Texture2D tex;
     private float current;
 
     private void Start()
@@ -23,13 +26,6 @@ internal class VRVignette : MonoBehaviour
 
     private void Build()
     {
-        if (PeakAssets.Vignette == null)
-        {
-            Plugin.Log.LogWarning("[PeakVR] Vignette texture missing; movement vignette disabled");
-            enabled = false;
-            return;
-        }
-
         var go = GameObject.CreatePrimitive(PrimitiveType.Quad);
         var col = go.GetComponent<Collider>();
         if (col != null)
@@ -41,10 +37,12 @@ internal class VRVignette : MonoBehaviour
         go.transform.localRotation = Quaternion.identity;
         go.transform.localScale = new Vector3(Distance * Coverage, Distance * Coverage, 1f);
 
+        tex = GenerateRadial(256);
+
         var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
         mat = new Material(shader);
-        mat.SetTexture("_BaseMap", PeakAssets.Vignette);
-        mat.mainTexture = PeakAssets.Vignette;
+        mat.SetTexture("_BaseMap", tex);
+        mat.mainTexture = tex;
         mat.SetFloat("_Surface", 1f);
         mat.SetFloat("_Blend", 0f);
         mat.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
@@ -96,5 +94,34 @@ internal class VRVignette : MonoBehaviour
 
         var amount = Mathf.Clamp01(Mathf.Max(move, turn));
         return amount * Mathf.Clamp01(cfg.VignetteStrength.Value);
+    }
+
+    private static Texture2D GenerateRadial(int size)
+    {
+        var t = new Texture2D(size, size, TextureFormat.RGBA32, false, true)
+        {
+            wrapMode = TextureWrapMode.Clamp,
+            filterMode = FilterMode.Bilinear
+        };
+
+        var px = new Color32[size * size];
+        var half = (size - 1) * 0.5f;
+
+        for (var y = 0; y < size; y++)
+        {
+            for (var x = 0; x < size; x++)
+            {
+                var dx = (x - half) / half;
+                var dy = (y - half) / half;
+                var r = Mathf.Sqrt(dx * dx + dy * dy);
+                var a = Mathf.Clamp01((r - ClearRadius) / (DarkRadius - ClearRadius));
+                a = a * a * (3f - 2f * a);
+                px[y * size + x] = new Color32(0, 0, 0, (byte)(a * 255f));
+            }
+        }
+
+        t.SetPixels32(px);
+        t.Apply(false, true);
+        return t;
     }
 }
