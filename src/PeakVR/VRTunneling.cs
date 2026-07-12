@@ -8,13 +8,13 @@ internal class VRTunneling : MonoBehaviour
 {
     private const float Distance = 2f;
     private const float Size = 12f;
-    private const int RenderQueue = 2900;
+    private const int RenderQueue = 4000;
     private const float InTime = 0.3f;
     private const float OutTime = 1f;
     private const float HoldTime = 0.5f;
     private const float MaxAlpha = 1f;
-    private const float MinClose = 1.5f;
-    private const float MaxClose = 3f;
+    private const float MinClose = 2f;
+    private const float MaxClose = 4.5f;
     private const float ClearRadius = 0.35f;
     private const float DarkRadius = 0.70f;
     private const float MinSpeed = 0.6f;
@@ -80,6 +80,15 @@ internal class VRTunneling : MonoBehaviour
     {
         if (mat == null)
             return;
+
+        if (VRPointer.Canvas != null)
+        {
+            current = 0f;
+            holdTimer = 0f;
+            if (rend.enabled)
+                rend.enabled = false;
+            return;
+        }
 
         var cfg = Plugin.Config;
         var target = cfg.MovementTunneling.Value ? SpeedAmount() : 0f;
