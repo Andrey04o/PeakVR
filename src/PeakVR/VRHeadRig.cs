@@ -17,7 +17,12 @@ internal class VRHeadRig : MonoBehaviour
     private const float MinGap = 0.02f;
     private const float RecenterSpeed = 2f;
 
+    private const float MoveDeadzone = 0.12f;
+    private const float WalkInputGain = 0.6f;
+    private const float MaxWalkInput = 0.5f;
+
     public static bool RoomMoving;
+    public static Vector2 RoomInput;
 
     private Camera cam;
     private Vector3 hmdOffset;
@@ -27,6 +32,10 @@ internal class VRHeadRig : MonoBehaviour
     private Vector2 originOffset;
     private Vector2 prevAnchor;
     private bool hasPrev;
+
+    private Vector2 prevHmdRawXZ;
+    private bool physInit;
+    private Vector2 physVel;
 
     private void Awake()
     {
@@ -80,6 +89,7 @@ internal class VRHeadRig : MonoBehaviour
         var scaledHmd = transform.rotation * (hmdOffset * HandScale);
         var anchorXZ = new Vector2(anchor.x, anchor.z);
 
+        UpdatePhysVel();
         CompensateOrigin(anchorXZ, new Vector2(scaledHmd.x, scaledHmd.z));
 
         transform.position = new Vector3(
@@ -88,6 +98,32 @@ internal class VRHeadRig : MonoBehaviour
             anchor.z + originOffset.y);
 
         RoomScale(character, new Vector2(scaledHmd.x, scaledHmd.z));
+    }
+
+    private void UpdatePhysVel()
+    {
+        var raw = new Vector2(hmdOffset.x, hmdOffset.z);
+        physVel = physInit ? (raw - prevHmdRawXZ) / Mathf.Max(Time.deltaTime, 1e-4f) : Vector2.zero;
+        prevHmdRawXZ = raw;
+        physInit = true;
+    }
+
+    private void ComputeWalkInput(Character character)
+    {
+        if (physVel.magnitude < MoveDeadzone)
+            return;
+
+        var world = transform.rotation * new Vector3(physVel.x, 0f, physVel.y);
+        var look = character.data.lookDirection;
+        look.y = 0f;
+        if (look.sqrMagnitude < 1e-4f)
+            return;
+        look.Normalize();
+
+        var right = new Vector3(look.z, 0f, -look.x);
+        var input = new Vector2(Vector3.Dot(world, right), Vector3.Dot(world, look));
+
+        RoomInput = Vector2.ClampMagnitude(input * WalkInputGain, MaxWalkInput);
     }
 
     private void CompensateOrigin(Vector2 anchorXZ, Vector2 hmdXZ)
@@ -115,6 +151,7 @@ internal class VRHeadRig : MonoBehaviour
     private void RoomScale(Character character, Vector2 hmdXZ)
     {
         RoomMoving = false;
+        RoomInput = Vector2.zero;
 
         var gap = originOffset + hmdXZ;
         var gapMag = gap.magnitude;
@@ -123,6 +160,7 @@ internal class VRHeadRig : MonoBehaviour
         if (stick > StickDeadzone)
         {
             originOffset = Vector2.MoveTowards(originOffset, originOffset - gap, RecenterSpeed * Time.deltaTime);
+            ComputeWalkInput(character);
             return;
         }
 
