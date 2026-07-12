@@ -11,6 +11,7 @@ internal static class UIOverlay
     private static readonly int ZTestUI = Shader.PropertyToID("unity_GUIZTestMode");
     private static readonly int ZTestTMP = Shader.PropertyToID("_ZTestMode");
     private const int Always = (int)CompareFunction.Always;
+    private const int Foreground = 3005;
 
     private static readonly HashSet<Graphic> Handled = new HashSet<Graphic>();
     private static readonly List<Material> Materials = new List<Material>();
@@ -61,6 +62,16 @@ internal static class UIOverlay
 
         mat.SetInt(ZTestUI, Always);
         mat.SetInt(ZTestTMP, Always);
+
+        if (!InStencilMask(g))
+            mat.renderQueue = Foreground;
+
         Materials.Add(mat);
+    }
+
+    private static bool InStencilMask(Graphic g)
+    {
+        var mask = g.GetComponentInParent<Mask>();
+        return mask != null && mask.enabled;
     }
 }

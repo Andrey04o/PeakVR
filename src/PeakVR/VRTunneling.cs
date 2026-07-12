@@ -13,8 +13,8 @@ internal class VRTunneling : MonoBehaviour
     private const float OutTime = 1f;
     private const float HoldTime = 0.5f;
     private const float MaxAlpha = 1f;
-    private const float MinClose = 2f;
-    private const float MaxClose = 4.5f;
+    private const float MinClose = 7f;
+    private const float MaxClose = 7f;
     private const float ClearRadius = 0.35f;
     private const float DarkRadius = 0.70f;
     private const float MinSpeed = 0.6f;
