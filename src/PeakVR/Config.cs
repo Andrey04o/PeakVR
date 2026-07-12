@@ -24,27 +24,27 @@ public class Config
         AssemblyPath = assemblyPath;
         File = file;
 
-        OpenXRRuntime = file.Bind("VR", "OpenXRRuntime", "System Default",
+        OpenXRRuntime = file.Bind("VR", "OpenXR Runtime", "System Default",
             new ConfigDescription(
                 "The OpenXR runtime (headset software) that VR launches with. Restart the game to apply.",
                 new AcceptableValueList<string>(OpenXR.GetRuntimeChoices().ToArray())));
 
-        EnableVerboseLogging = file.Bind("VR", "VerboseLogging", false,
+        EnableVerboseLogging = file.Bind("VR", "Verbose Logging", false,
             "Enables verbose debug logging during OpenXR initialization.");
 
-        SmoothTurn = file.Bind("Comfort", "SmoothTurn", false,
+        SmoothTurn = file.Bind("Comfort", "Smooth Turn", false,
             "Turn smoothly with the right stick instead of snapping by a fixed angle.");
-        SnapTurnAngle = file.Bind("Comfort", "SnapTurnAngle", 45f,
+        SnapTurnAngle = file.Bind("Comfort", "Snap Turn Angle", 45f,
             new ConfigDescription("Degrees rotated per snap turn.",
                 new AcceptableValueRange<float>(15f, 90f)));
-        SmoothTurnSpeed = file.Bind("Comfort", "SmoothTurnSpeed", 120f,
+        SmoothTurnSpeed = file.Bind("Comfort", "Smooth Turn Speed", 120f,
             new ConfigDescription("Smooth turn speed in degrees per second.",
                 new AcceptableValueRange<float>(45f, 240f)));
 
-        MovementTunneling = file.Bind("Comfort", "MovementTunneling", true,
+        MovementTunneling = file.Bind("Comfort", "Movement Tunneling", true,
             "Close a tunnel around your view while moving or falling to reduce motion sickness.");
-        TunnelingStrength = file.Bind("Comfort", "TunnelingStrength", 1f,
-            new ConfigDescription("How much the tunnel closes in (smaller circle) at full speed.",
+        TunnelingStrength = file.Bind("Comfort", "Tunneling Strength", 1f,
+            new ConfigDescription("How far the tunnel closes in (smaller circle). 0 disables it.",
                 new AcceptableValueRange<float>(0f, 1f)));
 
         OpenXRRuntimeFile = file.Bind("Internal", "OpenXRRuntimeFile", "",
