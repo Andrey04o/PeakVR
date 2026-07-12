@@ -15,6 +15,7 @@ internal static class VRArmIKPatch
     private static readonly Vector3 ElbowSeedLocal = new(0f, -0.7f, -0.5f);
     private const float ElbowHintDistance = 0.3f;
     private const float HandInfluence = 0.35f;
+    private const float MinElbowAngle = 40f;
 
     [HarmonyPatch("HandleIK")]
     [HarmonyPostfix]
@@ -46,6 +47,9 @@ internal static class VRArmIKPatch
         var targetL = refs.ikLeft.data.root.position + ArmScale * (VRHands.Left.position - cam.position - shoulderL);
         var targetR = refs.ikRight.data.root.position + ArmScale * (VRHands.Right.position - cam.position - shoulderR);
 
+        targetL = ClampMinElbowBend(refs.ikLeft, targetL);
+        targetR = ClampMinElbowBend(refs.ikRight, targetR);
+
         refs.IKHandTargetLeft.position = targetL;
         refs.IKHandTargetRight.position = targetR;
 
@@ -58,6 +62,30 @@ internal static class VRArmIKPatch
         refs.ikRig.weight = 1f;
         refs.ikLeft.weight = 1f;
         refs.ikRight.weight = 1f;
+    }
+
+    private static Vector3 ClampMinElbowBend(TwoBoneIKConstraint ik, Vector3 target)
+    {
+        var root = ik.data.root;
+        var mid = ik.data.mid;
+        var tip = ik.data.tip;
+        if (root == null || mid == null || tip == null)
+            return target;
+
+        var upper = Vector3.Distance(root.position, mid.position);
+        var fore = Vector3.Distance(mid.position, tip.position);
+        if (upper < 1e-4f || fore < 1e-4f)
+            return target;
+
+        var cos = Mathf.Cos(MinElbowAngle * Mathf.Deg2Rad);
+        var minDist = Mathf.Sqrt(Mathf.Max(0f, upper * upper + fore * fore - 2f * upper * fore * cos));
+
+        var toHand = target - root.position;
+        var dist = toHand.magnitude;
+        if (dist >= minDist || dist < 1e-4f)
+            return target;
+
+        return root.position + toHand * (minDist / dist);
     }
 
     private static void SetElbowHint(TwoBoneIKConstraint ik, Vector3 handPos, Quaternion ctrlRot)
