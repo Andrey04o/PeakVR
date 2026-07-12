@@ -8,9 +8,9 @@ internal class VRHeadRig : MonoBehaviour
     public static float HandScale = 1f;
 
     private const float ForwardOffset = 0f;
-    private const float SnapAngle = 45f;
     private const float SnapThreshold = 0.7f;
     private const float SnapReleaseThreshold = 0.3f;
+    private const float SmoothDeadzone = 0.15f;
 
     private Camera cam;
     private Vector3 hmdOffset;
@@ -28,19 +28,26 @@ internal class VRHeadRig : MonoBehaviour
             hmdOffset = cam.transform.localPosition;
 
         RenderDiagnostics.Tick(cam);
-        HandleSnapTurn();
+        HandleTurn();
     }
 
-    private void HandleSnapTurn()
+    private void HandleTurn()
     {
         if (VRControls.TurnStick == null)
             return;
 
         var x = VRControls.TurnStick.ReadValue<Vector2>().x;
 
+        if (Plugin.Config.SmoothTurn.Value)
+        {
+            if (Mathf.Abs(x) > SmoothDeadzone)
+                turnYaw += x * Plugin.Config.SmoothTurnSpeed.Value * Time.deltaTime;
+            return;
+        }
+
         if (snapReady && Mathf.Abs(x) > SnapThreshold)
         {
-            turnYaw += Mathf.Sign(x) * SnapAngle;
+            turnYaw += Mathf.Sign(x) * Plugin.Config.SnapTurnAngle.Value;
             snapReady = false;
         }
         else if (Mathf.Abs(x) < SnapReleaseThreshold)
