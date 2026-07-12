@@ -10,6 +10,7 @@ internal static class PeakAssets
     public static Sprite Reticle { get; private set; }
     public static GameObject Controller { get; private set; }
     public static Texture2D Vignette { get; private set; }
+    public static Shader MirrorView { get; private set; }
 
     public static void Load()
     {
@@ -28,7 +29,8 @@ internal static class PeakAssets
         Reticle = bundle.LoadAsset<Sprite>("reticlevr");
         Controller = bundle.LoadAsset<GameObject>("UniversalController");
         Vignette = bundle.LoadAsset<Texture2D>("vignette");
+        MirrorView = bundle.LoadAsset<Shader>("XRMirrorView");
 
-        Plugin.Log.LogInfo($"[PeakVR] Bundle loaded (reticle={Reticle != null}, controller={Controller != null}, vignette={Vignette != null})");
+        Plugin.Log.LogInfo($"[PeakVR] Bundle loaded (reticle={Reticle != null}, controller={Controller != null}, vignette={Vignette != null}, mirror={MirrorView != null})");
     }
 }

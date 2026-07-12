@@ -64,6 +64,7 @@ public partial class Plugin : BaseUnityPlugin
         InitializeVR();
 
         PeakAssets.Load();
+        XRMirror.Setup();
         VRControls.Init();
 
         new Harmony(Id).PatchAll(typeof(Plugin).Assembly);
@@ -76,6 +77,14 @@ public partial class Plugin : BaseUnityPlugin
         // Log our awake here so we can see it in LogOutput.log file
         Log.LogInfo($"Plugin {Name} is loaded!");
         //Peak.UI.KickButton kickButton;
+    }
+
+    private int mirrorFrame;
+
+    private void Update()
+    {
+        if (++mirrorFrame % 300 == 0)
+            XRMirror.Assert();
     }
 
     private bool PreloadRuntimeDependencies()
