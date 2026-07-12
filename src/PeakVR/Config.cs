@@ -43,7 +43,7 @@ public class Config
 
         MovementTunneling = file.Bind("Comfort", "Movement Tunneling", true,
             "Close a tunnel around your view while moving or falling to reduce motion sickness.");
-        TunnelingStrength = file.Bind("Comfort", "Tunneling Strength", 1f,
+        TunnelingStrength = file.Bind("Comfort", "Tunneling Strength", 0.7f,
             new ConfigDescription("How far the tunnel closes in (smaller circle). 0 disables it.",
                 new AcceptableValueRange<float>(0f, 1f)));
 
