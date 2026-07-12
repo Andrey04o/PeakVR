@@ -269,6 +269,50 @@ internal static class OpenXR
         return Internal_GetRuntimeVersion(out major, out minor, out patch);
     }
 
+    private static List<KeyValuePair<string, string>> runtimeCache;
+
+    private static List<KeyValuePair<string, string>> RuntimeList()
+    {
+        if (runtimeCache != null)
+            return runtimeCache;
+
+        runtimeCache = new List<KeyValuePair<string, string>>();
+
+        try
+        {
+            foreach (var rt in GetRuntimes())
+                runtimeCache.Add(new KeyValuePair<string, string>(rt.Name ?? "Unknown", rt.Path ?? ""));
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning($"Failed to enumerate OpenXR runtimes: {ex.Message}");
+        }
+
+        return runtimeCache;
+    }
+
+    public static List<string> GetRuntimeChoices()
+    {
+        var choices = new List<string> { "System Default" };
+
+        foreach (var rt in RuntimeList())
+            choices.Add(rt.Key);
+
+        return choices;
+    }
+
+    public static string ResolveRuntimePath(string name)
+    {
+        if (string.IsNullOrEmpty(name) || name == "System Default")
+            return "";
+
+        foreach (var rt in RuntimeList())
+            if (rt.Key == name)
+                return rt.Value;
+
+        return "";
+    }
+
     public class Runtimes(Runtime[] runtimes) : IReadOnlyCollection<Runtime>
     {
         public Runtime? Default => runtimes.Select(rt => (Runtime?)rt).FirstOrDefault(rt => rt.Value.Default);

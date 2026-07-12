@@ -22,7 +22,7 @@ namespace PeakVR;
 // NuGet package, and it will generate the BepInPlugin attribute for you!
 // For more info, see https://github.com/Hamunii/BepInEx.AutoPlugin
 [BepInAutoPlugin]
-[BepInDependency("com.pharmacomaniac.settingsextenderforked", BepInDependency.DependencyFlags.SoftDependency)]
+[BepInDependency("com.github.PEAKModding.PEAKLib.ModConfig", BepInDependency.DependencyFlags.SoftDependency)]
 public partial class Plugin : BaseUnityPlugin
 {
     internal static ManualLogSource Log { get; private set; } = null!;
@@ -67,8 +67,6 @@ public partial class Plugin : BaseUnityPlugin
         VRControls.Init();
 
         new Harmony(Id).PatchAll(typeof(Plugin).Assembly);
-
-        StartCoroutine(RegisterSettings());
         // BepInEx also gives us a config file for easy configuration.
         // See https://lethal.wiki/dev/intermediate/custom-configs
 
@@ -78,22 +76,6 @@ public partial class Plugin : BaseUnityPlugin
         // Log our awake here so we can see it in LogOutput.log file
         Log.LogInfo($"Plugin {Name} is loaded!");
         //Peak.UI.KickButton kickButton;
-    }
-
-    private static System.Collections.IEnumerator RegisterSettings()
-    {
-        while (SettingsHandler.Instance == null)
-            yield return null;
-
-        try
-        {
-            SettingsHandler.Instance.AddSetting(new OpenXRRuntimeSetting());
-            Log.LogInfo("Registered PeakVR settings");
-        }
-        catch (Exception ex)
-        {
-            Log.LogWarning($"Failed to register PeakVR settings (SettingsExtender missing?): {ex.Message}");
-        }
     }
 
     private bool PreloadRuntimeDependencies()
@@ -152,35 +134,6 @@ public partial class Plugin : BaseUnityPlugin
         else
             LCVR.Logger.LogError("Could not get OpenXR runtime info?");
 
-        //HarmonyPatcher.PatchVR();
-
-        //LCVR.Logger.LogDebug("Inserted VR patches using Harmony");
-
-        /*
-        // Change HDRP settings
-        var asset = QualitySettings.renderPipeline as HDRenderPipelineAsset;
-        var settings = asset!.currentPlatformRenderPipelineSettings;
-
-        settings.dynamicResolutionSettings.enabled = Config.EnableDynamicResolution.Value;
-        settings.dynamicResolutionSettings.dynResType = DynamicResolutionType.Hardware;
-        settings.dynamicResolutionSettings.upsampleFilter = Config.DynamicResolutionUpscaleFilter.Value;
-        settings.dynamicResolutionSettings.minPercentage = settings.dynamicResolutionSettings.maxPercentage =
-            Config.DynamicResolutionPercentage.Value;
-        settings.supportMotionVectors = true;
-
-        settings.xrSettings.occlusionMesh = Config.EnableOcclusionMesh.Value;
-        settings.xrSettings.singlePass = false;
-
-        settings.lodBias = new FloatScalableSetting([Config.LODBias.Value, Config.LODBias.Value, Config.LODBias.Value],
-            ScalableSettingSchemaId.With3Levels);
-
-        asset.currentPlatformRenderPipelineSettings = settings;
-
-        VolumeManager.RegisterCustomPostProcessShaders();
-
-        // Input settings
-        InputSystem.settings.defaultButtonPressPoint = Config.ButtonPressPoint.Value;
-        */
         return true;
     }
 }

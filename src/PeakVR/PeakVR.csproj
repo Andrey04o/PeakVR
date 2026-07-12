@@ -28,10 +28,4 @@
   need to add it as a dependency in your manifest.json, of course
   -->
 
-  <ItemGroup>
-    <Reference Include="SettingsExtender" Private="false">
-      <HintPath>$(PeakPluginsDir)/pharmacomaniac-SettingsExtenderForked/pharmacomaniac-SettingsExtenderForked/SettingsExtender.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
 </Project>
