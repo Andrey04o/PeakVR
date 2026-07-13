@@ -47,6 +47,7 @@ internal static class InGameCameraPatch
         rig.AddComponent<VRInteractPrompt>();
         rig.AddComponent<VRShoulderTwist>();
         rig.AddComponent<VRHeadRoll>();
+        rig.AddComponent<VRItemAim>();
 
         VRHands.Create(rig.transform);
 
