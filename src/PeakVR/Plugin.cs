@@ -27,6 +27,7 @@ public partial class Plugin : BaseUnityPlugin
 {
     internal static ManualLogSource Log { get; private set; } = null!;
     public new static LCVR.Config Config { get; private set; }
+    public static bool VrEnabled { get; private set; } = true;
     private void Awake()
     {
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
@@ -52,8 +53,14 @@ public partial class Plugin : BaseUnityPlugin
         var args = Environment.GetCommandLineArgs();
         var disableVr = args.Contains("--disable-vr", StringComparer.OrdinalIgnoreCase);
 
-        if (disableVr) {
-            Log.LogWarning("VR has ben disabled by the '--disable-vr' command line flag");
+        VRNetworking.CreateReceiver();
+
+        if (disableVr)
+        {
+            VrEnabled = false;
+            Log.LogWarning("[PeakVR] VR disabled by the '--disable-vr' command line flag — running in flat (non-VR) mode; no VR init or patches applied.");
+            Log.LogInfo($"Plugin {Name} is loaded (VR disabled)!");
+            return;
         }
 
         if (!PreloadRuntimeDependencies()) {
@@ -61,7 +68,13 @@ public partial class Plugin : BaseUnityPlugin
             return;
         }
 
-        InitializeVR();
+        if (!InitializeVR())
+        {
+            VrEnabled = false;
+            Log.LogWarning("[PeakVR] VR failed to initialize (no headset or OpenXR runtime?) — running in flat (non-VR) mode; no VR patches applied.");
+            Log.LogInfo($"Plugin {Name} is loaded (VR unavailable)!");
+            return;
+        }
 
         PeakAssets.Load();
         XRMirror.Setup();
@@ -83,6 +96,9 @@ public partial class Plugin : BaseUnityPlugin
 
     private void Update()
     {
+        if (!VrEnabled)
+            return;
+
         if (++mirrorFrame % 300 == 0)
             XRMirror.Assert();
     }
