@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace PeakVR;
 
@@ -21,8 +22,16 @@ internal class VRHeadRig : MonoBehaviour
     private const float WalkInputGain = 0.6f;
     private const float MaxWalkInput = 0.5f;
 
+    private const float CrouchRatio = 0.5f;
+    private const float CrouchExitRatio = 0.6f;
+
+    private const float ClampDown = 0.7f;
+    private const float ClampUp = 0.3f;
+    private const float RefRate = 1.5f;
+
     public static bool RoomMoving;
     public static Vector2 RoomInput;
+    public static bool Crouching;
 
     private Camera cam;
     private Vector3 hmdOffset;
@@ -37,6 +46,11 @@ internal class VRHeadRig : MonoBehaviour
     private bool physInit;
     private Vector2 physVel;
 
+    private float hmdRef;
+    private float standingHmdY;
+    private bool heightCalibrated;
+    private bool resetHeight;
+
     private void Awake()
     {
         cam = GetComponentInChildren<Camera>();
@@ -49,6 +63,9 @@ internal class VRHeadRig : MonoBehaviour
 
         RenderDiagnostics.Tick(cam);
         HandleTurn();
+
+        if (Keyboard.current != null && Keyboard.current.f5Key.wasPressedThisFrame)
+            resetHeight = true;
     }
 
     private void HandleTurn()
@@ -94,10 +111,41 @@ internal class VRHeadRig : MonoBehaviour
 
         transform.position = new Vector3(
             anchor.x + originOffset.x,
-            anchor.y - scaledHmd.y,
+            ComputeRigY(anchor),
             anchor.z + originOffset.y);
 
         RoomScale(character, new Vector2(scaledHmd.x, scaledHmd.z));
+        HandleCrouch();
+    }
+
+    private float ComputeRigY(Vector3 anchor)
+    {
+        if (!heightCalibrated || resetHeight)
+        {
+            standingHmdY = hmdOffset.y;
+            hmdRef = hmdOffset.y;
+            heightCalibrated = true;
+            resetHeight = false;
+        }
+        else
+        {
+            hmdRef = Mathf.Lerp(hmdRef, hmdOffset.y, RefRate * Time.deltaTime);
+        }
+
+        var offset = Mathf.Clamp(hmdOffset.y - hmdRef, -ClampDown, ClampUp);
+        return anchor.y + offset - hmdOffset.y;
+    }
+
+    private void HandleCrouch()
+    {
+        if (!heightCalibrated || standingHmdY < 0.1f)
+            return;
+
+        var ratio = hmdOffset.y / standingHmdY;
+        if (ratio < CrouchRatio)
+            Crouching = true;
+        else if (ratio > CrouchExitRatio)
+            Crouching = false;
     }
 
     private void UpdatePhysVel()

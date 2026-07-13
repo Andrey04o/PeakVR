@@ -49,6 +49,9 @@ internal static class InteractionInputPatch
         if (VRControls.Sprint.IsPressed())
             __instance.sprintIsPressed = true;
 
+        if (VRHeadRig.Crouching)
+            __instance.crouchIsPressed = true;
+
         if (VRControls.Stash.WasPressedThisFrame())
             __instance.unselectSlotWasPressed = true;
 
