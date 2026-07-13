@@ -42,6 +42,9 @@ internal static class MenuCanvasPatch
         VRPointer.Canvas = canvas;
         VRPointer.Raycaster = raycaster;
 
+        if (__instance.GetComponent<VRMenuPopup>() == null)
+            __instance.gameObject.AddComponent<VRMenuPopup>();
+
         var head = cam.transform;
         var fwd = head.forward;
         fwd.y = 0f;

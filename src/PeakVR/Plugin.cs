@@ -98,11 +98,48 @@ public partial class Plugin : BaseUnityPlugin
 
     private void Update()
     {
+        if (Keyboard.current != null && Keyboard.current.f1Key.wasPressedThisFrame)
+            DumpCanvases();
+
         if (!VrEnabled)
             return;
 
         if (++mirrorFrame % 300 == 0)
             XRMirror.Assert();
+    }
+
+    private static void DumpCanvases()
+    {
+        Log.LogInfo("[PeakVR][Canvas] ===== active canvases =====");
+        foreach (var c in FindObjectsByType<UnityEngine.Canvas>(UnityEngine.FindObjectsSortMode.None))
+            Log.LogInfo($"[PeakVR][Canvas] mode={c.renderMode} sort={c.sortingOrder} enabled={c.isActiveAndEnabled} path={CanvasPath(c.transform)}");
+
+        var gui = GUIManager.instance;
+        if (gui == null)
+            return;
+
+        Log.LogInfo("[PeakVR][HUD] ===== hud elements =====");
+        Log.LogInfo($"[PeakVR][HUD] staminaGroup={CanvasPath(gui.staminaCanvasGroup != null ? gui.staminaCanvasGroup.transform : null)}");
+        Log.LogInfo($"[PeakVR][HUD] bar={CanvasPath(gui.bar != null ? gui.bar.transform : null)}");
+        if (gui.items != null)
+            for (var i = 0; i < gui.items.Length; i++)
+                Log.LogInfo($"[PeakVR][HUD] item[{i}]={CanvasPath(gui.items[i] != null ? gui.items[i].transform : null)}");
+        Log.LogInfo($"[PeakVR][HUD] backpack={CanvasPath(gui.backpack != null ? gui.backpack.transform : null)}");
+        Log.LogInfo($"[PeakVR][HUD] temporaryItem={CanvasPath(gui.temporaryItem != null ? gui.temporaryItem.transform : null)}");
+    }
+
+    private static string CanvasPath(UnityEngine.Transform t)
+    {
+        if (t == null)
+            return "<null>";
+
+        var path = t.name;
+        while (t.parent != null)
+        {
+            t = t.parent;
+            path = t.name + "/" + path;
+        }
+        return path;
     }
 
     private static void ApplyRemoteOnlyPatches()
