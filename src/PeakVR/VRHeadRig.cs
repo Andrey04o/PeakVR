@@ -25,10 +25,12 @@ internal class VRHeadRig : MonoBehaviour
     private const float CrouchRatio = 0.65f;
     private const float CrouchExitRatio = 0.72f;
 
-    private const float FreeRadius = 0.2f;
+    private const float FreeRadius = 0.1f;
     private const float ClampDown = 0.8f;
     private const float ClampUp = 0.4f;
     private const float RefRate = 2.5f;
+    private const float CrouchCenter = 0.1f;
+    private const float CenterLerpRate = 4f;
 
     public static bool RoomMoving;
     public static Vector2 RoomInput;
@@ -49,6 +51,7 @@ internal class VRHeadRig : MonoBehaviour
 
     private float hmdRef;
     private float standingHmdY;
+    private float crouchCenter;
     private bool heightCalibrated;
     private bool resetHeight;
 
@@ -137,8 +140,10 @@ internal class VRHeadRig : MonoBehaviour
                 hmdRef = Mathf.Lerp(hmdRef, hmdOffset.y + FreeRadius, RefRate * Time.deltaTime);
         }
 
+        crouchCenter = Mathf.Lerp(crouchCenter, Crouching ? -CrouchCenter : 0f, CenterLerpRate * Time.deltaTime);
+
         var offset = Mathf.Clamp(hmdOffset.y - hmdRef, -ClampDown, ClampUp);
-        return anchor.y + offset - hmdOffset.y;
+        return anchor.y + crouchCenter + offset - hmdOffset.y;
     }
 
     private void HandleCrouch()
