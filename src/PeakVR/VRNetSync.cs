@@ -4,7 +4,7 @@ namespace PeakVR;
 
 internal class VRNetSync : MonoBehaviour
 {
-    private const float SendInterval = 1f / 15f;
+    private const float SendInterval = 1f / 20f;
 
     private float sinceSend;
 

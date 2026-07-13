@@ -58,7 +58,8 @@ public partial class Plugin : BaseUnityPlugin
         if (disableVr)
         {
             VrEnabled = false;
-            Log.LogWarning("[PeakVR] VR disabled by the '--disable-vr' command line flag — running in flat (non-VR) mode; no VR init or patches applied.");
+            ApplyRemoteOnlyPatches();
+            Log.LogWarning("[PeakVR] VR disabled by the '--disable-vr' command line flag — running in flat (non-VR) mode; only remote-VR-render patches applied.");
             Log.LogInfo($"Plugin {Name} is loaded (VR disabled)!");
             return;
         }
@@ -71,7 +72,8 @@ public partial class Plugin : BaseUnityPlugin
         if (!InitializeVR())
         {
             VrEnabled = false;
-            Log.LogWarning("[PeakVR] VR failed to initialize (no headset or OpenXR runtime?) — running in flat (non-VR) mode; no VR patches applied.");
+            ApplyRemoteOnlyPatches();
+            Log.LogWarning("[PeakVR] VR failed to initialize (no headset or OpenXR runtime?) — running in flat (non-VR) mode; only remote-VR-render patches applied.");
             Log.LogInfo($"Plugin {Name} is loaded (VR unavailable)!");
             return;
         }
@@ -101,6 +103,13 @@ public partial class Plugin : BaseUnityPlugin
 
         if (++mirrorFrame % 300 == 0)
             XRMirror.Assert();
+    }
+
+    private static void ApplyRemoteOnlyPatches()
+    {
+        var harmony = new Harmony(Id);
+        harmony.CreateClassProcessor(typeof(RemoteIKPatch)).Patch();
+        harmony.CreateClassProcessor(typeof(OneHandedHoldPatch)).Patch();
     }
 
     private bool PreloadRuntimeDependencies()

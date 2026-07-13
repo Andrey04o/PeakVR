@@ -42,8 +42,16 @@ internal static class OneHandedHoldPatch
 
     private static bool ShouldApply(CharacterItems items)
     {
-        return Enabled
-            && items.character == Character.localCharacter
-            && VRHands.Right != null;
+        if (!Enabled)
+            return false;
+
+        var c = items.character;
+        if (c == null)
+            return false;
+
+        if (c == Character.localCharacter && VRHands.Right != null)
+            return true;
+
+        return VRNetworking.IsActiveRemote(c);
     }
 }
