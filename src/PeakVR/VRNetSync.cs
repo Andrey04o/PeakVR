@@ -15,6 +15,12 @@ internal class VRNetSync : MonoBehaviour
             return;
 
         sinceSend = 0f;
-        VRNetworking.SendHeadRoll(VRHeadRoll.LocalRoll);
+
+        var c = Character.localCharacter;
+        if (c == null || c.refs == null || c.refs.head == null
+            || c.refs.IKHandTargetLeft == null || c.refs.IKHandTargetRight == null)
+            return;
+
+        VRNetworking.SendPose(c);
     }
 }
