@@ -25,8 +25,8 @@ internal class VRShoulderTwist : MonoBehaviour
         public Quaternion lastOutputLocal;
     }
 
-    private ArmState right;
-    private ArmState left;
+    private ArmState right = new() { baseline = -18.51f, prev = -18.51f, has = true };
+    private ArmState left = new() { baseline = 42.29f, prev = 42.29f, has = true };
     private bool recalibrate;
 
     private void LateUpdate()
@@ -43,8 +43,8 @@ internal class VRShoulderTwist : MonoBehaviour
 
         var suppress = !Enabled || VRPointer.Canvas != null;
 
-        Apply(refs.ikRight, VRHands.Right, suppress, ref right);
-        Apply(refs.ikLeft, VRHands.Left, suppress, ref left);
+        Apply(refs.ikRight, VRHands.Right, suppress, ref right, "R");
+        Apply(refs.ikLeft, VRHands.Left, suppress, ref left, "L");
 
         recalibrate = false;
     }
@@ -74,7 +74,7 @@ internal class VRShoulderTwist : MonoBehaviour
         }
     }
 
-    private void Apply(TwoBoneIKConstraint ik, Transform hand, bool suppress, ref ArmState s)
+    private void Apply(TwoBoneIKConstraint ik, Transform hand, bool suppress, ref ArmState s, string arm)
     {
         var root = ik.data.root;
         var mid = ik.data.mid;
@@ -111,11 +111,15 @@ internal class VRShoulderTwist : MonoBehaviour
         {
             s.baseline = raw;
             s.has = true;
+            Plugin.Log.LogInfo($"[PeakVR][Twist] {arm} auto baseline = {raw:F2}");
         }
         s.prev = raw;
 
         if (recalibrate)
+        {
             s.baseline = raw;
+            Plugin.Log.LogInfo($"[PeakVR][Twist] {arm} neutral baseline = {raw:F2}");
+        }
 
         var physical = raw - s.baseline;
         var move = Mathf.Clamp(Influence * t * physical, -MaxTwist, MaxTwist);

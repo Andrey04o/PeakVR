@@ -58,7 +58,11 @@ internal static class VRArmIKPatch
         refs.IKHandTargetRight.position = targetR;
 
         refs.IKHandTargetLeft.rotation = VRHands.Left.rotation * HandRotationOffset;
-        refs.IKHandTargetRight.rotation = VRHands.Right.rotation * HandRotationOffset;
+
+        var rightRot = VRHands.Right.rotation * HandRotationOffset;
+        if (ShootableAim.RollEnabled && ShootableAim.IsShootableHeld())
+            rightRot *= Quaternion.Euler(ShootableAim.RotationOffset);
+        refs.IKHandTargetRight.rotation = rightRot;
 
         SetElbowHint(refs.ikLeft, targetL, VRHands.Left.rotation);
         SetElbowHint(refs.ikRight, targetR, VRHands.Right.rotation);
