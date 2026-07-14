@@ -55,6 +55,8 @@ internal class VRMenuPopup : MonoBehaviour
                 continue;
             if (c.transform.root.name.StartsWith("PeakVR"))
                 continue;
+            if (c.GetComponentInParent<LoadingScreen>() != null)
+                continue;
 
             return c;
         }

@@ -44,7 +44,13 @@ internal class VRMenuManager : MonoBehaviour
         }
 
         if (converted != null)
+        {
             UIOverlay.MakeAlwaysVisible(converted, convertedForeground);
+
+            var lc = Character.localCharacter;
+            if (lc != null && lc.data.fullyPassedOut)
+                PlaceInFront(converted);
+        }
 
         if (pointerTarget != null)
         {
@@ -126,6 +132,17 @@ internal class VRMenuManager : MonoBehaviour
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
 
+        PlaceInFront(canvas);
+
+        Plugin.Log.LogInfo($"[PeakVR] Menu -> world space: {canvas.name}");
+    }
+
+    private static void PlaceInFront(Canvas canvas)
+    {
+        var cam = MainCamera.instance != null ? MainCamera.instance.cam : Camera.main;
+        if (cam == null)
+            return;
+
         var head = cam.transform;
         var fwd = head.forward;
         fwd.y = 0f;
@@ -135,8 +152,6 @@ internal class VRMenuManager : MonoBehaviour
         rt.localScale = Vector3.one * Scale;
         rt.position = head.position + fwd * Distance;
         rt.rotation = Quaternion.LookRotation(fwd, Vector3.up);
-
-        Plugin.Log.LogInfo($"[PeakVR] Menu -> world space: {canvas.name}");
     }
 
     private static TrackedDeviceGraphicRaycaster EnsureRaycaster(Canvas canvas)

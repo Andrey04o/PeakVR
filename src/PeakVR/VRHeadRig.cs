@@ -107,11 +107,9 @@ internal class VRHeadRig : MonoBehaviour
 
         if (character.data.fullyPassedOut)
         {
-            SuspendForDeath();
+            HandleSpectator(character);
             return;
         }
-
-        ResumeAfterDeath();
 
         transform.localScale = Vector3.one * HandScale;
         transform.rotation = Quaternion.Euler(0f, turnYaw, 0f);
@@ -132,24 +130,22 @@ internal class VRHeadRig : MonoBehaviour
         HandleCrouch();
     }
 
-    private void SuspendForDeath()
-    {
-        EnsureDriver();
-        if (headDriver != null && headDriver.enabled)
-            headDriver.enabled = false;
-    }
+    private const float SpecDistance = 3f;
+    private const float SpecHeight = 1.5f;
 
-    private void ResumeAfterDeath()
-    {
-        EnsureDriver();
-        if (headDriver != null && !headDriver.enabled)
-            headDriver.enabled = true;
-    }
-
-    private void EnsureDriver()
+    private void HandleSpectator(Character character)
     {
         if (headDriver == null && cam != null)
             headDriver = cam.GetComponent<TrackedPoseDriver>();
+        if (headDriver != null && !headDriver.enabled)
+            headDriver.enabled = true;
+
+        var pivot = VRSpectator.HasTarget ? VRSpectator.Pivot : character.GetSpectatePosition();
+        var rot = Quaternion.Euler(0f, turnYaw, 0f);
+
+        transform.localScale = Vector3.one * HandScale;
+        transform.rotation = rot;
+        transform.position = pivot + rot * new Vector3(0f, SpecHeight, -SpecDistance);
     }
 
     private float ComputeRigY(Vector3 anchor)
