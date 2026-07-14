@@ -60,6 +60,7 @@ internal class VRHeadRig : MonoBehaviour
     private void Awake()
     {
         cam = GetComponentInChildren<Camera>();
+        VRCutscene.Active = false;
     }
 
     private void Update()
@@ -101,6 +102,18 @@ internal class VRHeadRig : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (VRCutscene.Active)
+        {
+            var cutsceneCam = VRCutscene.CurrentTransform();
+            if (cutsceneCam == null)
+                VRCutscene.Active = false;
+            else
+            {
+                HandleCutscene(cutsceneCam);
+                return;
+            }
+        }
+
         var character = Character.localCharacter;
         if (character == null || cam == null)
             return;
@@ -128,6 +141,19 @@ internal class VRHeadRig : MonoBehaviour
 
         RoomScale(character, new Vector2(scaledHmd.x, scaledHmd.z));
         HandleCrouch();
+    }
+
+    private void HandleCutscene(Transform cutsceneCam)
+    {
+        if (cam == null)
+            return;
+        if (headDriver == null)
+            headDriver = cam.GetComponent<TrackedPoseDriver>();
+        if (headDriver != null && !headDriver.enabled)
+            headDriver.enabled = true;
+
+        transform.localScale = Vector3.one * HandScale;
+        transform.SetPositionAndRotation(cutsceneCam.position, cutsceneCam.rotation);
     }
 
     private const float SpecDistance = 3f;
