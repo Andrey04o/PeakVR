@@ -36,6 +36,8 @@ internal class VRShoulderTwist : MonoBehaviour
         var c = Character.localCharacter;
         if (c == null || VRHands.Left == null || VRHands.Right == null)
             return;
+        if (c.data.fullyPassedOut)
+            return;
 
         var refs = c.refs;
         if (refs == null || refs.ikLeft == null || refs.ikRight == null)

@@ -131,6 +131,8 @@ internal static class VRArmIKPatch
         c = Character.localCharacter;
         if (c == null || VRHands.Left == null || VRHands.Right == null)
             return false;
+        if (c.data.fullyPassedOut)
+            return false;
         if (c.refs.animations != anim)
             return false;
         if (c.refs.IKHandTargetLeft == null || c.refs.ikRig == null ||

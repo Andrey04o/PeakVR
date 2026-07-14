@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.XR;
 
 namespace PeakVR;
 
@@ -37,6 +38,7 @@ internal class VRHeadRig : MonoBehaviour
     public static bool Crouching;
 
     private Camera cam;
+    private TrackedPoseDriver headDriver;
     private Vector3 hmdOffset;
     private float turnYaw;
     private bool snapReady = true;
@@ -103,6 +105,14 @@ internal class VRHeadRig : MonoBehaviour
         if (character == null || cam == null)
             return;
 
+        if (character.data.fullyPassedOut)
+        {
+            SuspendForDeath();
+            return;
+        }
+
+        ResumeAfterDeath();
+
         transform.localScale = Vector3.one * HandScale;
         transform.rotation = Quaternion.Euler(0f, turnYaw, 0f);
 
@@ -120,6 +130,26 @@ internal class VRHeadRig : MonoBehaviour
 
         RoomScale(character, new Vector2(scaledHmd.x, scaledHmd.z));
         HandleCrouch();
+    }
+
+    private void SuspendForDeath()
+    {
+        EnsureDriver();
+        if (headDriver != null && headDriver.enabled)
+            headDriver.enabled = false;
+    }
+
+    private void ResumeAfterDeath()
+    {
+        EnsureDriver();
+        if (headDriver != null && !headDriver.enabled)
+            headDriver.enabled = true;
+    }
+
+    private void EnsureDriver()
+    {
+        if (headDriver == null && cam != null)
+            headDriver = cam.GetComponent<TrackedPoseDriver>();
     }
 
     private float ComputeRigY(Vector3 anchor)

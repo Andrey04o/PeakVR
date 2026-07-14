@@ -34,7 +34,8 @@ internal class VRHeadRoll : MonoBehaviour
         LocalRoll = roll;
 
         var character = Character.localCharacter;
-        if (character == null || character.refs.head == null || VRPointer.Canvas != null)
+        if (character == null || character.refs.head == null || VRPointer.Canvas != null
+            || character.data.fullyPassedOut)
             return;
 
         var axis = character.data.lookDirection;
