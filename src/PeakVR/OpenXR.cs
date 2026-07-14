@@ -417,6 +417,42 @@ internal static class OpenXR
             BepInEx.Logging.Logger.Sources.Add(Logger);
         }
 
+        private static int recoveryTick;
+
+        public static bool IsRunning()
+        {
+            var displays = new List<XRDisplaySubsystem>();
+            SubsystemManager.GetInstances(displays);
+            return displays.Any(d => d != null && d.running);
+        }
+
+        public static void EnsureRunning()
+        {
+            if (xrManagerSettings == null)
+                return;
+
+            var displays = new List<XRDisplaySubsystem>();
+            SubsystemManager.GetInstances(displays);
+
+            if (displays.Any(d => d != null && d.running))
+            {
+                recoveryTick = 0;
+                return;
+            }
+
+            if (recoveryTick++ % 30 != 0)
+                return;
+
+            if (displays.Count == 0)
+            {
+                Logger.LogWarning("OpenXR shut down — re-initializing loader");
+                xrManagerSettings.InitializeLoaderSync();
+            }
+
+            Logger.LogWarning("Restarting XR subsystems");
+            xrManagerSettings.StartSubsystems();
+        }
+
         public static bool InitializeXR()
         {
             InitializeScripts();

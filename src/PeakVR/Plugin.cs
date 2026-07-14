@@ -31,6 +31,7 @@ public partial class Plugin : BaseUnityPlugin
     private void Awake()
     {
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+        UnityEngine.Application.runInBackground = true;
 
         InputSystem.PerformDefaultPluginInitialization();
 
@@ -104,8 +105,50 @@ public partial class Plugin : BaseUnityPlugin
         if (!VrEnabled)
             return;
 
-        if (++mirrorFrame % 300 == 0)
+        TryBindAnyKey();
+
+        mirrorFrame++;
+        if (mirrorFrame % 300 == 0)
             XRMirror.Assert();
+    }
+
+    private bool anyKeyBound;
+
+    private void TryBindAnyKey()
+    {
+        if (anyKeyBound)
+            return;
+
+        var actions = InputSystem.actions;
+        if (actions == null)
+            return;
+
+        var anyKey = actions.FindAction("AnyKey");
+        if (anyKey == null)
+            return;
+
+        anyKeyBound = true;
+
+        try
+        {
+            var wasEnabled = actions.enabled;
+            if (wasEnabled)
+                actions.Disable();
+
+            anyKey.AddBinding("<XRController>{RightHand}/triggerPressed");
+            anyKey.AddBinding("<XRController>{LeftHand}/triggerPressed");
+            anyKey.AddBinding("<XRController>{RightHand}/primaryButton");
+            anyKey.AddBinding("<XRController>{RightHand}/secondaryButton");
+
+            if (wasEnabled)
+                actions.Enable();
+
+            Log.LogInfo("[PeakVR] AnyKey bound to VR buttons (credits skip)");
+        }
+        catch (Exception e)
+        {
+            Log.LogWarning($"[PeakVR] AnyKey bind failed: {e.Message}");
+        }
     }
 
     private static void DumpCanvases()

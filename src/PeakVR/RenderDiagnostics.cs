@@ -158,7 +158,7 @@ internal static class RenderDiagnostics
         for (int i = 0; i < bigLods.Count; i++)
         {
             var b = bigLods[i];
-            if (b.group == null)
+            if (b.group == null || !b.group.enabled || !b.group.gameObject.activeInHierarchy)
                 continue;
 
             var dist = Vector3.Distance(camPos, b.group.transform.TransformPoint(b.localRef));
