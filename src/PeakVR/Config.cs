@@ -17,6 +17,8 @@ public class Config
     public ConfigEntry<bool> MovementTunneling { get; }
     public ConfigEntry<float> TunnelingStrength { get; }
 
+    public ConfigEntry<bool> RecoverOpenXR { get; }
+
     public ConfigEntry<string> OpenXRRuntimeFile { get; }
 
     public Config(string assemblyPath, ConfigFile file)
@@ -46,6 +48,11 @@ public class Config
         TunnelingStrength = file.Bind("Comfort", "Tunneling Strength", 0.7f,
             new ConfigDescription("How far the tunnel closes in (smaller circle). 0 disables it.",
                 new AcceptableValueRange<float>(0f, 1f)));
+
+        RecoverOpenXR = file.Bind("VR", "Recover OpenXR", false,
+            "Experimental: attempt to restart the OpenXR runtime when the headset session drops " +
+            "(e.g. after the ending, or when returning to the Airport/menu on some runtimes like VDXR). " +
+            "Leave off unless you get an OpenXR shutdown/freeze.");
 
         OpenXRRuntimeFile = file.Bind("Internal", "OpenXRRuntimeFile", "",
             new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT", null, "Hidden"));

@@ -7,6 +7,7 @@ internal static class VRCutscene
 {
     public static bool Active;
     public static Camera[] Cameras;
+    public static RenderTexture Sink;
 
     public static Transform CurrentTransform()
     {
@@ -42,8 +43,19 @@ internal static class EndCutsceneVRPatch
         if (cams.Length == 0)
             return;
 
+        // Our stereo MainCamera renders the HMD image (following the active cutscene cam's
+        // transform), so the game's cutscene cameras are redundant full-scene renders in VR.
+        // Neuter their rendering to a 1x1 sink to cut GPU load (they stay enabled so active-cam
+        // detection in CurrentTransform() is unchanged). Extra render passes at the ending are a
+        // suspected trigger of VDXR's D3D12 device-removed failure.
+        if (VRCutscene.Sink == null)
+            VRCutscene.Sink = new RenderTexture(1, 1, 0) { name = "PeakVR CutsceneSink" };
+
         foreach (var c in cams)
+        {
             c.stereoTargetEye = StereoTargetEyeMask.None;
+            c.targetTexture = VRCutscene.Sink;
+        }
 
         if (MainCamera.instance != null)
             MainCamera.instance.cam.cullingMask = cams[0].cullingMask;
@@ -51,6 +63,6 @@ internal static class EndCutsceneVRPatch
         VRCutscene.Cameras = cams;
         VRCutscene.Active = true;
 
-        Plugin.Log.LogInfo($"[PeakVR] EndCutscene: following {cams.Length} cutscene camera(s)");
+        Plugin.Log.LogInfo($"[PeakVR] EndCutscene: following {cams.Length} cutscene camera(s), rendering to sink");
     }
 }

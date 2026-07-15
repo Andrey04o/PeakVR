@@ -43,8 +43,9 @@ internal static class InteractionInputPatch
 
         Inject(VRControls.RightTrigger, ref __instance.usePrimaryWasPressed, ref __instance.usePrimaryIsPressed,
             ref __instance.usePrimaryWasReleased);
-        Inject(VRControls.LeftTrigger, ref __instance.useSecondaryWasPressed, ref __instance.useSecondaryIsPressed,
-            ref __instance.useSecondaryWasReleased);
+        if (!VRControllerHud.LeftTriggerConsumed)
+            Inject(VRControls.LeftTrigger, ref __instance.useSecondaryWasPressed, ref __instance.useSecondaryIsPressed,
+                ref __instance.useSecondaryWasReleased);
 
         if (VRControls.Sprint.IsPressed())
             __instance.sprintIsPressed = true;

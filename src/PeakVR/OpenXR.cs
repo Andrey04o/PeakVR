@@ -594,6 +594,7 @@ internal static class OpenXR
             var khrSimple = ScriptableObject.CreateInstance<KHRSimpleControllerProfile>();
             var metaQuestTouch = ScriptableObject.CreateInstance<MetaQuestTouchProControllerProfile>();
             var oculusTouch = ScriptableObject.CreateInstance<OculusTouchControllerProfile>();
+            var sessionMonitor = ScriptableObject.CreateInstance<PeakVR.XRSessionMonitor>();
 
             valveIndex.enabled = true;
             hpReverb.enabled = true;
@@ -602,6 +603,7 @@ internal static class OpenXR
             khrSimple.enabled = true;
             metaQuestTouch.enabled = true;
             oculusTouch.enabled = true;
+            sessionMonitor.enabled = true;
 
             OpenXRSettings.Instance.features =
             [
@@ -611,7 +613,8 @@ internal static class OpenXR
                 mmController,
                 khrSimple,
                 metaQuestTouch,
-                oculusTouch
+                oculusTouch,
+                sessionMonitor
             ];
         }
     }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.XR.Interaction.Toolkit.UI;
@@ -11,6 +12,8 @@ internal class VRMenuPopup : MonoBehaviour
     private const float Distance = 3f;
     private const float Height = 0.4f;
 
+    private static readonly HashSet<Canvas> converted = new();
+
     private Canvas active;
 
     private void LateUpdate()
@@ -22,6 +25,9 @@ internal class VRMenuPopup : MonoBehaviour
         if (cam == null)
             return;
 
+        if (MenuCanvasPatch.MenuCanvas != null)
+            MenuCanvasPatch.MenuCanvas.worldCamera = cam;
+
         var popup = FindPopup();
 
         if (popup == null)
@@ -30,6 +36,10 @@ internal class VRMenuPopup : MonoBehaviour
             {
                 RestorePointer();
                 active = null;
+            }
+            else if (VRPointer.Canvas != MenuCanvasPatch.MenuCanvas)
+            {
+                RestorePointer();
             }
             return;
         }
@@ -49,18 +59,33 @@ internal class VRMenuPopup : MonoBehaviour
     {
         foreach (var c in Object.FindObjectsByType<Canvas>(UnityEngine.FindObjectsSortMode.None))
         {
-            if (!c.isActiveAndEnabled)
-                continue;
-            if (c == MenuCanvasPatch.MenuCanvas)
-                continue;
-            if (c.transform.root.name.StartsWith("PeakVR"))
-                continue;
-            if (c.GetComponentInParent<LoadingScreen>() != null)
-                continue;
-
-            return c;
+            if (IsPopup(c))
+                return c;
         }
         return null;
+    }
+
+    private static bool IsPopup(Canvas c)
+    {
+        if (c == null || !c.isActiveAndEnabled)
+            return false;
+        if (c == MenuCanvasPatch.MenuCanvas)
+            return false;
+        if (c.transform.root.name.StartsWith("PeakVR"))
+            return false;
+        if (c.GetComponentInParent<LoadingScreen>() != null)
+            return false;
+
+        // A Zorro Modal (DontDestroyOnLoad singleton) sits ACTIVE-but-closed on the menu after
+        // returning from a level; its canvas is a CHILD of the Modal root, so check the parent.
+        // Only treat it as a popup while actually open (blocksRaycasts), else it steals the
+        // pointer and the menu behind it goes dead.
+        if (c.GetComponentInParent<Zorro.UI.Modal.Modal>() != null)
+            return Zorro.UI.Modal.Modal.IsOpen;
+
+        // A genuine dialog is either a fresh screen-space overlay, or one we already
+        // converted to world space (dialogs like ConfirmPage are reused and stay world-space).
+        return c.renderMode == RenderMode.ScreenSpaceOverlay || converted.Contains(c);
     }
 
     private static void Convert(Canvas c, Camera cam)
@@ -70,6 +95,7 @@ internal class VRMenuPopup : MonoBehaviour
             c.renderMode = RenderMode.WorldSpace;
             c.worldCamera = cam;
             UIOverlay.MakeAlwaysVisible(c, true);
+            converted.Add(c);
         }
 
         var head = cam.transform;
