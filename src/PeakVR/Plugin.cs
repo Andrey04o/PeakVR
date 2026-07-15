@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -197,26 +198,13 @@ public partial class Plugin : BaseUnityPlugin
         try
         {
             var deps = Path.Combine(Path.GetDirectoryName(Info.Location)!, "RuntimeDeps");
+            var loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var file in Directory.GetFiles(deps, "*.dll"))
-            {
-                var filename = Path.GetFileName(file);
+            var versionFolder = GetVersionSpecificDeps(deps);
+            if (versionFolder != null)
+                PreloadFromFolder(versionFolder, loaded);
 
-                // Ignore known unmanaged libraries
-                if (filename is "UnityOpenXR.dll" or "openxr_loader.dll")
-                    continue;
-
-                Logger.LogDebug($"Preloading '{filename}'...");
-
-                try
-                {
-                    Assembly.LoadFile(file);
-                }
-                catch (Exception ex)
-                {
-                    Logger.LogWarning($"Failed to preload '{filename}': {ex.Message}");
-                }
-            }
+            PreloadFromFolder(deps, loaded);
         }
         catch (Exception ex)
         {
@@ -226,6 +214,48 @@ public partial class Plugin : BaseUnityPlugin
         }
 
         return true;
+    }
+
+    private string GetVersionSpecificDeps(string deps)
+    {
+        var version = UnityEngine.Application.unityVersion;
+        var mapped = version.StartsWith("6000.") ? "6." + version.Substring("6000.".Length) : version;
+
+        var folder = Path.Combine(deps, mapped);
+        if (Directory.Exists(folder))
+        {
+            Logger.LogInfo($"Unity {version}: using version-specific RuntimeDeps folder '{mapped}'");
+            return folder;
+        }
+
+        return null;
+    }
+
+    private void PreloadFromFolder(string folder, HashSet<string> loaded)
+    {
+        foreach (var file in Directory.GetFiles(folder, "*.dll"))
+        {
+            var filename = Path.GetFileName(file);
+
+            // Ignore known unmanaged libraries
+            if (filename is "UnityOpenXR.dll" or "openxr_loader.dll")
+                continue;
+
+            // A version-specific DLL loaded first wins over the same-named base DLL
+            if (!loaded.Add(filename))
+                continue;
+
+            Logger.LogDebug($"Preloading '{filename}'...");
+
+            try
+            {
+                Assembly.LoadFile(file);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning($"Failed to preload '{filename}': {ex.Message}");
+            }
+        }
     }
 
     private static bool InitializeVR()

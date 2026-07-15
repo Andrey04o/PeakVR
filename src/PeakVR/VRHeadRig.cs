@@ -81,15 +81,14 @@ internal class VRHeadRig : MonoBehaviour
             return;
 
         var x = VRControls.TurnStick.ReadValue<Vector2>().x;
+        var oldYaw = turnYaw;
 
         if (Plugin.Config.SmoothTurn.Value)
         {
             if (Mathf.Abs(x) > SmoothDeadzone)
                 turnYaw += x * Plugin.Config.SmoothTurnSpeed.Value * Time.deltaTime;
-            return;
         }
-
-        if (snapReady && Mathf.Abs(x) > SnapThreshold)
+        else if (snapReady && Mathf.Abs(x) > SnapThreshold)
         {
             turnYaw += Mathf.Sign(x) * Plugin.Config.SnapTurnAngle.Value;
             snapReady = false;
@@ -98,6 +97,18 @@ internal class VRHeadRig : MonoBehaviour
         {
             snapReady = true;
         }
+
+        if (turnYaw != oldYaw)
+            PivotAroundHead(oldYaw, turnYaw);
+    }
+
+    private void PivotAroundHead(float oldYaw, float newYaw)
+    {
+        var scaledHmd = hmdOffset * HandScale;
+        var oldScaled = Quaternion.Euler(0f, oldYaw, 0f) * scaledHmd;
+        var newScaled = Quaternion.Euler(0f, newYaw, 0f) * scaledHmd;
+        originOffset.x -= newScaled.x - oldScaled.x;
+        originOffset.y -= newScaled.z - oldScaled.z;
     }
 
     private void LateUpdate()

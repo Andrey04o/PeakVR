@@ -27,7 +27,8 @@ internal static class PeakAssets
         }
 
         Reticle = bundle.LoadAsset<Sprite>("reticlevr");
-        Controller = bundle.LoadAsset<GameObject>("UniversalController");
+        Controller = bundle.LoadAsset<GameObject>("UniversalControllerWithAnchors")
+            ?? bundle.LoadAsset<GameObject>("UniversalController");
         Vignette = bundle.LoadAsset<Texture2D>("vignette");
         MirrorView = bundle.LoadAsset<Shader>("XRMirrorView");
 
