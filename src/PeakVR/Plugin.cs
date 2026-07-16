@@ -24,6 +24,7 @@ namespace PeakVR;
 // For more info, see https://github.com/Hamunii/BepInEx.AutoPlugin
 [BepInAutoPlugin]
 [BepInDependency("com.github.PEAKModding.PEAKLib.ModConfig", BepInDependency.DependencyFlags.SoftDependency)]
+[BepInDependency("com.github.PEAKModding.PEAKLib.UI", BepInDependency.DependencyFlags.SoftDependency)]
 public partial class Plugin : BaseUnityPlugin
 {
     internal static ManualLogSource Log { get; private set; } = null!;
@@ -85,6 +86,16 @@ public partial class Plugin : BaseUnityPlugin
         VRControls.Init();
 
         new Harmony(Id).PatchAll(typeof(Plugin).Assembly);
+
+        VRArmIKPatch.LoadArmScaleFromConfig();
+        try
+        {
+            VRCalibration.Register();
+        }
+        catch (Exception e)
+        {
+            Log.LogWarning($"[PeakVR] Calibration menu unavailable (PEAKLib.UI missing?): {e.Message}");
+        }
         // BepInEx also gives us a config file for easy configuration.
         // See https://lethal.wiki/dev/intermediate/custom-configs
 

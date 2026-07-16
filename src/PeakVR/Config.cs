@@ -24,6 +24,9 @@ public class Config
 
     public ConfigEntry<bool> RecoverOpenXR { get; }
 
+    public ConfigEntry<float> ArmSpanScale { get; }
+    public ConfigEntry<float> VirtualArmSpan { get; }
+
     public ConfigEntry<string> OpenXRRuntimeFile { get; }
 
     public Config(string assemblyPath, ConfigFile file)
@@ -72,6 +75,14 @@ public class Config
             "Experimental: attempt to restart the OpenXR runtime when the headset session drops " +
             "(e.g. after the ending, or when returning to the Airport/menu on some runtimes like VDXR). " +
             "Leave off unless you get an OpenXR shutdown/freeze.");
+
+        ArmSpanScale = file.Bind("VR", "Arm Span Scale", 1.089f,
+            new ConfigDescription("Multiplier from your real arm reach to the character's arm reach. " +
+                "Calibrate it in-game with the T-pose window instead of editing by hand.",
+                new AcceptableValueRange<float>(0.6f, 1.8f)));
+        VirtualArmSpan = file.Bind("Internal", "VirtualArmSpan", 1.851f,
+            new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT — cached character wingspan for calibration.",
+                null, "Hidden"));
 
         OpenXRRuntimeFile = file.Bind("Internal", "OpenXRRuntimeFile", "",
             new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT", null, "Hidden"));

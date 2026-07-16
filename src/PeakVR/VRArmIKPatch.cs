@@ -11,6 +11,22 @@ internal static class VRArmIKPatch
     public static float ArmScale = 1.089f;
     public static bool ElbowClampEnabled = true;
 
+    public static void LoadArmScaleFromConfig()
+    {
+        if (Plugin.Config != null)
+            ArmScale = Plugin.Config.ArmSpanScale.Value;
+    }
+
+    public static void ApplyArmScale(float scale)
+    {
+        ArmScale = scale;
+        if (Plugin.Config == null)
+            return;
+
+        Plugin.Config.ArmSpanScale.Value = scale;
+        Plugin.Config.File.Save();
+    }
+
     private static readonly Vector3 ShoulderOffsetLeft = new(-0.18f, -0.2f, 0f);
     private static readonly Vector3 ShoulderOffsetRight = new(0.18f, -0.2f, 0f);
     private static readonly Vector3 ElbowSeedLocal = new(0f, -0.7f, -0.5f);
