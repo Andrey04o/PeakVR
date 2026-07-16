@@ -50,7 +50,7 @@ internal static class VRHands
         if (interactRay == null)
             return;
 
-        if (menuPointersOn)
+        if (menuPointersOn || !VRAim.TryRight(out var origin, out var dir))
         {
             if (interactRay.enabled)
                 interactRay.enabled = false;
@@ -58,7 +58,8 @@ internal static class VRHands
         }
 
         interactRay.enabled = true;
-        interactRay.SetPosition(1, Vector3.forward * length);
+        interactRay.SetPosition(0, origin);
+        interactRay.SetPosition(1, origin + dir * length);
 
         var col = hovering ? new Color(0.3f, 1f, 0.4f) : new Color(0.35f, 0.75f, 1f);
         if (interactRayMat.HasProperty("_BaseColor"))
@@ -73,12 +74,10 @@ internal static class VRHands
         obj.transform.SetParent(hand, false);
 
         var line = obj.AddComponent<LineRenderer>();
-        line.useWorldSpace = false;
+        line.useWorldSpace = true;
         line.widthMultiplier = 0.004f;
         line.numCapVertices = 4;
         line.positionCount = 2;
-        line.SetPosition(0, Vector3.zero);
-        line.SetPosition(1, Vector3.forward * 2.5f);
         line.startColor = line.endColor = Color.white;
 
         var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
@@ -139,6 +138,8 @@ internal static class VRHands
 
             foreach (var r in model.GetComponentsInChildren<Renderer>())
                 r.sharedMaterial = handMat;
+
+            VRControllerVisibility.Register(model);
         }
 
         Plugin.Log.LogInfo($"[PeakVR] Created in-game {name}");

@@ -83,8 +83,8 @@ internal class VRControllerHud : MonoBehaviour
             RegisterCell(gui.temporaryItem.transform, 250);
         }
 
-        UIOverlay.MakeAlwaysVisible(left, true);
-        UIOverlay.MakeAlwaysVisible(right, true);
+        UIOverlay.MakeAlwaysVisible(left, UIOverlay.HandQueue);
+        UIOverlay.MakeAlwaysVisible(right, UIOverlay.HandQueue);
 
         moved = true;
         Plugin.Log.LogInfo("[PeakVR] HUD moved onto controllers");

@@ -25,6 +25,7 @@ internal class VRHeadRig : MonoBehaviour
 
     private const float CrouchRatio = 0.65f;
     private const float CrouchExitRatio = 0.72f;
+    private const float RecalibRate = 0.3f;
 
     private const float FreeRadius = 0.1f;
     private const float ClampDown = 0.8f;
@@ -69,6 +70,7 @@ internal class VRHeadRig : MonoBehaviour
             hmdOffset = cam.transform.localPosition;
 
         RenderDiagnostics.Tick(cam);
+        VRControllerVisibility.Tick();
         HandleTurn();
 
         if (Keyboard.current != null && Keyboard.current.f5Key.wasPressedThisFrame)
@@ -219,6 +221,11 @@ internal class VRHeadRig : MonoBehaviour
             Crouching = true;
         else if (ratio > CrouchExitRatio)
             Crouching = false;
+
+        // Auto-recalibrate the standing baseline while fully standing (replaces manual F5), so crouch
+        // detection stays accurate if the player recenters or their real standing height drifts.
+        if (!Crouching && ratio > CrouchExitRatio)
+            standingHmdY = Mathf.Lerp(standingHmdY, hmdOffset.y, RecalibRate * Time.deltaTime);
     }
 
     private void UpdatePhysVel()

@@ -26,10 +26,9 @@ internal static class InteractionInputPatch
 
         Inject(VRControls.LeftGrip, ref __instance.dropWasPressed, ref __instance.dropIsPressed,
             ref __instance.dropWasReleased);
+        // A (right primary) = ping. Slot select moved to the left-controller HUD pointer (#17).
         if (VRControls.RightPrimary.WasPressedThisFrame())
-            __instance.selectSlotForwardWasPressed = true;
-        if (VRControls.LeftPrimary.WasPressedThisFrame())
-            __instance.selectSlotBackwardWasPressed = true;
+            __instance.pingWasPressed = true;
 
         if (VRControls.Pause.WasPressedThisFrame())
         {
@@ -50,7 +49,8 @@ internal static class InteractionInputPatch
         if (VRControls.Sprint.IsPressed())
             __instance.sprintIsPressed = true;
 
-        if (VRHeadRig.Crouching)
+        // X (left primary) = hold-to-crouch, coexisting with physical bend-crouch.
+        if (VRHeadRig.Crouching || VRControls.LeftPrimary.IsPressed())
             __instance.crouchIsPressed = true;
 
         if (VRControls.Stash.WasPressedThisFrame())

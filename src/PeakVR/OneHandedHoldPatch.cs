@@ -1,3 +1,4 @@
+using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
 
@@ -8,14 +9,28 @@ internal static class OneHandedHoldPatch
 {
     public static bool Enabled = true;
 
-    [HarmonyPatch("AttachItem")]
-    [HarmonyPostfix]
-    private static void AttachItemPostfix(CharacterItems __instance)
-    {
-        if (!ShouldApply(__instance))
-            return;
+    private static readonly MethodInfo GetPosRight = AccessTools.Method(typeof(CharacterItems), "GetItemPosRightWorld");
+    private static readonly MethodInfo GetRotRight = AccessTools.Method(typeof(CharacterItems), "GetItemRotRightWorld");
 
-        DestroyHandJoint(__instance, BodypartType.Hand_L);
+    // Reimplement AttachItem to attach ONLY the right hand. The vanilla AttachItem snaps BOTH hands'
+    // transforms to the item grip and joints both — so even with a postfix that destroys the left
+    // joint, the left hand flashes onto the item for a frame. Doing right-hand-only here means the
+    // left hand is never moved to the item at all (T4).
+    [HarmonyPatch("AttachItem")]
+    [HarmonyPrefix]
+    private static bool AttachItemPrefix(CharacterItems __instance, Item item)
+    {
+        if (!ShouldApply(__instance) || item == null || GetPosRight == null || GetRotRight == null)
+            return true;
+
+        var handR = __instance.character.GetBodypartRig(BodypartType.Hand_R);
+        if (handR == null || item.rig == null)
+            return true;
+
+        handR.transform.position = (Vector3)GetPosRight.Invoke(__instance, new object[] { item });
+        handR.transform.rotation = (Quaternion)GetRotRight.Invoke(__instance, new object[] { item });
+        handR.gameObject.AddComponent<FixedJoint>().connectedBody = item.rig;
+        return false;
     }
 
     [HarmonyPatch("UnAttachItem")]

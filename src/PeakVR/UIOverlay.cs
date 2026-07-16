@@ -11,67 +11,68 @@ internal static class UIOverlay
     private static readonly int ZTestUI = Shader.PropertyToID("unity_GUIZTestMode");
     private static readonly int ZTestTMP = Shader.PropertyToID("_ZTestMode");
     private const int Always = (int)CompareFunction.Always;
-    private const int Foreground = 3005;
 
-    private static readonly HashSet<Graphic> Handled = new HashSet<Graphic>();
-    private static readonly List<Material> Materials = new List<Material>();
+    // Base render queues. Elements get base + hierarchy index so draw order follows the UI
+    // hierarchy (parents/earlier siblings behind, children/later siblings on top) even with
+    // ZTest Always — otherwise a flat queue lets backgrounds cover foreground images.
+    private const int DefaultQueue = 3000;
+    private const int ForegroundQueue = 3005; // above world transparents (glass/fog)
+    public const int HandQueue = 4000;        // above rain/airplane-window glass, for the wrist HUD
+
+    private static readonly Dictionary<Graphic, Material> Cache = new();
 
     public static void MakeAlwaysVisible(Canvas canvas, bool foreground)
+        => Apply(canvas, foreground ? ForegroundQueue : DefaultQueue);
+
+    public static void MakeAlwaysVisible(Canvas canvas, int baseQueue)
+        => Apply(canvas, baseQueue);
+
+    private static void Apply(Canvas canvas, int baseQueue)
     {
         if (canvas == null)
             return;
 
-        foreach (var g in canvas.GetComponentsInChildren<Graphic>(true))
+        var graphics = canvas.GetComponentsInChildren<Graphic>(true);
+        for (var i = 0; i < graphics.Length; i++)
         {
-            if (g == null || Handled.Contains(g))
+            var g = graphics[i];
+            if (g == null)
                 continue;
 
-            Apply(g, foreground);
-            Handled.Add(g);
-        }
-
-        for (var i = 0; i < Materials.Count; i++)
-        {
-            if (Materials[i] == null)
+            var mat = GetMaterial(g);
+            if (mat == null)
                 continue;
 
-            Materials[i].SetInt(ZTestUI, Always);
-            Materials[i].SetInt(ZTestTMP, Always);
+            mat.SetInt(ZTestUI, Always);
+            mat.SetInt(ZTestTMP, Always);
+            mat.renderQueue = baseQueue + i;
         }
     }
 
-    private static void Apply(Graphic g, bool foreground)
+    private static Material GetMaterial(Graphic g)
     {
+        if (Cache.TryGetValue(g, out var cached) && cached != null)
+            return cached;
+
         Material mat;
 
         if (g is TMP_Text tmp)
         {
-            mat = tmp.fontMaterial;
+            mat = tmp.fontMaterial; // per-instance material
             if (mat == null)
-                return;
+                return null;
         }
         else
         {
             var src = g.material != null ? g.material : g.defaultMaterial;
             if (src == null)
-                return;
+                return null;
 
             mat = new Material(src);
             g.material = mat;
         }
 
-        mat.SetInt(ZTestUI, Always);
-        mat.SetInt(ZTestTMP, Always);
-
-        if (foreground && !InStencilMask(g))
-            mat.renderQueue = Foreground;
-
-        Materials.Add(mat);
-    }
-
-    private static bool InStencilMask(Graphic g)
-    {
-        var mask = g.GetComponentInParent<Mask>();
-        return mask != null && mask.enabled;
+        Cache[g] = mat;
+        return mat;
     }
 }

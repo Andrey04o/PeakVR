@@ -49,10 +49,12 @@ internal static class HandInteractPatch
 
     private static float RayLength(Interaction interaction, Character local)
     {
-        var t = VRHands.Right;
         var distance = DistanceField != null ? (float)DistanceField.GetValue(interaction) : 3f;
+        if (!VRAim.TryRight(out var origin, out var dir))
+            return distance;
+
         var mask = (int)HelperFunctions.GetMask(HelperFunctions.LayerType.AllPhysical);
-        var count = Physics.RaycastNonAlloc(t.position, t.forward, LineBuffer, distance, mask,
+        var count = Physics.RaycastNonAlloc(origin, dir, LineBuffer, distance, mask,
             QueryTriggerInteraction.Ignore);
 
         var nearest = distance;
@@ -71,9 +73,8 @@ internal static class HandInteractPatch
 
     private static IInteractible FindHandInteractable(Interaction interaction, Character local)
     {
-        var t = VRHands.Right;
-        var origin = t.position;
-        var dir = t.forward;
+        if (!VRAim.TryRight(out var origin, out var dir))
+            return null;
 
         var distance = DistanceField != null ? (float)DistanceField.GetValue(interaction) : 3f;
         var mask = (int)HelperFunctions.GetMask(HelperFunctions.LayerType.AllPhysical);

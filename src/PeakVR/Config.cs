@@ -17,6 +17,8 @@ public class Config
     public ConfigEntry<bool> MovementTunneling { get; }
     public ConfigEntry<float> TunnelingStrength { get; }
 
+    public ConfigEntry<bool> HideControllers { get; }
+
     public ConfigEntry<bool> RecoverOpenXR { get; }
 
     public ConfigEntry<string> OpenXRRuntimeFile { get; }
@@ -48,6 +50,10 @@ public class Config
         TunnelingStrength = file.Bind("Comfort", "Tunneling Strength", 0.7f,
             new ConfigDescription("How far the tunnel closes in (smaller circle). 0 disables it.",
                 new AcceptableValueRange<float>(0f, 1f)));
+
+        HideControllers = file.Bind("VR", "Hide Controllers", true,
+            "Hide the VR controller models and show only your character's hands. Interaction/aim lasers " +
+            "then originate from your hand instead of the controller.");
 
         RecoverOpenXR = file.Bind("VR", "Recover OpenXR", false,
             "Experimental: attempt to restart the OpenXR runtime when the headset session drops " +
