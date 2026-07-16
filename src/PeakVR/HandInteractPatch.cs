@@ -13,6 +13,8 @@ internal static class HandInteractPatch
     private static readonly RaycastHit[] LineBuffer = new RaycastHit[32];
     private static readonly RaycastHit[] SphereBuffer = new RaycastHit[32];
 
+    private const float LineStartOffset = 0.1f;
+
     [HarmonyPostfix]
     private static void Postfix(Interaction __instance, ref IInteractible interactableResult)
     {
@@ -27,7 +29,36 @@ internal static class HandInteractPatch
             interactableResult = FindHandInteractable(__instance, local);
 
         var hovering = interactableResult != null && !(interactableResult is ClimbHandle);
-        VRHands.DrawInteractRay(hovering, RayLength(__instance, local));
+
+        var show = VRLine.ShouldShow(Plugin.Config.InteractionLine.Value, hovering);
+        if (!show || !VRAim.TryRight(out var origin, out var dir))
+        {
+            VRHands.SetInteractRay(false, default, default, default);
+            return;
+        }
+
+        Vector3 end;
+        if (hovering && Plugin.Config.AimAtObjectCenter.Value && TryGetCenter(interactableResult, out var center))
+            end = center;
+        else
+            end = origin + dir * RayLength(__instance, local);
+
+        // Start the visible line slightly ahead of the wrist so it doesn't float at the bone.
+        var lineStart = origin + dir * LineStartOffset;
+
+        var color = hovering ? VRLine.CharacterColor() : new Color(0.35f, 0.75f, 1f);
+        VRHands.SetInteractRay(true, lineStart, end, color);
+    }
+
+    private static bool TryGetCenter(IInteractible interactable, out Vector3 center)
+    {
+        center = default;
+        if (interactable is not Component comp || comp == null)
+            return false;
+
+        var col = comp.GetComponentInChildren<Collider>();
+        center = col != null ? col.bounds.center : comp.transform.position;
+        return true;
     }
 
     private static bool ValidHandTarget(RaycastHit h, Character local, out IInteractible interactible)

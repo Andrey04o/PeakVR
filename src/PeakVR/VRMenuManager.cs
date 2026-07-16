@@ -104,17 +104,21 @@ internal class VRMenuManager : MonoBehaviour
         return null;
     }
 
-    private static Canvas GetWheelCanvas(GUIManager gui)
+    private static GameObject GetWheelObject(GUIManager gui)
     {
         if (gui == null || !gui.wheelActive)
             return null;
 
-        GameObject wob = null;
         if (gui.backpackWheel != null && gui.backpackWheel.gameObject.activeInHierarchy)
-            wob = gui.backpackWheel.gameObject;
-        else if (gui.emoteWheel != null && gui.emoteWheel.activeInHierarchy)
-            wob = gui.emoteWheel;
+            return gui.backpackWheel.gameObject;
+        if (gui.emoteWheel != null && gui.emoteWheel.activeInHierarchy)
+            return gui.emoteWheel;
+        return null;
+    }
 
+    private static Canvas GetWheelCanvas(GUIManager gui)
+    {
+        var wob = GetWheelObject(gui);
         if (wob == null)
             return null;
 

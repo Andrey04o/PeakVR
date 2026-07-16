@@ -18,6 +18,9 @@ public class Config
     public ConfigEntry<float> TunnelingStrength { get; }
 
     public ConfigEntry<bool> HideControllers { get; }
+    public ConfigEntry<PeakVR.LineVisibility> InteractionLine { get; }
+    public ConfigEntry<PeakVR.LineVisibility> HudLine { get; }
+    public ConfigEntry<bool> AimAtObjectCenter { get; }
 
     public ConfigEntry<bool> RecoverOpenXR { get; }
 
@@ -54,6 +57,16 @@ public class Config
         HideControllers = file.Bind("VR", "Hide Controllers", true,
             "Hide the VR controller models and show only your character's hands. Interaction/aim lasers " +
             "then originate from your hand instead of the controller.");
+
+        InteractionLine = file.Bind("VR", "Interaction Line", PeakVR.LineVisibility.OnInteract,
+            "When to show the right-hand interaction line: Always, only when something is interactable " +
+            "(OnInteract), or never (Hidden).");
+        HudLine = file.Bind("VR", "HUD Pointer Line", PeakVR.LineVisibility.OnInteract,
+            "When to show the left-controller HUD selection line: Always, only when pointing at a HUD " +
+            "item (OnInteract), or Hidden.");
+        AimAtObjectCenter = file.Bind("VR", "Aim At Object Center", true,
+            "When an interactable is available, snap the interaction line's end to the object's center " +
+            "instead of pointing straight ahead.");
 
         RecoverOpenXR = file.Bind("VR", "Recover OpenXR", false,
             "Experimental: attempt to restart the OpenXR runtime when the headset session drops " +

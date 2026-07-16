@@ -103,6 +103,9 @@ public partial class Plugin : BaseUnityPlugin
         if (Keyboard.current != null && Keyboard.current.f1Key.wasPressedThisFrame)
             DumpCanvases();
 
+        if (Keyboard.current != null && Keyboard.current.f4Key.wasPressedThisFrame)
+            UIOverlay.SetLogging(!UIOverlay.Logging);
+
         if (!VrEnabled)
             return;
 

@@ -126,6 +126,13 @@ internal class VRControllerHud : MonoBehaviour
             return;
         }
 
+        if (VRHands.Left == null)
+        {
+            SetHover(null);
+            pointer.enabled = false;
+            return;
+        }
+
         var origin = VRHands.Left.position;
         var dir = VRHands.Left.forward;
 
@@ -149,10 +156,14 @@ internal class VRControllerHud : MonoBehaviour
 
         var onCell = hitCell != null;
 
-        pointer.enabled = true;
-        pointer.SetPosition(0, origin);
-        pointer.SetPosition(1, onCell ? rayHit.point : origin + dir * PointerMaxDistance);
-        SetPointerColor(onCell);
+        var showLine = VRLine.ShouldShow(Plugin.Config.HudLine.Value, onCell);
+        pointer.enabled = showLine;
+        if (showLine)
+        {
+            pointer.SetPosition(0, origin);
+            pointer.SetPosition(1, onCell ? rayHit.point : origin + dir * PointerMaxDistance);
+            SetPointerColor(onCell);
+        }
 
         SetHover(hitCell);
 
@@ -248,7 +259,7 @@ internal class VRControllerHud : MonoBehaviour
 
     private void SetPointerColor(bool hover)
     {
-        var col = hover ? new Color(0.3f, 1f, 0.4f) : new Color(0.9f, 0.9f, 0.95f);
+        var col = hover ? VRLine.CharacterColor() : new Color(0.9f, 0.9f, 0.95f);
         if (pointerMat.HasProperty("_BaseColor"))
             pointerMat.SetColor("_BaseColor", col);
         else

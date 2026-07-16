@@ -45,12 +45,12 @@ internal static class VRHands
             interactRay.enabled = false;
     }
 
-    public static void DrawInteractRay(bool hovering, float length)
+    public static void SetInteractRay(bool show, Vector3 origin, Vector3 end, Color color)
     {
         if (interactRay == null)
             return;
 
-        if (menuPointersOn || !VRAim.TryRight(out var origin, out var dir))
+        if (!show || menuPointersOn)
         {
             if (interactRay.enabled)
                 interactRay.enabled = false;
@@ -59,13 +59,12 @@ internal static class VRHands
 
         interactRay.enabled = true;
         interactRay.SetPosition(0, origin);
-        interactRay.SetPosition(1, origin + dir * length);
+        interactRay.SetPosition(1, end);
 
-        var col = hovering ? new Color(0.3f, 1f, 0.4f) : new Color(0.35f, 0.75f, 1f);
         if (interactRayMat.HasProperty("_BaseColor"))
-            interactRayMat.SetColor("_BaseColor", col);
+            interactRayMat.SetColor("_BaseColor", color);
         else
-            interactRayMat.color = col;
+            interactRayMat.color = color;
     }
 
     private static LineRenderer CreateInteractRay(Transform hand)
