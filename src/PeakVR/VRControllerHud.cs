@@ -20,6 +20,8 @@ internal class VRControllerHud : MonoBehaviour
 
     public static bool LeftTriggerConsumed { get; private set; }
 
+    internal static Canvas LeftHudCanvas;
+
     private Canvas left;
     private Canvas right;
     private bool moved;
@@ -269,7 +271,10 @@ internal class VRControllerHud : MonoBehaviour
     private void EnsureCanvases()
     {
         if (left == null)
+        {
             left = MakeCanvas("PeakVR LeftHUD", VRHands.Left, "LeftHUDAnchor", LeftPos, LeftEuler);
+            LeftHudCanvas = left;
+        }
         if (right == null)
             right = MakeCanvas("PeakVR RightHUD", VRHands.Right, "RightHUDAnchor", RightPos, RightEuler);
     }

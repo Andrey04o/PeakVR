@@ -50,6 +50,7 @@ internal static class InGameCameraPatch
         rig.AddComponent<VRItemAim>();
         rig.AddComponent<VRNetSync>();
         rig.AddComponent<VRControllerHud>();
+        rig.AddComponent<VREmoteWheel>();
 
         VRHands.Create(rig.transform);
 

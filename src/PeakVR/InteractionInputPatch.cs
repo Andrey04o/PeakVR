@@ -37,11 +37,16 @@ internal static class InteractionInputPatch
             __instance.jumpIsPressed = false;
         }
 
+        // Emote wheel held open by the left-wrist emote button (T6).
+        if (VREmoteWheel.EmoteActive)
+            __instance.emoteIsPressed = true;
+
         if (!playerMovementActive)
             return;
 
-        Inject(VRControls.RightTrigger, ref __instance.usePrimaryWasPressed, ref __instance.usePrimaryIsPressed,
-            ref __instance.usePrimaryWasReleased);
+        if (!VREmoteWheel.RightTriggerConsumed)
+            Inject(VRControls.RightTrigger, ref __instance.usePrimaryWasPressed, ref __instance.usePrimaryIsPressed,
+                ref __instance.usePrimaryWasReleased);
         if (!VRControllerHud.LeftTriggerConsumed)
             Inject(VRControls.LeftTrigger, ref __instance.useSecondaryWasPressed, ref __instance.useSecondaryIsPressed,
                 ref __instance.useSecondaryWasReleased);
