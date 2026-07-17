@@ -22,8 +22,6 @@ public class Config
     public ConfigEntry<PeakVR.LineVisibility> HudLine { get; }
     public ConfigEntry<bool> AimAtObjectCenter { get; }
 
-    public ConfigEntry<bool> RecoverOpenXR { get; }
-
     public ConfigEntry<float> ArmSpanScale { get; }
     public ConfigEntry<float> VirtualArmSpan { get; }
 
@@ -61,20 +59,15 @@ public class Config
             "Hide the VR controller models and show only your character's hands. Interaction/aim lasers " +
             "then originate from your hand instead of the controller.");
 
-        InteractionLine = file.Bind("VR", "Interaction Line", PeakVR.LineVisibility.OnInteract,
+        InteractionLine = file.Bind("Lasers", "Interaction Line", PeakVR.LineVisibility.OnInteract,
             "When to show the right-hand interaction line: Always, only when something is interactable " +
             "(OnInteract), or never (Hidden).");
-        HudLine = file.Bind("VR", "HUD Pointer Line", PeakVR.LineVisibility.OnInteract,
+        HudLine = file.Bind("Lasers", "HUD Pointer Line", PeakVR.LineVisibility.OnInteract,
             "When to show the left-controller HUD selection line: Always, only when pointing at a HUD " +
             "item (OnInteract), or Hidden.");
-        AimAtObjectCenter = file.Bind("VR", "Aim At Object Center", true,
+        AimAtObjectCenter = file.Bind("Lasers", "Aim At Object Center", true,
             "When an interactable is available, snap the interaction line's end to the object's center " +
             "instead of pointing straight ahead.");
-
-        RecoverOpenXR = file.Bind("VR", "Recover OpenXR", false,
-            "Experimental: attempt to restart the OpenXR runtime when the headset session drops " +
-            "(e.g. after the ending, or when returning to the Airport/menu on some runtimes like VDXR). " +
-            "Leave off unless you get an OpenXR shutdown/freeze.");
 
         ArmSpanScale = file.Bind("VR", "Arm Span Scale", 1.089f,
             new ConfigDescription("Multiplier from your real arm reach to the character's arm reach. " +
