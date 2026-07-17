@@ -9,7 +9,7 @@ using System.Text;
 using BepInEx.Logging;
 using JetBrains.Annotations;
 using Newtonsoft.Json.Linq;
-using System.Text.RegularExpressions;
+using Steamworks;
 using UnityEngine;
 using UnityEngine.XR;
 using UnityEngine.XR.Management;
@@ -164,15 +164,21 @@ internal static class OpenXR
     /// </summary>
     private static IEnumerable<Runtime> LocateCommonRuntimes()
     {
-        // 1. SteamVR
-        if (TryLocateSteamVR(out var steamVr))
-            yield return steamVr;
+        Runtime rt;
+
+        // 1. SteamVR — ask Steam directly for the SteamVR install dir (app id 250820) via Steamworks,
+        // the same way CWVR does, instead of parsing the registry + libraryfolders.vdf ourselves.
+        if (SteamAPI.Init() && SteamApps.GetAppInstallDir(new AppId_t(250820), out var path, 240) > 0)
+        {
+            if (Runtime.ReadFromJson(Path.Combine(path, "steamxr_win64.json"), out rt))
+                yield return rt;
+        }
 
         // 2. Virtual Desktop
-        var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
+        path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
             @"Virtual Desktop Streamer\OpenXR\virtualdesktop-openxr.json");
 
-        if (File.Exists(path) && Runtime.ReadFromJson(path, out var rt))
+        if (File.Exists(path) && Runtime.ReadFromJson(path, out rt))
             yield return rt;
 
         // 3. Oculus
@@ -181,72 +187,6 @@ internal static class OpenXR
 
         if (File.Exists(path) && Runtime.ReadFromJson(path, out rt))
             yield return rt;
-    }
-
-    private static bool TryLocateSteamVR(out Runtime runtime)
-    {
-        runtime = default;
-
-        try
-        {
-            var steamPath = ReadSteamInstallPath();
-            if (string.IsNullOrEmpty(steamPath))
-                return false;
-
-            foreach (var library in EnumerateSteamLibraries(steamPath))
-            {
-                var json = Path.Combine(library, "steamapps", "common", "SteamVR", "steamxr_win64.json");
-                if (File.Exists(json) && Runtime.ReadFromJson(json, out runtime))
-                    return true;
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogWarning($"SteamVR runtime probe failed: {ex.Message}");
-        }
-
-        return false;
-    }
-
-    private static string ReadSteamInstallPath()
-    {
-        foreach (var subKey in new[] { @"SOFTWARE\WOW6432Node\Valve\Steam", @"SOFTWARE\Valve\Steam" })
-        {
-            if (Native.RegOpenKeyEx(Native.HKEY_LOCAL_MACHINE, subKey, 0, 0x20019, out var hKey) != 0)
-                continue;
-
-            var cbData = 0u;
-            if (Native.RegQueryValueEx(hKey, "InstallPath", 0, out var type, null, ref cbData) == 0 &&
-                type is 0x1 or 0x2)
-            {
-                var data = new StringBuilder((int)cbData);
-                if (Native.RegQueryValueEx(hKey, "InstallPath", 0, out type, data, ref cbData) == 0)
-                {
-                    Native.RegCloseKey(hKey);
-                    return data.ToString();
-                }
-            }
-
-            Native.RegCloseKey(hKey);
-        }
-
-        return null;
-    }
-
-    private static IEnumerable<string> EnumerateSteamLibraries(string steamPath)
-    {
-        yield return steamPath;
-
-        var vdf = Path.Combine(steamPath, "steamapps", "libraryfolders.vdf");
-        if (!File.Exists(vdf))
-            yield break;
-
-        foreach (Match match in Regex.Matches(File.ReadAllText(vdf), "\"path\"\\s+\"([^\"]+)\""))
-        {
-            var path = match.Groups[1].Value.Replace(@"\\", @"\");
-            if (!string.IsNullOrEmpty(path))
-                yield return path;
-        }
     }
 
     public static bool GetActiveRuntimeName(out string name)
