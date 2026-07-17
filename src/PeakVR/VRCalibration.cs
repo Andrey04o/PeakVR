@@ -2,6 +2,7 @@ using PEAKLib.UI;
 using PEAKLib.UI.Elements;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace PeakVR;
 
@@ -11,20 +12,50 @@ internal static class VRCalibration
     private const float MinScale = 0.6f;
     private const float MaxScale = 1.8f;
 
+    private static PeakCustomPage page;
+
     public static void Register()
     {
-        MenuAPI.AddToMainMenu(parent => BuildEntry(parent, true));
-        MenuAPI.AddToPauseMenu(parent => BuildEntry(parent, false));
-        Plugin.Log.LogInfo("[PeakVR] Calibration menu registered");
+        MenuAPI.AddToPauseMenu(BuildPauseEntry);
+        Plugin.Log.LogInfo("[PeakVR] Calibration menu registered (pause menu)");
     }
 
-    private static void BuildEntry(Transform parent, bool mainMenu)
+    private static void BuildPauseEntry(Transform parent)
     {
-        var page = BuildPage();
-        var button = mainMenu
-            ? MenuAPI.CreateMenuButton("VR Calibration")
-            : MenuAPI.CreatePauseMenuButton("VR Calibration");
-        button.ParentTo(parent).OnClick(() => page.Open());
+        var pauseMain = parent.GetComponent<PauseMenuMainPage>();
+        var button = MenuAPI.CreatePauseMenuButton("VR Calibration");
+
+        if (pauseMain != null && pauseMain.resumeButton != null)
+        {
+            var resume = pauseMain.resumeButton.transform;
+            button.ParentTo(resume.parent);
+            button.transform.SetSiblingIndex(resume.GetSiblingIndex() + 1);
+        }
+        else
+        {
+            button.ParentTo(parent);
+        }
+
+        button.OnClick(() =>
+        {
+            Open();
+            if (pauseMain != null && pauseMain.resumeButton != null)
+                pauseMain.resumeButton.onClick.Invoke();
+        });
+    }
+
+    public static void Open()
+    {
+        try
+        {
+            if (page == null)
+                page = BuildPage();
+            page.Open();
+        }
+        catch (System.Exception e)
+        {
+            Plugin.Log.LogWarning($"[PeakVR] Calibration page unavailable (PEAKLib.UI missing?): {e.Message}");
+        }
     }
 
     private static PeakCustomPage BuildPage()
@@ -34,20 +65,23 @@ internal static class VRCalibration
         page.CloseOnUICancel = true;
         page.CloseOnPause = true;
 
-        Label(page, "VR Arm Calibration", 340f, 54f, Color.white);
+        Label(page, "VR Arm Calibration", 400f, 54f, Color.white);
         Label(page,
             "Stand up straight in a T-pose: arms straight out to your sides,\n" +
             "controllers level with your shoulders.",
-            210f, 30f, new Color(0.85f, 0.85f, 0.85f));
-        Label(page, "Then squeeze BOTH TRIGGERS at once to save.", 110f, 32f, new Color(1f, 0.85f, 0.3f));
+            315f, 30f, new Color(0.85f, 0.85f, 0.85f));
+        Label(page, "Then squeeze BOTH TRIGGERS at once to save.", 245f, 32f, new Color(1f, 0.85f, 0.3f));
 
-        var readout = Label(page, "", 10f, 32f, Color.white);
-        var current = Label(page, "", -60f, 26f, new Color(0.7f, 0.8f, 1f));
-        var status = Label(page, "", -130f, 30f, new Color(0.4f, 1f, 0.5f));
+        if (PeakAssets.TPose != null)
+            Picture(page, PeakAssets.TPose, new Vector2(0f, 45f), 360f);
+
+        var readout = Label(page, "", -175f, 32f, Color.white);
+        var current = Label(page, "", -235f, 26f, new Color(0.7f, 0.8f, 1f));
+        var status = Label(page, "", -290f, 30f, new Color(0.4f, 1f, 0.5f));
 
         var reset = MenuAPI.CreateButton("Reset to Default");
         reset.ParentTo(page.transform);
-        Place(reset.RectTransform, new Vector2(-180f, -300f), new Vector2(320f, 72f));
+        Place(reset.RectTransform, new Vector2(-180f, -390f), new Vector2(320f, 72f));
         reset.OnClick(() =>
         {
             VRArmIKPatch.ApplyArmScale(DefaultArmScale);
@@ -56,7 +90,7 @@ internal static class VRCalibration
 
         var close = MenuAPI.CreateButton("Close");
         close.ParentTo(page.transform);
-        Place(close.RectTransform, new Vector2(180f, -300f), new Vector2(320f, 72f));
+        Place(close.RectTransform, new Vector2(180f, -390f), new Vector2(320f, 72f));
         close.OnClick(() => page.Close());
 
         var runner = page.gameObject.AddComponent<Runner>();
@@ -79,9 +113,24 @@ internal static class VRCalibration
         tmp.fontSize = size;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.enableWordWrapping = true;
+        tmp.raycastTarget = false;
 
         Place(label.RectTransform, new Vector2(0f, y), new Vector2(1500f, 220f));
         return label;
+    }
+
+    private static void Picture(PeakCustomPage page, Sprite sprite, Vector2 pos, float height)
+    {
+        var go = new GameObject("Picture", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        go.transform.SetParent(page.transform, false);
+
+        var img = go.GetComponent<Image>();
+        img.sprite = sprite;
+        img.preserveAspect = true;
+        img.raycastTarget = false;
+
+        var aspect = sprite.rect.height > 0f ? sprite.rect.width / sprite.rect.height : 1f;
+        Place(go.GetComponent<RectTransform>(), pos, new Vector2(height * aspect, height));
     }
 
     private static void Place(RectTransform rt, Vector2 pos, Vector2 size)

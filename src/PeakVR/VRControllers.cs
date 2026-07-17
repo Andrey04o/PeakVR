@@ -58,6 +58,8 @@ internal static class VRControllers
             var model = Object.Instantiate(PeakAssets.Controller, obj.transform);
             model.transform.localPosition = Vector3.zero;
             model.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            if (hand == "RightHand")
+                model.transform.localScale = new Vector3(-1f, 1f, 1f);
 
             controllerMat ??= new Material(Shader.Find("Universal Render Pipeline/Lit"))
             {

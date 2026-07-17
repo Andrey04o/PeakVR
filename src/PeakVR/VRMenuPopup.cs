@@ -98,15 +98,27 @@ internal class VRMenuPopup : MonoBehaviour
             converted.Add(c);
         }
 
-        var head = cam.transform;
-        var fwd = head.forward;
-        fwd.y = 0f;
-        fwd = fwd.sqrMagnitude < 0.001f ? head.forward : fwd.normalized;
-
         var rt = (RectTransform)c.transform;
-        rt.localScale = Vector3.one * Scale;
-        rt.position = head.position + fwd * Distance + Vector3.up * Height;
-        rt.rotation = Quaternion.LookRotation(fwd, Vector3.up);
+        var menu = MenuCanvasPatch.MenuCanvas;
+
+        if (menu != null)
+        {
+            var mt = menu.transform;
+            rt.position = mt.position;
+            rt.rotation = mt.rotation;
+            rt.localScale = mt.localScale;
+        }
+        else
+        {
+            var head = cam.transform;
+            var fwd = head.forward;
+            fwd.y = 0f;
+            fwd = fwd.sqrMagnitude < 0.001f ? head.forward : fwd.normalized;
+
+            rt.localScale = Vector3.one * Scale;
+            rt.position = head.position + fwd * Distance + Vector3.up * Height;
+            rt.rotation = Quaternion.LookRotation(fwd, Vector3.up);
+        }
 
         PointAt(c);
         Plugin.Log.LogInfo($"[PeakVR] Menu popup '{c.transform.root.name}' -> world space");

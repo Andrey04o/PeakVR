@@ -58,6 +58,8 @@ public partial class Plugin : BaseUnityPlugin
 
         VRNetworking.CreateReceiver();
 
+        PeakAssets.Load();
+
         if (disableVr)
         {
             VrEnabled = false;
@@ -205,6 +207,7 @@ public partial class Plugin : BaseUnityPlugin
         var harmony = new Harmony(Id);
         harmony.CreateClassProcessor(typeof(RemoteIKPatch)).Patch();
         harmony.CreateClassProcessor(typeof(OneHandedHoldPatch)).Patch();
+        harmony.CreateClassProcessor(typeof(AboutButtonPatch)).Patch();
     }
 
     private bool PreloadRuntimeDependencies()

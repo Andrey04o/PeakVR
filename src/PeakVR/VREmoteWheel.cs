@@ -19,6 +19,8 @@ internal class VREmoteWheel : MonoBehaviour
 
     private RectTransform button;
     private Collider buttonCollider;
+    private LineRenderer line;
+    private Material lineMat;
 
     private void LateUpdate()
     {
@@ -35,6 +37,7 @@ internal class VREmoteWheel : MonoBehaviour
         {
             RightTriggerConsumed = true;
             button.localScale = Vector3.one;
+            HideLine();
 
             var ch = Character.localCharacter;
             if (ch == null || ch.data.fullyPassedOut ||
@@ -50,13 +53,15 @@ internal class VREmoteWheel : MonoBehaviour
         if (!canOpen)
         {
             button.localScale = Vector3.one;
+            HideLine();
             return;
         }
 
-        var hovering = Physics.Raycast(VRHands.Right.position, VRHands.Right.forward, out _, MaxDistance,
+        var hovering = Physics.Raycast(VRHands.Right.position, VRHands.Right.forward, out var hit, MaxDistance,
             1 << EmoteLayer, QueryTriggerInteraction.Collide);
 
         button.localScale = hovering ? Vector3.one * HoverScale : Vector3.one;
+        UpdateLine(hovering, hit);
 
         if (hovering)
         {
@@ -64,6 +69,53 @@ internal class VREmoteWheel : MonoBehaviour
             if (VRControls.RightTrigger != null && VRControls.RightTrigger.WasPressedThisFrame())
                 EmoteActive = true;
         }
+    }
+
+    private void UpdateLine(bool hovering, RaycastHit hit)
+    {
+        EnsureLine();
+
+        var show = VRLine.ShouldShow(Plugin.Config.HudLine.Value, hovering);
+        line.enabled = show;
+        if (!show)
+            return;
+
+        var origin = VRHands.Right.position;
+        var dir = VRHands.Right.forward;
+        line.SetPosition(0, origin);
+        line.SetPosition(1, hovering ? hit.point : origin + dir * MaxDistance);
+
+        var col = hovering ? VRLine.CharacterColor() : new Color(0.9f, 0.9f, 0.95f);
+        if (lineMat.HasProperty("_BaseColor"))
+            lineMat.SetColor("_BaseColor", col);
+        else
+            lineMat.color = col;
+    }
+
+    private void HideLine()
+    {
+        if (line != null)
+            line.enabled = false;
+    }
+
+    private void EnsureLine()
+    {
+        if (line != null)
+            return;
+
+        var go = new GameObject("PeakVR EmoteLine");
+        go.transform.SetParent(VRHands.Right, false);
+
+        line = go.AddComponent<LineRenderer>();
+        line.useWorldSpace = true;
+        line.widthMultiplier = 0.004f;
+        line.numCapVertices = 4;
+        line.positionCount = 2;
+
+        var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+        lineMat = new Material(shader);
+        line.material = lineMat;
+        line.enabled = false;
     }
 
     private void EnsureButton()
@@ -74,28 +126,37 @@ internal class VREmoteWheel : MonoBehaviour
         var go = new GameObject("PeakVR EmoteButton");
         button = go.AddComponent<RectTransform>();
         button.SetParent(VRControllerHud.LeftHudCanvas.transform, false);
-        button.sizeDelta = new Vector2(150f, 90f);
-        button.anchoredPosition = new Vector2(0f, -150f);
+        button.sizeDelta = new Vector2(150f, 150f);
+        button.anchoredPosition = new Vector2(0f, -170f);
 
         var img = go.AddComponent<Image>();
-        img.color = new Color(1f, 0.78f, 0.2f);
+        if (PeakAssets.EmoteButton != null)
+        {
+            img.sprite = PeakAssets.EmoteButton;
+            img.color = Color.white;
+            img.preserveAspect = true;
+        }
+        else
+        {
+            img.color = new Color(1f, 0.78f, 0.2f);
 
-        var labelGo = new GameObject("Label");
-        var labelRt = labelGo.AddComponent<RectTransform>();
-        labelRt.SetParent(button, false);
-        labelRt.anchorMin = Vector2.zero;
-        labelRt.anchorMax = Vector2.one;
-        labelRt.offsetMin = Vector2.zero;
-        labelRt.offsetMax = Vector2.zero;
+            var labelGo = new GameObject("Label");
+            var labelRt = labelGo.AddComponent<RectTransform>();
+            labelRt.SetParent(button, false);
+            labelRt.anchorMin = Vector2.zero;
+            labelRt.anchorMax = Vector2.one;
+            labelRt.offsetMin = Vector2.zero;
+            labelRt.offsetMax = Vector2.zero;
 
-        var label = labelGo.AddComponent<TextMeshProUGUI>();
-        label.text = "EMOTE";
-        label.alignment = TextAlignmentOptions.Center;
-        label.color = Color.black;
-        label.fontSize = 42f;
-        var font = FindObjectOfType<TextMeshProUGUI>();
-        if (font != null && font != label && font.font != null)
-            label.font = font.font;
+            var label = labelGo.AddComponent<TextMeshProUGUI>();
+            label.text = "EMOTE";
+            label.alignment = TextAlignmentOptions.Center;
+            label.color = Color.black;
+            label.fontSize = 42f;
+            var font = FindObjectOfType<TextMeshProUGUI>();
+            if (font != null && font != label && font.font != null)
+                label.font = font.font;
+        }
 
         var colGo = new GameObject("EmoteCollider") { layer = EmoteLayer };
         colGo.transform.SetParent(button, false);
@@ -104,7 +165,7 @@ internal class VREmoteWheel : MonoBehaviour
         colGo.transform.localScale = Vector3.one;
         var box = colGo.AddComponent<BoxCollider>();
         box.isTrigger = true;
-        box.size = new Vector3(150f, 90f, 40f);
+        box.size = new Vector3(150f, 150f, 40f);
         buttonCollider = box;
 
         UIOverlay.MakeAlwaysVisible(VRControllerHud.LeftHudCanvas, UIOverlay.HandQueue);

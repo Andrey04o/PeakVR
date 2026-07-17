@@ -25,8 +25,8 @@ internal class VRShoulderTwist : MonoBehaviour
         public Quaternion lastOutputLocal;
     }
 
-    private ArmState right = new() { baseline = -18.51f, prev = -18.51f, has = true };
-    private ArmState left = new() { baseline = 42.29f, prev = 42.29f, has = true };
+    private ArmState right = new() { baseline = 354.79f, prev = 354.79f, has = true };
+    private ArmState left = new() { baseline = 371.93f, prev = 371.93f, has = true };
     private bool recalibrate;
 
     private void LateUpdate()
