@@ -1,22 +1,14 @@
 using System.Collections.Generic;
-using System.Reflection;
 using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 
 namespace PeakVR;
 
 internal static class RenderDiagnostics
 {
-    private static readonly string[] DisableInVR =
-    {
-        "HBAO",
-        "EdgeDetectionRenderer"
-    };
-
     private struct BigLod
     {
         public LODGroup group;
+        public Renderer[] renderers;
         public float[] thresholds;
         public Vector3 localRef;
         public float worldSize;
@@ -26,51 +18,10 @@ internal static class RenderDiagnostics
     private static readonly List<BigLod> bigLods = new();
     private static readonly HashSet<LODGroup> tracked = new();
 
-    private static bool featuresDisabled;
     private static float nextScan;
 
     private const float LodBias = 2.5f;
     private const float ScanInterval = 3f;
-
-    public static void Apply()
-    {
-        if (featuresDisabled)
-            return;
-        featuresDisabled = true;
-
-        var urp = GraphicsSettings.currentRenderPipeline as UniversalRenderPipelineAsset;
-        if (urp == null)
-        {
-            Plugin.Log.LogWarning("[PeakVR] No URP asset active");
-            return;
-        }
-
-        var field = typeof(UniversalRenderPipelineAsset)
-            .GetField("m_RendererDataList", BindingFlags.NonPublic | BindingFlags.Instance);
-        if (field?.GetValue(urp) is not ScriptableRendererData[] dataList)
-            return;
-
-        foreach (var data in dataList)
-        {
-            if (data == null)
-                continue;
-
-            foreach (var f in data.rendererFeatures)
-            {
-                if (f == null)
-                    continue;
-
-                foreach (var name in DisableInVR)
-                {
-                    if (f.name == name && f.isActive)
-                    {
-                        f.SetActive(false);
-                        Plugin.Log.LogInfo($"[PeakVR] Disabled render feature '{f.name}' for VR");
-                    }
-                }
-            }
-        }
-    }
 
     public static void ApplyLodBias()
     {
@@ -131,6 +82,7 @@ internal static class RenderDiagnostics
             bigLods.Add(new BigLod
             {
                 group = g,
+                renderers = g.GetComponentsInChildren<Renderer>(true),
                 thresholds = thresholds,
                 localRef = g.localReferencePoint,
                 worldSize = g.size * maxScale,
@@ -141,6 +93,72 @@ internal static class RenderDiagnostics
 
         if (added > 0)
             Plugin.Log.LogInfo($"[PeakVR] LOD scan: +{added} new (driving {bigLods.Count})");
+    }
+
+    public static void LogLookedAt(Camera cam)
+    {
+        if (cam == null)
+            return;
+
+        if (!Physics.Raycast(cam.transform.position, cam.transform.forward, out var hit, 60f, ~0, QueryTriggerInteraction.Ignore))
+        {
+            Plugin.Log.LogInfo("[PeakVR][LODdbg] no raycast hit");
+            return;
+        }
+
+        Plugin.Log.LogInfo($"[PeakVR][LODdbg] hit path='{Path(hit.collider.transform)}' dist={hit.distance:F1}");
+
+        // The LODGroup governing what we hit (walk up), plus any LODGroups nested under it.
+        var owner = hit.collider.GetComponentInParent<LODGroup>();
+        if (owner == null)
+        {
+            Plugin.Log.LogInfo("[PeakVR][LODdbg]   NO LODGroup in parents of the hit object");
+            return;
+        }
+
+        LogGroup(owner, cam, "HIT");
+        foreach (var child in owner.transform.GetComponentsInChildren<LODGroup>(true))
+            if (child != owner)
+                LogGroup(child, cam, "child");
+    }
+
+    private static void LogGroup(LODGroup g, Camera cam, string tag)
+    {
+        if (g == null)
+            return;
+
+        var lods = g.GetLODs();
+        var counts = "";
+        for (var i = 0; i < lods.Length; i++)
+            counts += $"[L{i}:{lods[i].renderers.Length}r@{lods[i].screenRelativeTransitionHeight:F3}]";
+
+        var scale = g.transform.lossyScale;
+        var maxScale = Mathf.Max(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
+        var worldSize = g.size * maxScale;
+        var halfAngle = Mathf.Tan(Mathf.Deg2Rad * cam.fieldOfView * 0.5f);
+        var dist = Vector3.Distance(cam.transform.position, g.transform.TransformPoint(g.localReferencePoint));
+        var relHeight = dist > 0.001f && halfAngle > 0f ? worldSize * QualitySettings.lodBias / (2f * dist * halfAngle) : -1f;
+
+        var level = -1;
+        for (var j = 0; j < lods.Length; j++)
+            if (relHeight >= lods[j].screenRelativeTransitionHeight) { level = j; break; }
+
+        Plugin.Log.LogInfo(
+            $"[PeakVR][LODdbg]   [{tag}] '{g.name}' lods={lods.Length} tracked={tracked.Contains(g)} enabled={g.enabled} " +
+            $"fade={g.fadeMode} size={g.size:F2} dist={dist:F1} relH={relHeight:F3} ourLevel={level} {counts}");
+    }
+
+    private static string Path(Transform t)
+    {
+        var path = t.name;
+        var p = t.parent;
+        var depth = 0;
+        while (p != null && depth++ < 6)
+        {
+            path = p.name + "/" + path;
+            p = p.parent;
+        }
+        return path;
     }
 
     private static void ForceLods(Camera cam)
@@ -177,12 +195,35 @@ internal static class RenderDiagnostics
                 }
             }
 
-            if (level != b.lastLevel)
+            if (level == b.lastLevel)
+                continue;
+
+            if (level >= 0)
             {
+                // Coming back from a culled state: re-enable the renderers + group before forcing.
+                if (b.lastLevel < 0)
+                {
+                    b.group.enabled = true;
+                    foreach (var r in b.renderers)
+                        if (r != null)
+                            r.enabled = true;
+                }
+
                 b.group.ForceLOD(level);
-                b.lastLevel = level;
-                bigLods[i] = b;
             }
+            else
+            {
+                // Past the smallest LOD: cull it OURSELVES (both eyes identically) instead of calling
+                // ForceLOD(-1), which returns the group to Unity's per-eye automatic LOD and makes the
+                // object flicker between eyes at distance.
+                b.group.enabled = false;
+                foreach (var r in b.renderers)
+                    if (r != null)
+                        r.enabled = false;
+            }
+
+            b.lastLevel = level;
+            bigLods[i] = b;
         }
     }
 }

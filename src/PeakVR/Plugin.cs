@@ -30,6 +30,7 @@ public partial class Plugin : BaseUnityPlugin
     internal static ManualLogSource Log { get; private set; } = null!;
     public new static LCVR.Config Config { get; private set; }
     public static bool VrEnabled { get; private set; } = true;
+    public static bool DebugButtons { get; private set; }
     private void Awake()
     {
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
@@ -55,6 +56,7 @@ public partial class Plugin : BaseUnityPlugin
         
         var args = Environment.GetCommandLineArgs();
         var disableVr = args.Contains("--disable-vr", StringComparer.OrdinalIgnoreCase);
+        DebugButtons = args.Contains("-vr-debugbuttons", StringComparer.OrdinalIgnoreCase);
 
         VRNetworking.CreateReceiver();
 
@@ -113,11 +115,8 @@ public partial class Plugin : BaseUnityPlugin
 
     private void Update()
     {
-        if (Keyboard.current != null && Keyboard.current.f1Key.wasPressedThisFrame)
-            DumpCanvases();
-
-        if (Keyboard.current != null && Keyboard.current.f4Key.wasPressedThisFrame)
-            UIOverlay.SetLogging(!UIOverlay.Logging);
+        if (DebugButtons && Keyboard.current != null)
+            HandleDebugKeys();
 
         if (!VrEnabled)
             return;
@@ -166,6 +165,39 @@ public partial class Plugin : BaseUnityPlugin
         {
             Log.LogWarning($"[PeakVR] AnyKey bind failed: {e.Message}");
         }
+    }
+
+    private static void HandleDebugKeys()
+    {
+        var kb = Keyboard.current;
+
+        if (kb.f1Key.wasPressedThisFrame)
+            DumpCanvases();
+
+        if (kb.f4Key.wasPressedThisFrame)
+            UIOverlay.SetLogging(!UIOverlay.Logging);
+
+        if (kb.f9Key.wasPressedThisFrame)
+        {
+            var m = VRStereoCulling.Margin - 0.1f;
+            VRStereoCulling.Margin = m < 1f ? 1f : m;
+            Log.LogInfo($"[PeakVR] StereoCulling Margin = {VRStereoCulling.Margin:F2}");
+        }
+
+        if (kb.f10Key.wasPressedThisFrame)
+        {
+            VRStereoCulling.Margin += 0.1f;
+            Log.LogInfo($"[PeakVR] StereoCulling Margin = {VRStereoCulling.Margin:F2}");
+        }
+
+        if (kb.f11Key.wasPressedThisFrame)
+        {
+            VRStereoCulling.DisableOcclusion = !VRStereoCulling.DisableOcclusion;
+            Log.LogInfo($"[PeakVR] Occlusion culling {(VRStereoCulling.DisableOcclusion ? "DISABLED" : "ENABLED")}");
+        }
+
+        if (kb.f12Key.wasPressedThisFrame && MainCamera.instance != null)
+            RenderDiagnostics.LogLookedAt(MainCamera.instance.cam);
     }
 
     private static void DumpCanvases()

@@ -54,7 +54,6 @@ internal static class InGameCameraPatch
 
         VRHands.Create(rig.transform);
 
-        RenderDiagnostics.Apply();
         RenderDiagnostics.ApplyLodBias();
         RenderDiagnostics.ScheduleScan();
 
