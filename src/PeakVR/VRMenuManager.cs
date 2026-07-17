@@ -10,6 +10,8 @@ internal class VRMenuManager : MonoBehaviour
 {
     private const float Scale = 0.0022f;
     private const float Distance = 2.5f;
+    private const float KioskForward = 0.5f;
+    private const float KioskUp = 0.25f;
 
     private static readonly FieldInfo PauseMenuField =
         typeof(GUIManager).GetField("pauseMenu", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -136,9 +138,51 @@ internal class VRMenuManager : MonoBehaviour
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
 
-        PlaceInFront(canvas);
+        var kiosk = GetKioskFor(canvas);
+        if (kiosk != null)
+            PlaceAtKiosk(canvas, kiosk);
+        else
+            PlaceInFront(canvas);
 
         Plugin.Log.LogInfo($"[PeakVR] Menu -> world space: {canvas.name}");
+    }
+
+    private static Transform GetKioskFor(Canvas canvas)
+    {
+        var gui = GUIManager.instance;
+        if (gui == null || gui.boardingPass == null || !gui.boardingPass.isOpen || gui.boardingPass.kiosk == null)
+            return null;
+
+        var panel = gui.boardingPass.panel;
+        var bpCanvas = panel != null ? panel.GetComponentInParent<Canvas>() : null;
+        if (bpCanvas != null)
+            bpCanvas = bpCanvas.rootCanvas;
+
+        return bpCanvas == canvas ? gui.boardingPass.kiosk.transform : null;
+    }
+
+    private static void PlaceAtKiosk(Canvas canvas, Transform kiosk)
+    {
+        var rt = (RectTransform)canvas.transform;
+        rt.localScale = Vector3.one * Scale;
+
+        // The kiosk's screen faces along its RIGHT axis (its forward points straight up), so use that
+        // horizontal axis — the panel stands upright, aligned to the kiosk, on the approach side.
+        var dir = kiosk.right;
+        dir.y = 0f;
+        dir = dir.sqrMagnitude < 0.001f ? kiosk.right : dir.normalized;
+
+        var cam = MainCamera.instance != null ? MainCamera.instance.cam : Camera.main;
+        if (cam != null)
+        {
+            var toPlayer = cam.transform.position - kiosk.position;
+            toPlayer.y = 0f;
+            if (Vector3.Dot(dir, toPlayer) < 0f)
+                dir = -dir;
+        }
+
+        rt.position = kiosk.position + dir * KioskForward + Vector3.up * KioskUp;
+        rt.rotation = Quaternion.LookRotation(-dir, Vector3.up);
     }
 
     private static void PlaceInFront(Canvas canvas)
