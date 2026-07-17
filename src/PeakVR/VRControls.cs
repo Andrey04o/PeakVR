@@ -13,6 +13,7 @@ internal static class VRControls
     public static InputAction RightTrigger { get; private set; }
     public static InputAction LeftPrimary { get; private set; }
     public static InputAction RightPrimary { get; private set; }
+    public static InputAction RightSecondary { get; private set; }
     public static InputAction Pause { get; private set; }
     public static InputAction Sprint { get; private set; }
     public static InputAction Stash { get; private set; }
@@ -30,6 +31,7 @@ internal static class VRControls
         RightTrigger = Button("VR RightTrigger", "<XRController>{RightHand}/triggerPressed");
         LeftPrimary = Button("VR LeftPrimary", "<XRController>{LeftHand}/primaryButton");
         RightPrimary = Button("VR RightPrimary", "<XRController>{RightHand}/primaryButton");
+        RightSecondary = Button("VR RightSecondary", "<XRController>{RightHand}/secondaryButton");
 
         Pause = Button("VR Pause", "<XRController>{LeftHand}/secondaryButton");
 
@@ -49,6 +51,7 @@ internal static class VRControls
         RightTrigger.Enable();
         LeftPrimary.Enable();
         RightPrimary.Enable();
+        RightSecondary.Enable();
         Pause.Enable();
         Sprint.Enable();
         Stash.Enable();

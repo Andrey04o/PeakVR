@@ -88,8 +88,21 @@ internal class VRControllerHud : MonoBehaviour
         UIOverlay.MakeAlwaysVisible(left, UIOverlay.HandQueue);
         UIOverlay.MakeAlwaysVisible(right, UIOverlay.HandQueue);
 
+        HideInputPrompts(left);
+        HideInputPrompts(right);
+
         moved = true;
         Plugin.Log.LogInfo("[PeakVR] HUD moved onto controllers");
+    }
+
+    private static void HideInputPrompts(Canvas canvas)
+    {
+        if (canvas == null)
+            return;
+
+        // The moved item cells carry inline keyboard/gamepad button prompts — hide them in VR.
+        foreach (var prompt in canvas.GetComponentsInChildren<InLineInputPrompts>(true))
+            prompt.gameObject.SetActive(false);
     }
 
     private void UpdateBackface()

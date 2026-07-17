@@ -200,6 +200,7 @@ internal class VRLaser : MonoBehaviour
             reticle.raycastTarget = false;
             reticle.rectTransform.sizeDelta = new Vector2(ReticlePixels, ReticlePixels);
             reticle.gameObject.SetActive(false);
+            UIOverlay.MakeTopmost(reticle, UIOverlay.ReticleQueue);
         }
 
         if (reticleCanvas != canvas)

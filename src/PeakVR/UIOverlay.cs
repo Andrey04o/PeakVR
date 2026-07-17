@@ -15,6 +15,7 @@ internal static class UIOverlay
     private const int DefaultQueue = 3000;
     private const int ForegroundQueue = 3005; // above world transparents (glass/fog)
     public const int HandQueue = 4000;        // above rain/airplane-window glass, for the wrist HUD
+    public const int ReticleQueue = 4200;     // above every menu/popup, so the cursor is never hidden
 
     private static readonly Dictionary<Graphic, Material> Cache = new();
 
@@ -35,6 +36,21 @@ internal static class UIOverlay
 
     public static void MakeAlwaysVisible(Canvas canvas, int baseQueue)
         => Apply(canvas, baseQueue);
+
+    // Force a single graphic (e.g. the laser reticle) to draw on top of everything, ignoring depth.
+    public static void MakeTopmost(Graphic graphic, int queue)
+    {
+        if (graphic == null)
+            return;
+
+        var mat = GetMaterial(graphic);
+        if (mat == null)
+            return;
+
+        mat.SetInt(ZTestUI, Always);
+        mat.SetInt(ZTestTMP, Always);
+        mat.renderQueue = queue;
+    }
 
     private static void Apply(Canvas canvas, int baseQueue)
     {

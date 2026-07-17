@@ -58,6 +58,31 @@ internal static class InGameCameraPatch
         RenderDiagnostics.ApplyLodBias();
         RenderDiagnostics.ScheduleScan();
 
+        ForceKeyboardMouseScheme();
+
         Plugin.Log.LogInfo("[PeakVR] In-game VR camera rig created");
+    }
+
+    // Force the game's control scheme to Keyboard&Mouse once at level start so the HUD stops
+    // showing gamepad button prompts (our VR input otherwise reads as an Unknown scheme).
+    private static void ForceKeyboardMouseScheme()
+    {
+        try
+        {
+            var playerInput = Object.FindObjectOfType<PlayerInput>();
+            if (playerInput == null || Keyboard.current == null)
+                return;
+
+            if (Mouse.current != null)
+                playerInput.SwitchCurrentControlScheme("Keyboard&Mouse", Keyboard.current, Mouse.current);
+            else
+                playerInput.SwitchCurrentControlScheme("Keyboard&Mouse", Keyboard.current);
+
+            Plugin.Log.LogInfo("[PeakVR] Forced control scheme to Keyboard&Mouse");
+        }
+        catch (System.Exception e)
+        {
+            Plugin.Log.LogWarning($"[PeakVR] Could not force Keyboard&Mouse scheme: {e.Message}");
+        }
     }
 }

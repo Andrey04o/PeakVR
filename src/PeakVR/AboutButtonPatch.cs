@@ -9,6 +9,7 @@ internal static class AboutButtonPatch
 {
     private const string ButtonName = "PeakVR AboutButton";
     private const float Margin = 40f;
+    private const float SizeScale = 0.65f;
 
     [HarmonyPostfix]
     private static void Postfix(MainMenu __instance)
@@ -35,7 +36,8 @@ internal static class AboutButtonPatch
 
         var button = go.GetComponent<Button>();
         button.targetGraphic = img;
-        button.navigation = new Navigation { mode = Navigation.Mode.None };
+        // Automatic so a gamepad in flat mode can navigate to it (VR uses the laser).
+        button.navigation = new Navigation { mode = Navigation.Mode.Automatic };
         if (template != null)
         {
             button.transition = Selectable.Transition.ColorTint;
@@ -45,9 +47,8 @@ internal static class AboutButtonPatch
 
         var rt = (RectTransform)go.transform;
         rt.anchorMin = rt.anchorMax = rt.pivot = Vector2.zero;
-        rt.sizeDelta = template != null
-            ? ((RectTransform)template.transform).sizeDelta
-            : new Vector2(220f, 110f);
+        var baseSize = template != null ? ((RectTransform)template.transform).sizeDelta : new Vector2(220f, 110f);
+        rt.sizeDelta = baseSize * SizeScale;
         rt.anchoredPosition = new Vector2(Margin, Margin);
         rt.SetAsLastSibling();
 

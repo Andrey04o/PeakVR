@@ -13,6 +13,7 @@ internal static class InteractionInputPatch
 
     private static int scrollDir;
     private static float scrollTickTime;
+    private static bool crouchToggle;
 
     [HarmonyPostfix]
     private static void Postfix(CharacterInput __instance, bool playerMovementActive)
@@ -21,14 +22,32 @@ internal static class InteractionInputPatch
         if (local == null || local.input != __instance || VRControls.RightGrip == null)
             return;
 
+        if (local.data != null && local.data.fullyPassedOut)
+            crouchToggle = false;
+
         Inject(VRControls.RightGrip, ref __instance.interactWasPressed, ref __instance.interactIsPressed,
             ref __instance.interactWasReleased);
 
         Inject(VRControls.LeftGrip, ref __instance.dropWasPressed, ref __instance.dropIsPressed,
             ref __instance.dropWasReleased);
-        // A (right primary) = ping. Slot select moved to the left-controller HUD pointer (#17).
+
+        // Jump is driven ONLY by A. Clear the game's native jump first (the VD-emulated gamepad
+        // maps a button to it — the old "B also jumps") so B is free to hold/unhold, and so the
+        // gamepad-scheme switching can't release the jump mid-move.
+        __instance.jumpWasPressed = false;
+        __instance.jumpIsPressed = false;
         if (VRControls.RightPrimary.WasPressedThisFrame())
+            __instance.jumpWasPressed = true;
+        if (VRControls.RightPrimary.IsPressed())
+            __instance.jumpIsPressed = true;
+
+        // Right thumbstick click = ping.
+        if (VRControls.Stash.WasPressedThisFrame())
             __instance.pingWasPressed = true;
+
+        // B (right secondary) = hold / unhold the selected item.
+        if (VRControls.RightSecondary.WasPressedThisFrame())
+            __instance.unselectSlotWasPressed = true;
 
         if (VRControls.Pause.WasPressedThisFrame())
         {
@@ -51,15 +70,18 @@ internal static class InteractionInputPatch
             Inject(VRControls.LeftTrigger, ref __instance.useSecondaryWasPressed, ref __instance.useSecondaryIsPressed,
                 ref __instance.useSecondaryWasReleased);
 
+        // Sprint (left-stick click). Inject the edge too so climbing lunge (RPCA_ClimbJump) arms —
+        // it needs sprintWasPressed to set sprintHasBeenPressedSinceClimb, not just sprintIsPressed.
+        if (VRControls.Sprint.WasPressedThisFrame())
+            __instance.sprintWasPressed = true;
         if (VRControls.Sprint.IsPressed())
             __instance.sprintIsPressed = true;
 
-        // X (left primary) = hold-to-crouch, coexisting with physical bend-crouch.
-        if (VRHeadRig.Crouching || VRControls.LeftPrimary.IsPressed())
+        // X (left primary) = toggle crouch, coexisting with physical bend-crouch.
+        if (VRControls.LeftPrimary.WasPressedThisFrame())
+            crouchToggle = !crouchToggle;
+        if (VRHeadRig.Crouching || crouchToggle)
             __instance.crouchIsPressed = true;
-
-        if (VRControls.Stash.WasPressedThisFrame())
-            __instance.unselectSlotWasPressed = true;
 
         InjectScroll(__instance);
     }
