@@ -6,7 +6,7 @@ PeakVR is a mod that adds full 6DOF VR support into PEAK.
 
 This mod, as the Lethal Company VR mod, is powered by Unity's OpenXR plugin, and is thereby compatible with a wide range of headsets and runtimes, like Oculus, Virtual Desktop, SteamVR and many more!
 
-It brings your head and hands into VR with motion controls, but it does **not** add physical, hand-over-hand climbing — you still climb the way the base game does (hold the grab button on a handhold). Don't expect a climbing simulator.
+It brings your head and hands into VR with motion controls, but it does **not** add physical, hand-over-hand climbing — you still climb the way the base game does. Don't expect a climbing simulator.
 
 Forked from [LCVR](https://github.com/DaXcess/LCVR) by DaXcess.
 
