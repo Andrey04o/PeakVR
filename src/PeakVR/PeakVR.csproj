@@ -12,6 +12,15 @@
   </PropertyGroup>
 
   <!--
+    Build the preloader whenever the plugin builds so its DLL is always produced (it outputs into
+    this project's bin folder, which the Thunderstore package copies from). ReferenceOutputAssembly
+    is false because we only need it built, not referenced at compile time.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\Preloader\LCVR.Preload.csproj" ReferenceOutputAssembly="false" Private="false" />
+  </ItemGroup>
+
+  <!--
   How to include thunderstore mods as dependencies via nuget
 
   We have already added the windows10ce nuget feed to this project
