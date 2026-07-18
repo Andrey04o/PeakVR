@@ -61,10 +61,6 @@ If PEAK isn't at the default Steam path, copy `Config.Build.user.props.template`
 
 The preloader (`LCVR.Preload.dll`) is built alongside the plugin and belongs in `BepInEx/patchers/`.
 
-## Asset bundle
-
-The plugin loads a `peakvr` asset bundle that is not included in this repository. Build it from the companion Unity project at [PeakVR-Assets](https://github.com/Andrey04o/PeakVR-Assets): open the project and run **`Assets/Build PeakVR AssetBundle`** from the menu bar.
-
 ## Runtime dependencies
 
 The plugin needs a `RuntimeDeps` folder containing the Unity XR managed assemblies, which are also not included in the repository. You can extract them from the [Thunderstore package](https://thunderstore.io/c/peak/p/Andrey04o/PeakVR/), or retrieve them from a Unity project yourself (see below). For a manual install, place the `RuntimeDeps` folder next to the plugin DLL in `BepInEx/plugins/`.
@@ -86,6 +82,10 @@ You can now build the dummy game. Make sure the scripting backend is set to Mono
 - Unity.XR.Interaction.Toolkit.dll
 - Unity.XR.Management.dll
 - Unity.XR.OpenXR.dll
+
+## Asset bundle
+
+The plugin loads a `peakvr` asset bundle that is not included in this repository. Build it from the companion Unity project at [PeakVR-Assets](https://github.com/Andrey04o/PeakVR-Assets): open the project and run **`Assets/Build PeakVR AssetBundle`** from the menu bar.
 
 ## Thunderstore packaging
 
