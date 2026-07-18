@@ -1,31 +1,82 @@
-# PeakVR
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Andrey04o/PeakVR/main/Logo.png" alt="PeakVR" width="420">
+</p>
 
-Describe your project here!
+PeakVR is a mod that adds full 6DOF VR support into PEAK.
 
-## Template Instructions
+This mod, as the Lethal Company VR mod, is powered by Unity's OpenXR plugin, and is thereby compatible with a wide range of headsets and runtimes, like Oculus, Virtual Desktop, SteamVR and many more!
 
-You can remove this section after you've set up your project.
+Forked from [LCVR](https://github.com/DaXcess/LCVR) by DaXcess.
 
-Next steps:
+# Usage
 
-- Create a copy of the `Config.Build.user.props.template` file and name it `Config.Build.user.props`
-  - This will automate copying your plugin assembly to `BepInEx/plugins/`
-  - Configure the paths to point to your game path and your `BepInEx/plugins/`
-  - Game assembly references should work if the path to the game is valid
-- Search `TODO` in the whole project to see what you should configure or modify
+Install PeakVR with a mod manager (such as [r2modman](https://thunderstore.io/c/peak/p/ebkr/r2modman/), Gale, or the Thunderstore Mod Manager) from the [Thunderstore page](https://thunderstore.io/c/peak/p/Andrey04o/PeakVR/) — dependencies are installed automatically.
 
-### Thunderstore Packaging
+Running the mod using r2modman can be done simply by clicking "Start Modded", which will automatically launch the game with the installed mods.
 
-This template comes with Thunderstore packaging built-in, using [TCLI](<https://github.com/thunderstore-io/thunderstore-cli>).
+The rest of this README only outlines how to build and install the mod manually from source.
 
-You can build Thunderstore packages by running:
+# Building from source
+
+## Build
+
+Requires the [.NET SDK](https://dotnet.microsoft.com/download) 8.0 or newer and PEAK installed (the build references the game's assemblies).
 
 ```sh
+git clone https://github.com/Andrey04o/PeakVR.git
+cd PeakVR
+dotnet build
+```
+
+This compiles the plugin and copies `com.andrey04o.PeakVR.dll` into the game's `BepInEx/plugins/` folder. 
+
+If PEAK isn't at the default Steam path, copy `Config.Build.user.props.template` to `Config.Build.user.props` and set `PeakGameRootDir` / `PeakPluginsDir`.
+
+The preloader (`LCVR.Preload.dll`) is built alongside the plugin and belongs in `BepInEx/patchers/`.
+
+## Packaging for Thunderstore
+
+Uses [TCLI](https://github.com/thunderstore-io/thunderstore-cli):
+
+```sh
+dotnet tool restore
 dotnet build -c Release -target:PackTS -v d
 ```
 
-> [!NOTE]  
-> You can learn about different build options with `dotnet build --help`.  
-> `-c` is short for `--configuration` and `-v d` is `--verbosity detailed`.
+The package is written to `artifacts/thunderstore/`.
 
-The built package will be found at `artifacts/thunderstore/`.
+## Asset bundle
+
+The plugin loads a `peakvr` asset bundle that is not included in this repository. Build it from the companion Unity project at [PeakVR-Assets](https://github.com/Andrey04o/PeakVR-Assets): open the project and run **`Assets/Build PeakVR AssetBundle`** from the menu bar. The resulting `peakvr` bundle goes into a `Bundles` folder at the repository root (and, for a manual install, next to the plugin DLL in `BepInEx/plugins/`).
+
+## Runtime dependencies
+
+The plugin needs a `RuntimeDeps` folder containing the Unity XR managed assemblies, which are also not included in the repository. You can extract them from the [Thunderstore package](https://thunderstore.io/c/peak/p/Andrey04o/PeakVR/), or retrieve them from a Unity project yourself (see below). For a manual install, place the `RuntimeDeps` folder next to the plugin DLL in `BepInEx/plugins/`.
+
+### Retrieving Runtime Dependencies from a Unity Project
+
+> You can skip this part if you have taken the runtime dependencies from the Thunderstore package.
+
+First install Unity 6000.0.62f1, which is the Unity version that PEAK uses. Once you have the editor, create a new project. If you are planning on adding prefabs to the mod, use a template with the XR modules installed (add the Unity OpenXR plugin manually if needed), otherwise the VR template works fine.
+
+Make sure the scripting backend is set to Mono, not IL2CPP (Unity will warn you when you try to compile a VR game with IL2CPP enabled). You can now build the dummy game. Once it is built, navigate to its `<Project Name>_Data/Managed` directory and extract the following files into your `RuntimeDeps` folder:
+
+- UnityEngine.SpatialTracking.dll
+- Unity.XR.CoreUtils.dll
+- Unity.XR.Interaction.Toolkit.dll
+- Unity.XR.Management.dll
+- Unity.XR.OpenXR.dll
+
+## Thunderstore packaging
+
+Building the Thunderstore package assembles a ready-to-install package automatically, including copying the `RuntimeDeps` and `Bundles` folders into it — you do not need to place those files by hand:
+
+```sh
+dotnet build -c Release -target:PackTS
+```
+
+This produces a `.zip` under `artifacts/thunderstore/`. Make sure the `RuntimeDeps` folder (see above) and the `Bundles/peakvr` bundle exist at the repository root before packaging, since the [`thunderstore.toml`](src/PeakVR/thunderstore.toml) `build.copy` entries pull them straight into the package.
+
+## Debug keys
+
+Launch the game with the `-vr-debugbuttons` argument to enable developer hotkeys.

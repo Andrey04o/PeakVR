@@ -41,6 +41,7 @@ internal static class VRAboutPanel
 
         Label(page, $"Version {Plugin.Version}", 248f, 28f, new Color(0.7f, 0.7f, 0.72f));
         Label(page, "Created by Andrey04o", 188f, 34f, Color.white);
+        Label(page, "Forked from LCVR by DaXcess", 150f, 24f, new Color(0.8f, 0.8f, 0.82f));
 
         LinkButton(page, "GitHub   —   github.com/Andrey04o/PeakVR", 100f, GithubUrl);
         LinkButton(page, "My other games   —   andrey04o.itch.io", 10f, ItchUrl);
@@ -52,10 +53,8 @@ internal static class VRAboutPanel
         close.OnClick(() => page.Close());
 
         Label(page, "Used Assets", -240f, 28f, Color.white);
-        Label(page, "Preloader OpenXR — Lethal Company VR Mod (LCVR) by DaXcess",
-            -288f, 22f, new Color(0.72f, 0.72f, 0.74f));
         Label(page, "VR controller FBX model — Unity VR Template",
-            -326f, 22f, new Color(0.72f, 0.72f, 0.74f));
+            -288f, 22f, new Color(0.72f, 0.72f, 0.74f));
 
         return page;
     }
