@@ -36,7 +36,6 @@ Tested with PEAK **1.64.a** (stable) and **0.65.d** (beta).
 | X (left) | Crouch |
 | Y (left) | Pause menu |
 
-Point the **left** controller at the item bar on your right wrist and pull the left trigger to select a slot. Point the **right** controller at the emote button on your left wrist to open the emote wheel. Calibrate your arm reach any time from the T-pose panel in the pause menu.
 
 | Select an item slot | Open the emote wheel |
 | --- | --- |
