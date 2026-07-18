@@ -40,5 +40,3 @@ Tested with PEAK **1.64.a** (stable) and **0.65.d** (beta), running on **DirectX
 | Select an item slot | Open the emote wheel |
 | --- | --- |
 | ![Pointing the left controller at the wrist item bar to select a slot](https://github.com/Andrey04o/PeakVR/blob/main/screenshot1.jpg) | ![Pointing the right controller at the wrist emote button](https://github.com/Andrey04o/PeakVR/blob/main/screenshot2.jpg) |
-
-The rest of this README only outlines how to build and install the mod manually from source.
