@@ -40,6 +40,7 @@ internal static class InGameCameraPatch
         driver.rotationInput = new InputActionProperty(rotAction);
 
         VRRender.DisableXRVisibilityMesh();
+        VRRender.DisableBrokenAO();
 
         cam.gameObject.AddComponent<VRStereoCulling>();
         cam.gameObject.AddComponent<VRTunneling>();
@@ -58,6 +59,9 @@ internal static class InGameCameraPatch
 
         RenderDiagnostics.ApplyLodBias();
         RenderDiagnostics.ScheduleScan();
+
+        if (Plugin.DebugButtons || Plugin.Config.EnableVerboseLogging.Value)
+            UrpDiagnostics.DumpOnce();
 
         ForceKeyboardMouseScheme();
 

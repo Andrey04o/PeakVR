@@ -1,12 +1,38 @@
 using System;
 using System.Reflection;
 using HarmonyLib;
+using UnityEngine;
 
 namespace PeakVR;
 
 internal static class VRRender
 {
     private static bool logged;
+    private static bool aoDisabled;
+
+    // HBAO (Horizon-Based Ambient Occlusion, a screen-space AO renderer feature) renders wrong per-eye
+    // under URP 17.3's XR path (PEAK beta, Unity 6000.3), giving inconsistent surface lighting between
+    // the eyes. It's fine on the stable 6000.0 line (URP 17.0) — and the user wants AO there — so only
+    // disable it on the newer Unity/URP.
+    public static void DisableBrokenAO()
+    {
+        if (Application.unityVersion.StartsWith("6000.0."))
+            return;
+
+        try
+        {
+            UrpDiagnostics.SetFeatureActive("HBAO", false);
+            if (!aoDisabled)
+            {
+                aoDisabled = true;
+                Plugin.Log.LogInfo($"[PeakVR] Disabled HBAO ambient occlusion (broken under Unity {Application.unityVersion} / URP 17.3 XR path)");
+            }
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.LogWarning($"[PeakVR] Could not disable HBAO: {e.Message}");
+        }
+    }
 
     // PEAK's build strips URP's XR post-processing passes (UberPostXR / FinalPostXR = pass index 1).
     // When the OpenXR runtime provides a visibility/occlusion mesh, URP renders UberPost/FinalPost

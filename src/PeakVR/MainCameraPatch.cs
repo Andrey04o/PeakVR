@@ -37,6 +37,7 @@ internal static class MainCameraPatch
         driver.updateType = TrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
 
         VRRender.DisableXRVisibilityMesh();
+        VRRender.DisableBrokenAO();
 
         cam.gameObject.AddComponent<VRStereoCulling>();
 

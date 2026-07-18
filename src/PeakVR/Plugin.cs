@@ -89,6 +89,10 @@ public partial class Plugin : BaseUnityPlugin
             return;
         }
 
+        // Disable the XR visibility mesh now, before the studio-logo / splash scene renders, so its
+        // post-processing also falls back to pass 0 (the camera patches run too late for the splash).
+        VRRender.DisableXRVisibilityMesh();
+
         PeakAssets.Load();
         XRMirror.Setup();
         VRControls.Init();
@@ -177,6 +181,12 @@ public partial class Plugin : BaseUnityPlugin
 
         if (kb.f1Key.wasPressedThisFrame)
             DumpCanvases();
+
+        if (kb.f2Key.wasPressedThisFrame)
+            UrpDiagnostics.Dump();
+
+        if (kb.f3Key.wasPressedThisFrame)
+            UrpDiagnostics.CycleTestMode();
 
         if (kb.f4Key.wasPressedThisFrame)
             UIOverlay.SetLogging(!UIOverlay.Logging);
