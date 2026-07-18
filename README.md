@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/Andrey04o/PeakVR/blob/main/Logo.png" alt="PeakVR" width="420">
+  <img src="Logo.png" alt="PeakVR" width="420">
 </p>
 
 PeakVR is a mod that adds full 6DOF VR support into PEAK.
@@ -16,7 +16,7 @@ Install PeakVR with a mod manager (such as [r2modman](https://thunderstore.io/c/
 
 Running the mod using r2modman can be done simply by clicking "Start Modded", which will automatically launch the game with the installed mods.
 
-Tested with PEAK **1.64.a** (stable) and **0.65.d** (beta).
+Tested with PEAK **1.64.a** (stable) and **0.65.d** (beta), running on **DirectX 12**.
 
 # Controls
 
