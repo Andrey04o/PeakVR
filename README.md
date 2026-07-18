@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Andrey04o/PeakVR/refs/heads/main/Logo.png" alt="PeakVR" width="420">
+  <img src="https://github.com/Andrey04o/PeakVR/blob/main/Logo.png" alt="PeakVR" width="420">
 </p>
 
 PeakVR is a mod that adds full 6DOF VR support into PEAK.
