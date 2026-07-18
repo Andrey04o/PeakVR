@@ -194,9 +194,13 @@ internal class VRHeadRig : MonoBehaviour
         var pivot = VRSpectator.HasTarget ? VRSpectator.Pivot : character.GetSpectatePosition();
         var rot = Quaternion.Euler(0f, turnYaw, 0f);
 
+        // Match the flat game's zoom: pull back by the (network-synced) spectateZoom the player controls
+        // instead of a fixed radius. Fall back to SpecDistance before it's initialised.
+        var distance = character.data.spectateZoom > 0.1f ? character.data.spectateZoom : SpecDistance;
+
         transform.localScale = Vector3.one * HandScale;
         transform.rotation = rot;
-        transform.position = pivot + rot * new Vector3(0f, SpecHeight, -SpecDistance);
+        transform.position = pivot + rot * new Vector3(0f, SpecHeight, -distance);
     }
 
     private float ComputeRigY(Vector3 anchor)

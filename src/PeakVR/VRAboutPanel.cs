@@ -43,13 +43,13 @@ internal static class VRAboutPanel
         Label(page, "Created by Andrey04o", 188f, 34f, Color.white);
         Label(page, "Forked from LCVR by DaXcess", 150f, 24f, new Color(0.8f, 0.8f, 0.82f));
 
-        LinkButton(page, "GitHub   —   github.com/Andrey04o/PeakVR", 100f, GithubUrl);
-        LinkButton(page, "My other games   —   andrey04o.itch.io", 10f, ItchUrl);
-        Label(page, "Links open in your desktop web browser.", -50f, 22f, new Color(0.6f, 0.6f, 0.62f));
+        LinkButton(page, "GitHub   —   github.com/Andrey04o/PeakVR", 70f, GithubUrl);
+        LinkButton(page, "My other games   —   andrey04o.itch.io", -20f, ItchUrl);
+        Label(page, "Links open in your desktop web browser.", -80f, 22f, new Color(0.6f, 0.6f, 0.62f));
 
         var close = MenuAPI.CreateButton("Close");
         close.ParentTo(page.transform);
-        Place(close.RectTransform, new Vector2(0f, -135f), new Vector2(320f, 72f));
+        Place(close.RectTransform, new Vector2(0f, -165f), new Vector2(320f, 72f));
         close.OnClick(() => page.Close());
 
         Label(page, "Used Assets", -240f, 28f, Color.white);

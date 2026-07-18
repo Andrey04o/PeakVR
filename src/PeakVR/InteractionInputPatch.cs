@@ -23,7 +23,23 @@ internal static class InteractionInputPatch
             return;
 
         if (local.data != null && local.data.fullyPassedOut)
+        {
             crouchToggle = false;
+
+            // Spectator: cycle the followed player. The game normally reads spectateLeft/Right from the
+            // slot back/forward actions, which our VR input doesn't drive — inject them from X / A.
+            if (VRControls.LeftPrimary.WasPressedThisFrame())
+                __instance.spectateLeftWasPressed = true;
+            if (VRControls.RightPrimary.WasPressedThisFrame())
+                __instance.spectateRightWasPressed = true;
+
+            // Right stick Y zooms the spectator camera closer / farther (game reads scroll*IsPressed).
+            var zoomY = VRControls.TurnStick.ReadValue<Vector2>().y;
+            if (zoomY > 0.5f)
+                __instance.scrollForwardIsPressed = true;
+            else if (zoomY < -0.5f)
+                __instance.scrollBackwardIsPressed = true;
+        }
 
         Inject(VRControls.RightGrip, ref __instance.interactWasPressed, ref __instance.interactIsPressed,
             ref __instance.interactWasReleased);
@@ -49,6 +65,9 @@ internal static class InteractionInputPatch
         if (VRControls.RightSecondary.WasPressedThisFrame())
             __instance.unselectSlotWasPressed = true;
 
+        // Pause ONLY from Y. Clear the game's native pause first so the VD-emulated gamepad's
+        // thumbstick-click (our Sprint button) can't accidentally open the pause menu.
+        __instance.pauseWasPressed = false;
         if (VRControls.Pause.WasPressedThisFrame())
         {
             __instance.pauseWasPressed = true;
