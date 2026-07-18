@@ -188,6 +188,9 @@ public partial class Plugin : BaseUnityPlugin
         if (kb.f3Key.wasPressedThisFrame)
             UrpDiagnostics.CycleTestMode();
 
+        if (kb.lKey.wasPressedThisFrame)
+            RenderDiagnostics.Toggle();
+
         if (kb.f4Key.wasPressedThisFrame)
             UIOverlay.SetLogging(!UIOverlay.Logging);
 

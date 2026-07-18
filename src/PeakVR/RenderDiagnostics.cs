@@ -8,20 +8,25 @@ internal static class RenderDiagnostics
     private struct BigLod
     {
         public LODGroup group;
-        public Renderer[] renderers;
         public float[] thresholds;
         public Vector3 localRef;
         public float worldSize;
         public int lastLevel;
     }
 
+    // Runtime toggle for the whole per-eye LOD-forcing system (debug button). When turned off we hand
+    // every group back to Unity's automatic LOD.
+    public static bool Enabled = true;
+
     private static readonly List<BigLod> bigLods = new();
     private static readonly HashSet<LODGroup> tracked = new();
 
     private static float nextScan;
+    private static int cursor;
 
     private const float LodBias = 2.5f;
     private const float ScanInterval = 3f;
+    private const int SpreadFrames = 4;
 
     public static void ApplyLodBias()
     {
@@ -40,6 +45,9 @@ internal static class RenderDiagnostics
 
     public static void Tick(Camera cam)
     {
+        if (!Enabled)
+            return;
+
         if (Time.time >= nextScan)
         {
             nextScan = Time.time + ScanInterval;
@@ -47,6 +55,22 @@ internal static class RenderDiagnostics
         }
 
         ForceLods(cam);
+    }
+
+    // Toggle the LOD-forcing on/off at runtime (debug button). Off = release every group back to
+    // Unity's automatic (per-eye) LOD; on = rescan and resume forcing.
+    public static void Toggle()
+    {
+        Enabled = !Enabled;
+
+        if (!Enabled)
+            foreach (var b in bigLods)
+                if (b.group != null)
+                    b.group.ForceLOD(-1);
+        else
+            ScheduleScan();
+
+        Plugin.Log.LogInfo($"[PeakVR] LOD forcing {(Enabled ? "ENABLED" : "DISABLED (automatic per-eye LOD)")}");
     }
 
     private static void Rescan()
@@ -82,7 +106,6 @@ internal static class RenderDiagnostics
             bigLods.Add(new BigLod
             {
                 group = g,
-                renderers = g.GetComponentsInChildren<Renderer>(true),
                 thresholds = thresholds,
                 localRef = g.localReferencePoint,
                 worldSize = g.size * maxScale,
@@ -163,7 +186,8 @@ internal static class RenderDiagnostics
 
     private static void ForceLods(Camera cam)
     {
-        if (cam == null || bigLods.Count == 0)
+        var count = bigLods.Count;
+        if (cam == null || count == 0)
             return;
 
         var halfAngle = Mathf.Tan(Mathf.Deg2Rad * cam.fieldOfView * 0.5f);
@@ -173,10 +197,21 @@ internal static class RenderDiagnostics
         var bias = QualitySettings.lodBias;
         var camPos = cam.transform.position;
 
-        for (int i = 0; i < bigLods.Count; i++)
+        // Spread the work across frames: only ~1/SpreadFrames of the LODGroups are re-evaluated each
+        // frame (round-robin). LOD transitions are distance-gradual, so the few-frame latency is
+        // invisible while the per-frame cost drops ~SpreadFrames×.
+        var perFrame = Mathf.CeilToInt(count / (float)SpreadFrames);
+
+        for (var n = 0; n < perFrame; n++)
         {
+            if (cursor >= count)
+                cursor = 0;
+            var i = cursor++;
+
             var b = bigLods[i];
             if (b.group == null || !b.group.enabled || !b.group.gameObject.activeInHierarchy)
+                continue;
+            if (b.thresholds.Length == 0)
                 continue;
 
             var dist = Vector3.Distance(camPos, b.group.transform.TransformPoint(b.localRef));
@@ -185,7 +220,10 @@ internal static class RenderDiagnostics
 
             var relativeHeight = b.worldSize * bias / (2f * dist * halfAngle);
 
-            var level = -1;
+            // Default to the smallest (last) LOD when the object is past every threshold: keep it
+            // rendered at lowest detail in BOTH eyes rather than culling it. Culling vanished small
+            // objects per-eye and, once culled, they never re-appeared when approached again.
+            var level = b.thresholds.Length - 1;
             for (int j = 0; j < b.thresholds.Length; j++)
             {
                 if (relativeHeight >= b.thresholds[j])
@@ -198,30 +236,7 @@ internal static class RenderDiagnostics
             if (level == b.lastLevel)
                 continue;
 
-            if (level >= 0)
-            {
-                // Coming back from a culled state: re-enable the renderers + group before forcing.
-                if (b.lastLevel < 0)
-                {
-                    b.group.enabled = true;
-                    foreach (var r in b.renderers)
-                        if (r != null)
-                            r.enabled = true;
-                }
-
-                b.group.ForceLOD(level);
-            }
-            else
-            {
-                // Past the smallest LOD: cull it OURSELVES (both eyes identically) instead of calling
-                // ForceLOD(-1), which returns the group to Unity's per-eye automatic LOD and makes the
-                // object flicker between eyes at distance.
-                b.group.enabled = false;
-                foreach (var r in b.renderers)
-                    if (r != null)
-                        r.enabled = false;
-            }
-
+            b.group.ForceLOD(level);
             b.lastLevel = level;
             bigLods[i] = b;
         }
