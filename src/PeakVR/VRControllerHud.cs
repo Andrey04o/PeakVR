@@ -91,6 +91,11 @@ internal class VRControllerHud : MonoBehaviour
         HideInputPrompts(left);
         HideInputPrompts(right);
 
+        // Keep the wrist HUD out of the airport mirror; preserve the raycast collider layers
+        // (HudLayer cells, emote-button layer 7) so pointing at them still works.
+        VRLayers.HideFromMirror(left.gameObject, HudLayer, 7);
+        VRLayers.HideFromMirror(right.gameObject, HudLayer, 7);
+
         moved = true;
         Plugin.Log.LogInfo("[PeakVR] HUD moved onto controllers");
     }
@@ -257,7 +262,7 @@ internal class VRControllerHud : MonoBehaviour
         if (pointer != null)
             return;
 
-        var go = new GameObject("PeakVR HudPointer");
+        var go = new GameObject("PeakVR HudPointer") { layer = VRLayers.UI };
         go.transform.SetParent(VRHands.Left, false);
 
         pointer = go.AddComponent<LineRenderer>();

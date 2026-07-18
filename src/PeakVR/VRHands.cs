@@ -69,7 +69,7 @@ internal static class VRHands
 
     private static LineRenderer CreateInteractRay(Transform hand)
     {
-        var obj = new GameObject("PeakVR Interact Ray");
+        var obj = new GameObject("PeakVR Interact Ray") { layer = VRLayers.UI };
         obj.transform.SetParent(hand, false);
 
         var line = obj.AddComponent<LineRenderer>();
@@ -123,6 +123,8 @@ internal static class VRHands
         laser.line = line;
         laser.trigger = trigger;
         laser.enabled = false;
+
+        obj.layer = VRLayers.UI;
 
         if (PeakAssets.Controller != null)
         {

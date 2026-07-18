@@ -103,7 +103,7 @@ internal class VREmoteWheel : MonoBehaviour
         if (line != null)
             return;
 
-        var go = new GameObject("PeakVR EmoteLine");
+        var go = new GameObject("PeakVR EmoteLine") { layer = VRLayers.UI };
         go.transform.SetParent(VRHands.Right, false);
 
         line = go.AddComponent<LineRenderer>();
@@ -169,6 +169,7 @@ internal class VREmoteWheel : MonoBehaviour
         buttonCollider = box;
 
         UIOverlay.MakeAlwaysVisible(VRControllerHud.LeftHudCanvas, UIOverlay.HandQueue);
+        VRLayers.HideFromMirror(go, EmoteLayer);
         Plugin.Log.LogInfo("[PeakVR] Emote button created on left wrist canvas");
     }
 }

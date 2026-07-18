@@ -77,9 +77,20 @@ internal static class InteractionInputPatch
         if (VRControls.Sprint.IsPressed())
             __instance.sprintIsPressed = true;
 
-        // X (left primary) = toggle crouch, coexisting with physical bend-crouch.
+        // X (left primary): if crouched (toggle or physical), STAND UP and take the current head
+        // height as the new standing baseline; otherwise crouch. Physical bend-crouch still works.
         if (VRControls.LeftPrimary.WasPressedThisFrame())
-            crouchToggle = !crouchToggle;
+        {
+            if (crouchToggle || VRHeadRig.Crouching)
+            {
+                crouchToggle = false;
+                VRHeadRig.RequestRecalibrate();
+            }
+            else
+            {
+                crouchToggle = true;
+            }
+        }
         if (VRHeadRig.Crouching || crouchToggle)
             __instance.crouchIsPressed = true;
 

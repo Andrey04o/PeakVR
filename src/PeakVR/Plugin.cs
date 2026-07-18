@@ -36,7 +36,11 @@ public partial class Plugin : BaseUnityPlugin
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         UnityEngine.Application.runInBackground = true;
 
-        InputSystem.PerformDefaultPluginInitialization();
+        // Registers the Input System's default plugins (incl. XR device layouts) — required for pose
+        // tracking. It's private static on stable and removed in the beta's newer Input System, so
+        // call it via reflection (NonPublic) only if present.
+        typeof(InputSystem).GetMethod("PerformDefaultPluginInitialization",
+            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)?.Invoke(null, null);
 
         ButtonFallbackComposite.Initialize();
         IntegerFallbackComposite.Initialize();

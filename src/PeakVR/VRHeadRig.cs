@@ -38,6 +38,12 @@ internal class VRHeadRig : MonoBehaviour
     public static Vector2 RoomInput;
     public static bool Crouching;
 
+    private static bool recalibrateRequested;
+
+    // Recapture the reference head height from the current physical pose. Bound to the crouch
+    // button so players can recenter without the debug-only F5, and it works while crouched too.
+    public static void RequestRecalibrate() => recalibrateRequested = true;
+
     private Camera cam;
     private TrackedPoseDriver headDriver;
     private Vector3 hmdOffset;
@@ -75,6 +81,12 @@ internal class VRHeadRig : MonoBehaviour
 
         if (Keyboard.current != null && Keyboard.current.f5Key.wasPressedThisFrame)
             resetHeight = true;
+
+        if (recalibrateRequested)
+        {
+            recalibrateRequested = false;
+            resetHeight = true;
+        }
     }
 
     private void HandleTurn()

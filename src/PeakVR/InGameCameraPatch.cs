@@ -39,6 +39,8 @@ internal static class InGameCameraPatch
         driver.positionInput = new InputActionProperty(posAction);
         driver.rotationInput = new InputActionProperty(rotAction);
 
+        VRRender.DisableXRVisibilityMesh();
+
         cam.gameObject.AddComponent<VRStereoCulling>();
         cam.gameObject.AddComponent<VRTunneling>();
 

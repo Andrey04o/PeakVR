@@ -36,6 +36,8 @@ internal static class MainCameraPatch
         driver.trackingType = TrackedPoseDriver.TrackingType.RotationAndPosition;
         driver.updateType = TrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
 
+        VRRender.DisableXRVisibilityMesh();
+
         cam.gameObject.AddComponent<VRStereoCulling>();
 
         VRControllers.CreateLasers(rig.transform);

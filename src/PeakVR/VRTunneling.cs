@@ -43,6 +43,10 @@ internal class VRTunneling : MonoBehaviour
         go.transform.localRotation = Quaternion.identity;
         go.transform.localScale = Vector3.one * Size;
 
+        var ui = LayerMask.NameToLayer("UI");
+        if (ui >= 0)
+            go.layer = ui;
+
         mesh = new Mesh { name = "PeakVR Tunneling Quad" };
         mesh.vertices = new[]
         {
