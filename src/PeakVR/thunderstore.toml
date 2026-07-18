@@ -19,7 +19,7 @@ PEAKModding-ModConfig = "1.6.0"
 
 [build]
 icon = "../../icon.png"
-readme = "../../README.md"
+readme = "../../README_Thunderstore.md"
 outdir = "../../artifacts/thunderstore/"
 
 [[build.copy]]
