@@ -6,6 +6,8 @@ PeakVR is a mod that adds full 6DOF VR support into PEAK.
 
 This mod, as the Lethal Company VR mod, is powered by Unity's OpenXR plugin, and is thereby compatible with a wide range of headsets and runtimes, like Oculus, Virtual Desktop, SteamVR and many more!
 
+It brings your head and hands into VR with motion controls, but it does **not** add physical, hand-over-hand climbing — you still climb the way the base game does (hold the grab button on a handhold). Don't expect a climbing simulator.
+
 Forked from [LCVR](https://github.com/DaXcess/LCVR) by DaXcess.
 
 # Usage
@@ -13,6 +15,32 @@ Forked from [LCVR](https://github.com/DaXcess/LCVR) by DaXcess.
 Install PeakVR with a mod manager (such as [r2modman](https://thunderstore.io/c/peak/p/ebkr/r2modman/), Gale, or the Thunderstore Mod Manager) from the [Thunderstore page](https://thunderstore.io/c/peak/p/Andrey04o/PeakVR/) — dependencies are installed automatically.
 
 Running the mod using r2modman can be done simply by clicking "Start Modded", which will automatically launch the game with the installed mods.
+
+Tested with PEAK **1.64.a** (stable) and **0.65.d** (beta).
+
+# Controls
+
+| Control | Action |
+| --- | --- |
+| Left stick | Move |
+| Left stick (click) | Sprint |
+| Right stick (left / right) | Turn (snap or smooth) |
+| Right stick (up / down) | Scroll (rope length, cannon angle, guidebook pages) |
+| Right stick (click) | Ping |
+| Right grip | Interact / grab  |
+| Left grip | Drop the held item |
+| Right trigger | Primary action / climb |
+| Left trigger | Secondary action |
+| A (right) | Jump |
+| B (right) | Hold / holster the item |
+| X (left) | Crouch |
+| Y (left) | Pause menu |
+
+Point the **left** controller at the item bar on your right wrist and pull the left trigger to select a slot. Point the **right** controller at the emote button on your left wrist to open the emote wheel. Calibrate your arm reach any time from the T-pose panel in the pause menu.
+
+| Select an item slot | Open the emote wheel |
+| --- | --- |
+| ![Pointing the left controller at the wrist item bar to select a slot](screenshot1.jpg) | ![Pointing the right controller at the wrist emote button](screenshot2.jpg) |
 
 The rest of this README only outlines how to build and install the mod manually from source.
 
@@ -36,7 +64,7 @@ The preloader (`LCVR.Preload.dll`) is built alongside the plugin and belongs in 
 
 ## Asset bundle
 
-The plugin loads a `peakvr` asset bundle that is not included in this repository. Build it from the companion Unity project at [PeakVR-Assets](https://github.com/Andrey04o/PeakVR-Assets): open the project and run **`Assets/Build PeakVR AssetBundle`** from the menu bar. The resulting `peakvr` bundle goes into a `Bundles` folder at the repository root (and, for a manual install, next to the plugin DLL in `BepInEx/plugins/`).
+The plugin loads a `peakvr` asset bundle that is not included in this repository. Build it from the companion Unity project at [PeakVR-Assets](https://github.com/Andrey04o/PeakVR-Assets): open the project and run **`Assets/Build PeakVR AssetBundle`** from the menu bar.
 
 ## Runtime dependencies
 

@@ -227,8 +227,10 @@ artifacts/**/*.zip
 artifacts/**
 Config.Build.user.props
 
-# Unity XR runtime DLLs
+# Unity XR runtime DLLs (keep the empty folder, ignore its contents)
 /RuntimeDeps/*
+!/RuntimeDeps/.gitkeep
 
-# AssetBundles
+# AssetBundles (keep the empty folder, ignore its contents)
 /Bundles/*
+!/Bundles/.gitkeep
