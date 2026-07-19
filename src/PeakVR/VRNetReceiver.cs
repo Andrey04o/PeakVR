@@ -7,6 +7,8 @@ namespace PeakVR;
 internal class VRNetReceiver : MonoBehaviour
 {
     private const float SmoothSpeed = 18f;
+    private const float OutlierMax = 5f;
+    private const int MaxOutliers = 3;
 
     private class Smooth
     {
@@ -16,6 +18,9 @@ internal class VRNetReceiver : MonoBehaviour
         public Vector3 rightPos;
         public Quaternion rightRot;
         public bool init;
+
+        public int outlierCount;
+        public Vector3 lastOutlierLeft;
 
         // Non-compounding head-roll state.
         public Quaternion lastHeadOutput;
@@ -80,10 +85,35 @@ internal class VRNetReceiver : MonoBehaviour
             else
             {
                 s.headRoll = Mathf.LerpAngle(s.headRoll, pose.headRoll, t);
-                s.leftPos = Vector3.Lerp(s.leftPos, pose.leftPos, t);
-                s.leftRot = Quaternion.Slerp(s.leftRot, pose.leftRot, t);
-                s.rightPos = Vector3.Lerp(s.rightPos, pose.rightPos, t);
-                s.rightRot = Quaternion.Slerp(s.rightRot, pose.rightRot, t);
+
+                var outlier = (pose.leftPos - s.leftPos).magnitude > OutlierMax
+                    || (pose.rightPos - s.rightPos).magnitude > OutlierMax;
+
+                if (outlier)
+                {
+                    if (s.outlierCount > 0 && (pose.leftPos - s.lastOutlierLeft).magnitude < OutlierMax)
+                        s.outlierCount++;
+                    else
+                        s.outlierCount = 1;
+                    s.lastOutlierLeft = pose.leftPos;
+
+                    if (s.outlierCount >= MaxOutliers)
+                    {
+                        s.outlierCount = 0;
+                        s.leftPos = pose.leftPos;
+                        s.leftRot = pose.leftRot;
+                        s.rightPos = pose.rightPos;
+                        s.rightRot = pose.rightRot;
+                    }
+                }
+                else
+                {
+                    s.outlierCount = 0;
+                    s.leftPos = Vector3.Lerp(s.leftPos, pose.leftPos, t);
+                    s.leftRot = Quaternion.Slerp(s.leftRot, pose.leftRot, t);
+                    s.rightPos = Vector3.Lerp(s.rightPos, pose.rightPos, t);
+                    s.rightRot = Quaternion.Slerp(s.rightRot, pose.rightRot, t);
+                }
             }
 
             if (pose.hasHands)
@@ -103,21 +133,15 @@ internal class VRNetReceiver : MonoBehaviour
     {
         var refs = character.refs;
         if (refs.IKHandTargetLeft == null || refs.IKHandTargetRight == null
-            || refs.ikRig == null || refs.ikLeft == null || refs.ikRight == null || refs.head == null)
+            || refs.ikRig == null || refs.ikLeft == null || refs.ikRight == null)
             return;
 
-        var look = character.data.lookDirection;
-        look.y = 0f;
-        var frame = look.sqrMagnitude < 1e-4f
-            ? Quaternion.identity
-            : Quaternion.LookRotation(look.normalized, Vector3.up);
+        var root = character.transform;
 
-        var origin = refs.head.transform.position;
-
-        refs.IKHandTargetLeft.position = origin + frame * s.leftPos;
-        refs.IKHandTargetLeft.rotation = frame * s.leftRot;
-        refs.IKHandTargetRight.position = origin + frame * s.rightPos;
-        refs.IKHandTargetRight.rotation = frame * s.rightRot;
+        refs.IKHandTargetLeft.position = root.TransformPoint(s.leftPos);
+        refs.IKHandTargetLeft.rotation = root.rotation * s.leftRot;
+        refs.IKHandTargetRight.position = root.TransformPoint(s.rightPos);
+        refs.IKHandTargetRight.rotation = root.rotation * s.rightRot;
 
         refs.ikRig.weight = 1f;
         refs.ikLeft.weight = 1f;

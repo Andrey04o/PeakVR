@@ -57,25 +57,17 @@ internal static class VRNetworking
     {
         if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom.PlayerCount < 2)
             return;
-        if (MainCamera.instance == null || c.refs.head == null)
+        if (c.refs.IKHandTargetLeft == null || c.refs.IKHandTargetRight == null)
+            return;
+        if (c.data.fullyPassedOut)
             return;
 
-        // Yaw frame = the player's heading (flattened camera forward). The hands are sent relative to
-        // this frame, then rebuilt on the remote relative to the REMOTE body's own heading — so they
-        // stay glued to the body instead of drifting with a stale networked yaw.
-        var fwd = MainCamera.instance.cam.transform.forward;
-        fwd.y = 0f;
-        var frameRot = fwd.sqrMagnitude < 1e-4f
-            ? Quaternion.identity
-            : Quaternion.LookRotation(fwd.normalized, Vector3.up);
-        var inv = Quaternion.Inverse(frameRot);
+        var root = c.transform;
 
-        var origin = c.refs.head.transform.position;
-
-        var lp = inv * (c.refs.IKHandTargetLeft.position - origin);
-        var lr = inv * c.refs.IKHandTargetLeft.rotation;
-        var rp = inv * (c.refs.IKHandTargetRight.position - origin);
-        var rr = inv * c.refs.IKHandTargetRight.rotation;
+        var lp = root.InverseTransformPoint(c.refs.IKHandTargetLeft.position);
+        var lr = Quaternion.Inverse(root.rotation) * c.refs.IKHandTargetLeft.rotation;
+        var rp = root.InverseTransformPoint(c.refs.IKHandTargetRight.position);
+        var rr = Quaternion.Inverse(root.rotation) * c.refs.IKHandTargetRight.rotation;
 
         var content = new object[] { VRHeadRoll.LocalRoll, lp, lr, rp, rr };
         PhotonNetwork.RaiseEvent(EventCode, content, SendOptionsToOthers, SendOptions.SendUnreliable);
