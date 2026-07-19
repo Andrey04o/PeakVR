@@ -12,10 +12,7 @@ internal static class OneHandedHoldPatch
     private static readonly MethodInfo GetPosRight = AccessTools.Method(typeof(CharacterItems), "GetItemPosRightWorld");
     private static readonly MethodInfo GetRotRight = AccessTools.Method(typeof(CharacterItems), "GetItemRotRightWorld");
 
-    // Reimplement AttachItem to attach ONLY the right hand. The vanilla AttachItem snaps BOTH hands'
-    // transforms to the item grip and joints both — so even with a postfix that destroys the left
-    // joint, the left hand flashes onto the item for a frame. Doing right-hand-only here means the
-    // left hand is never moved to the item at all (T4).
+    // Attach ONLY the right hand — for the local VR player AND remote VR players.
     [HarmonyPatch("AttachItem")]
     [HarmonyPrefix]
     private static bool AttachItemPrefix(CharacterItems __instance, Item item)
@@ -24,12 +21,13 @@ internal static class OneHandedHoldPatch
             return true;
 
         var handR = __instance.character.GetBodypartRig(BodypartType.Hand_R);
-        if (handR == null || item.rig == null)
+        if (handR == null)
             return true;
 
         handR.transform.position = (Vector3)GetPosRight.Invoke(__instance, new object[] { item });
         handR.transform.rotation = (Quaternion)GetRotRight.Invoke(__instance, new object[] { item });
-        handR.gameObject.AddComponent<FixedJoint>().connectedBody = item.rig;
+        if (item.rig != null)
+            handR.gameObject.AddComponent<FixedJoint>().connectedBody = item.rig;
         return false;
     }
 
@@ -57,13 +55,10 @@ internal static class OneHandedHoldPatch
 
     private static bool ShouldApply(CharacterItems items)
     {
-        if (!Enabled)
+        if (!Enabled || items.character == null)
             return false;
 
         var c = items.character;
-        if (c == null)
-            return false;
-
         if (c == Character.localCharacter && VRHands.Right != null)
             return true;
 
