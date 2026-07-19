@@ -39,6 +39,10 @@ source = "../../artifacts/bin/PeakVR/release/LCVR.Preload.dll"
 target = "patchers/"
 
 [[build.copy]]
+source = "../../Preloader/RuntimeDeps"
+target = "patchers/RuntimeDeps/"
+
+[[build.copy]]
 source = "../../CHANGELOG.md"
 target = "/"
 

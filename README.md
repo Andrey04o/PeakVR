@@ -61,6 +61,20 @@ If PEAK isn't at the default Steam path, copy `Config.Build.user.props.template`
 
 The preloader (`LCVR.Preload.dll`) is built alongside the plugin and belongs in `BepInEx/patchers/`.
 
+## Thunderstore packaging
+
+Uses [TCLI](https://github.com/thunderstore-io/thunderstore-cli):
+
+
+It also copying the `RuntimeDeps` and `Bundles` folders into the packge:
+
+```sh
+dotnet tool restore
+dotnet build -c Release -target:PackTS -v d
+```
+
+The package is written to `artifacts/thunderstore/`.
+
 ## Runtime dependencies
 
 The plugin needs a `RuntimeDeps` folder containing the Unity XR managed assemblies, which are also not included in the repository. You can extract them from the [Thunderstore package](https://thunderstore.io/c/peak/p/Andrey04o/PeakVR/), or retrieve them from a Unity project yourself (see below). For a manual install, place the `RuntimeDeps` folder next to the plugin DLL in `BepInEx/plugins/`.
@@ -75,6 +89,10 @@ First install Unity 6000.0.62f1, which is the Unity version that PEAK uses. Once
 - XR Core Utilities
 - XR Interaction Toolkit
 
+Then enable **OpenXR** under **Project Settings / XR Plug-in Management / Plug-in Providers** (otherwise the XR DLLs won't be built):
+
+![Enable OpenXR in XR Plug-in Management](OpenXRPlugin.jpg)
+
 You can now build the dummy game. Make sure the scripting backend is set to Mono, not IL2CPP. Once it is built, navigate to its `<Project Name>_Data/Managed` directory and extract the following files into your `RuntimeDeps` folder:
 
 - UnityEngine.SpatialTracking.dll
@@ -83,23 +101,14 @@ You can now build the dummy game. Make sure the scripting backend is set to Mono
 - Unity.XR.Management.dll
 - Unity.XR.OpenXR.dll
 
+From the same build's `<Project Name>_Data/Plugins/x86_64` directory extract these files into the `Preloader/RuntimeDeps` folder:
+
+- openxr_loader.dll
+- UnityOpenXR.dll
+
 ## Asset bundle
 
-The plugin loads a `peakvr` asset bundle that is not included in this repository. Build it from the companion Unity project at [PeakVR-Assets](https://github.com/Andrey04o/PeakVR-Assets): open the project and run **`Assets/Build PeakVR AssetBundle`** from the menu bar.
-
-## Thunderstore packaging
-
-Uses [TCLI](https://github.com/thunderstore-io/thunderstore-cli):
-
-
-It also copying the `RuntimeDeps` and `Bundles` folders into the packge:
-
-```sh
-dotnet tool restore
-dotnet build -c Release -target:PackTS -v d
-```
-
-The package is written to `artifacts/thunderstore/`.
+The plugin loads a `peakvr` asset bundle that is not included in this repository. Build it from the Unity project [PeakVR-Assets](https://github.com/Andrey04o/PeakVR-Assets): open the project and run **`Assets/Build PeakVR AssetBundle`** from the menu bar. Put the `peakvr` file into the `Bundles` folder.
 
 ## Debug keys
 

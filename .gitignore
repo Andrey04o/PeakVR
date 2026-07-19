@@ -231,6 +231,10 @@ Config.Build.user.props
 /RuntimeDeps/*
 !/RuntimeDeps/.gitkeep
 
+# Native OpenXR runtime DLLs for the preloader (keep the empty folder, ignore its contents)
+/Preloader/RuntimeDeps/*
+!/Preloader/RuntimeDeps/.gitkeep
+
 # AssetBundles (keep the empty folder, ignore its contents)
 /Bundles/*
 !/Bundles/.gitkeep
