@@ -220,6 +220,9 @@ internal class VRControllerHud : MonoBehaviour
             items.EquipSlot(Optionable<byte>.None);
         else
             items.EquipSlot(Optionable<byte>.Some(slot));
+
+        if (slot == 3 && ch.data != null && ch.data.carriedPlayer != null && ch.refs.carriying != null)
+            ch.refs.carriying.Drop(ch.data.carriedPlayer);
     }
 
     private void RegisterCell(Transform cell, byte slot)
