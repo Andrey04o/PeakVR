@@ -19,7 +19,6 @@ internal static class VRNetworking
     public struct RemotePose
     {
         public float headRoll;
-        public Quaternion frameRot;
         public Vector3 leftPos;
         public Quaternion leftRot;
         public Vector3 rightPos;
@@ -58,25 +57,27 @@ internal static class VRNetworking
     {
         if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom.PlayerCount < 2)
             return;
-        if (MainCamera.instance == null)
+        if (MainCamera.instance == null || c.refs.head == null)
             return;
 
-        var cam = MainCamera.instance.cam.transform;
-        var fwd = cam.forward;
+        // Yaw frame = the player's heading (flattened camera forward). The hands are sent relative to
+        // this frame, then rebuilt on the remote relative to the REMOTE body's own heading — so they
+        // stay glued to the body instead of drifting with a stale networked yaw.
+        var fwd = MainCamera.instance.cam.transform.forward;
         fwd.y = 0f;
         var frameRot = fwd.sqrMagnitude < 1e-4f
             ? Quaternion.identity
             : Quaternion.LookRotation(fwd.normalized, Vector3.up);
-
-        var origin = cam.position;
         var inv = Quaternion.Inverse(frameRot);
+
+        var origin = c.refs.head.transform.position;
 
         var lp = inv * (c.refs.IKHandTargetLeft.position - origin);
         var lr = inv * c.refs.IKHandTargetLeft.rotation;
         var rp = inv * (c.refs.IKHandTargetRight.position - origin);
         var rr = inv * c.refs.IKHandTargetRight.rotation;
 
-        var content = new object[] { VRHeadRoll.LocalRoll, frameRot, lp, lr, rp, rr };
+        var content = new object[] { VRHeadRoll.LocalRoll, lp, lr, rp, rr };
         PhotonNetwork.RaiseEvent(EventCode, content, SendOptionsToOthers, SendOptions.SendUnreliable);
     }
 
@@ -97,11 +98,10 @@ internal static class VRNetworking
         var pose = new RemotePose
         {
             headRoll = (float)content[0],
-            frameRot = (Quaternion)content[1],
-            leftPos = (Vector3)content[2],
-            leftRot = (Quaternion)content[3],
-            rightPos = (Vector3)content[4],
-            rightRot = (Quaternion)content[5],
+            leftPos = (Vector3)content[1],
+            leftRot = (Quaternion)content[2],
+            rightPos = (Vector3)content[3],
+            rightRot = (Quaternion)content[4],
             hasHands = true,
             sinceReceived = 0f,
         };

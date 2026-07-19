@@ -11,12 +11,17 @@ internal class VRNetReceiver : MonoBehaviour
     private class Smooth
     {
         public float headRoll;
-        public Quaternion frameRot;
         public Vector3 leftPos;
         public Quaternion leftRot;
         public Vector3 rightPos;
         public Quaternion rightRot;
         public bool init;
+
+        // Non-compounding head-roll state.
+        public Quaternion lastHeadOutput;
+        public Vector3 lastAxis;
+        public float lastRoll;
+        public bool rollInit;
     }
 
     private readonly Dictionary<int, Smooth> smoothing = new();
@@ -66,7 +71,6 @@ internal class VRNetReceiver : MonoBehaviour
             if (!s.init)
             {
                 s.headRoll = pose.headRoll;
-                s.frameRot = pose.frameRot;
                 s.leftPos = pose.leftPos;
                 s.leftRot = pose.leftRot;
                 s.rightPos = pose.rightPos;
@@ -76,17 +80,16 @@ internal class VRNetReceiver : MonoBehaviour
             else
             {
                 s.headRoll = Mathf.LerpAngle(s.headRoll, pose.headRoll, t);
-                s.frameRot = Quaternion.Slerp(s.frameRot, pose.frameRot, t);
                 s.leftPos = Vector3.Lerp(s.leftPos, pose.leftPos, t);
                 s.leftRot = Quaternion.Slerp(s.leftRot, pose.leftRot, t);
                 s.rightPos = Vector3.Lerp(s.rightPos, pose.rightPos, t);
                 s.rightRot = Quaternion.Slerp(s.rightRot, pose.rightRot, t);
             }
 
-            ApplyHeadRoll(character, s.headRoll);
-
             if (pose.hasHands)
                 ApplyHands(character, s);
+
+            ApplyHeadRoll(character, s);
         }
 
         foreach (var key in stale)
@@ -96,7 +99,32 @@ internal class VRNetReceiver : MonoBehaviour
         }
     }
 
-    private static void ApplyHeadRoll(Character character, float roll)
+    private static void ApplyHands(Character character, Smooth s)
+    {
+        var refs = character.refs;
+        if (refs.IKHandTargetLeft == null || refs.IKHandTargetRight == null
+            || refs.ikRig == null || refs.ikLeft == null || refs.ikRight == null || refs.head == null)
+            return;
+
+        var look = character.data.lookDirection;
+        look.y = 0f;
+        var frame = look.sqrMagnitude < 1e-4f
+            ? Quaternion.identity
+            : Quaternion.LookRotation(look.normalized, Vector3.up);
+
+        var origin = refs.head.transform.position;
+
+        refs.IKHandTargetLeft.position = origin + frame * s.leftPos;
+        refs.IKHandTargetLeft.rotation = frame * s.leftRot;
+        refs.IKHandTargetRight.position = origin + frame * s.rightPos;
+        refs.IKHandTargetRight.rotation = frame * s.rightRot;
+
+        refs.ikRig.weight = 1f;
+        refs.ikLeft.weight = 1f;
+        refs.ikRight.weight = 1f;
+    }
+
+    private static void ApplyHeadRoll(Character character, Smooth s)
     {
         var axis = character.data.lookDirection;
         if (axis.sqrMagnitude < 1e-4f)
@@ -104,25 +132,17 @@ internal class VRNetReceiver : MonoBehaviour
         axis.Normalize();
 
         var head = character.refs.head.transform;
-        head.rotation = Quaternion.AngleAxis(roll, axis) * head.rotation;
-    }
 
-    private static void ApplyHands(Character character, Smooth s)
-    {
-        var refs = character.refs;
-        if (refs.IKHandTargetLeft == null || refs.IKHandTargetRight == null
-            || refs.ikRig == null || refs.ikLeft == null || refs.ikRight == null)
-            return;
+        var baseRot = head.rotation;
+        if (s.rollInit && Quaternion.Angle(head.rotation, s.lastHeadOutput) < 1f)
+            baseRot = Quaternion.AngleAxis(-s.lastRoll, s.lastAxis) * head.rotation;
 
-        var origin = refs.head.transform.position;
+        var output = Quaternion.AngleAxis(s.headRoll, axis) * baseRot;
+        head.rotation = output;
 
-        refs.IKHandTargetLeft.position = origin + s.frameRot * s.leftPos;
-        refs.IKHandTargetLeft.rotation = s.frameRot * s.leftRot;
-        refs.IKHandTargetRight.position = origin + s.frameRot * s.rightPos;
-        refs.IKHandTargetRight.rotation = s.frameRot * s.rightRot;
-
-        refs.ikRig.weight = 1f;
-        refs.ikLeft.weight = 1f;
-        refs.ikRight.weight = 1f;
+        s.lastHeadOutput = output;
+        s.lastAxis = axis;
+        s.lastRoll = s.headRoll;
+        s.rollInit = true;
     }
 }
