@@ -257,6 +257,7 @@ public partial class Plugin : BaseUnityPlugin
         harmony.CreateClassProcessor(typeof(RemoteIKPatch)).Patch();
         harmony.CreateClassProcessor(typeof(OneHandedHoldPatch)).Patch();
         harmony.CreateClassProcessor(typeof(AboutButtonPatch)).Patch();
+        harmony.CreateClassProcessor(typeof(HeadRotationCopyPatch)).Patch();
     }
 
     private bool PreloadRuntimeDependencies()

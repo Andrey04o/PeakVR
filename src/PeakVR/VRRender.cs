@@ -10,31 +10,78 @@ internal static class VRRender
     private static bool logged;
     private static bool aoDisabled;
 
-    // Set the URP upscaling filter from config. The game default (STP) is a TEMPORAL upscaler that looks
-    // great on a flat screen but blurs the whole image under VR MultiPass (its temporal reprojection is
-    // broken there, and renderScale 1.0 doesn't help since the temporal pass still runs). Linear/FSR are
-    // spatial and stay sharp. Anti-aliasing is intentionally left to other mods — this only sets upscaling,
-    // which no other PEAK mod exposes. Reflection keeps it URP-version-agnostic.
-    public static void ApplyUpscaling()
+    private static int originalMsaa = -1;
+
+    public static void ApplySharpening()
     {
+        if (!Plugin.VrEnabled)
+            return;
+
         try
         {
+            bool enable = Plugin.Config == null || Plugin.Config.SharpenImage.Value == "Enable";
+
             UnityEngine.Rendering.RenderPipelineAsset asset = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline;
             PropertyInfo upProp = asset?.GetType().GetProperty("upscalingFilter");
-            if (upProp == null || !upProp.CanWrite)
-                return;
+            PropertyInfo msProp = asset?.GetType().GetProperty("msaaSampleCount");
+            PropertyInfo rsProp = asset?.GetType().GetProperty("renderScale");
 
-            string choice = Plugin.Config != null ? Plugin.Config.UpscalingFilter.Value : "Linear";
-            object target = ParseEnum(upProp.PropertyType, choice);
-            if (target == null || target.Equals(upProp.GetValue(asset)))
-                return;
+            Camera cam = MainCamera.instance != null ? MainCamera.instance.cam : Camera.main;
+            Component addData = cam != null ? cam.GetComponent("UniversalAdditionalCameraData") : null;
+            PropertyInfo aaProp = addData?.GetType().GetProperty("antialiasing");
 
-            upProp.SetValue(asset, target);
-            Plugin.Log.LogInfo($"[PeakVR] Upscaling filter -> {target}");
+            if (msProp != null && originalMsaa < 0)
+                originalMsaa = (int)msProp.GetValue(asset);
+
+            bool changed = false;
+
+            if (upProp != null && upProp.CanWrite)
+            {
+                object target;
+                if (enable)
+                {
+                    target = ParseEnum(upProp.PropertyType, "Linear", "Auto");
+                }
+                else
+                {
+                    float rs = rsProp != null ? (float)rsProp.GetValue(asset) : 0.8f;
+                    target = ParseEnum(upProp.PropertyType, rs >= 0.999f ? "Linear" : "STP", "STP");
+                }
+
+                if (target != null && !target.Equals(upProp.GetValue(asset)))
+                {
+                    upProp.SetValue(asset, target);
+                    changed = true;
+                }
+            }
+
+            if (msProp != null && msProp.CanWrite && originalMsaa >= 0)
+            {
+                int target = enable ? 1 : originalMsaa;
+                if ((int)msProp.GetValue(asset) != target)
+                {
+                    msProp.SetValue(asset, target);
+                    changed = true;
+                }
+            }
+
+            // Camera post-AA: None(0) when sharpening, TemporalAA(3) when disabled (the game default).
+            if (aaProp != null && aaProp.CanWrite)
+            {
+                int target = enable ? 0 : 3;
+                if (Convert.ToInt32(aaProp.GetValue(addData)) != target)
+                {
+                    aaProp.SetValue(addData, Enum.ToObject(aaProp.PropertyType, target));
+                    changed = true;
+                }
+            }
+
+            if (changed)
+                Plugin.Log.LogInfo($"[PeakVR] Image sharpening {(enable ? "ENABLED" : "disabled")}");
         }
         catch (Exception e)
         {
-            Plugin.Log.LogWarning($"[PeakVR] Could not set upscaling filter: {e.Message}");
+            Plugin.Log.LogWarning($"[PeakVR] Could not apply sharpening: {e.Message}");
         }
     }
 

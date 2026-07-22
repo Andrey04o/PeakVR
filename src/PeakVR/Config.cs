@@ -17,6 +17,9 @@ public class Config
     public ConfigEntry<bool> MovementTunneling { get; }
     public ConfigEntry<float> TunnelingStrength { get; }
 
+    public ConfigEntry<bool> CameraRoll { get; }
+    public ConfigEntry<bool> CopyHeadRotation { get; }
+
     public ConfigEntry<bool> HideControllers { get; }
     public ConfigEntry<PeakVR.LineVisibility> InteractionLine { get; }
     public ConfigEntry<PeakVR.LineVisibility> HudLine { get; }
@@ -26,7 +29,7 @@ public class Config
     public ConfigEntry<float> VirtualArmSpan { get; }
 
     public ConfigEntry<float> LodBias { get; }
-    public ConfigEntry<string> UpscalingFilter { get; }
+    public ConfigEntry<string> SharpenImage { get; }
 
     public ConfigEntry<string> OpenXRRuntimeFile { get; }
 
@@ -58,6 +61,14 @@ public class Config
             new ConfigDescription("How far the tunnel closes in (smaller circle). 0 disables it.",
                 new AcceptableValueRange<float>(0f, 1f)));
 
+        CameraRoll = file.Bind("Comfort", "Camera Roll", false,
+            "Roll and tumble the headset view along with the character camera during backflips, falls " +
+            "and ragdolls, matching the flat game. More immersive but can cause motion sickness.");
+
+        CopyHeadRotation = file.Bind("Special", "Copy Head Rotation", false,
+            "Copy the character's head-bone tilt (the subtle head lean/bob during movement) onto the view. " +
+            "Can be applied to flat players too. Caution: turn it on only if you don't get motion sickness from VR.");
+
         HideControllers = file.Bind("VR", "Hide Controllers", true,
             "Hide the VR controller models and show only your character's hands. Interaction/aim lasers " +
             "then originate from your hand instead of the controller.");
@@ -86,13 +97,13 @@ public class Config
                 new AcceptableValueRange<float>(0.5f, 5f)));
         LodBias.SettingChanged += (_, _) => UnityEngine.QualitySettings.lodBias = LodBias.Value;
 
-        UpscalingFilter = file.Bind("VR Graphics", "Upscaling Filter", "STP",
+        SharpenImage = file.Bind("VR Graphics", "Make Image Sharper", "Disable",
             new ConfigDescription(
-                "Image upscaling filter for VR. The game default (STP) is a temporal upscaler that looks " +
-                "blurry in a VR headset; Linear or FSR are spatial and give a much sharper picture. " +
-                "Applies immediately.",
-                new AcceptableValueList<string>("Auto", "Linear", "Point", "FSR", "STP")));
-        UpscalingFilter.SettingChanged += (_, _) => PeakVR.VRRender.ApplyUpscaling();
+                "Sharpen the VR image: disables temporal anti-aliasing (TAA) and MSAA and uses a spatial " +
+                "(Linear) upscaler. TAA in particular blurs the image in a VR headset. Disable to keep the " +
+                "game's own graphics settings.",
+                new AcceptableValueList<string>("Enable", "Disable")));
+        SharpenImage.SettingChanged += (_, _) => PeakVR.VRRender.ApplySharpening();
 
         OpenXRRuntimeFile = file.Bind("Internal", "OpenXRRuntimeFile", "",
             new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT", null, "Hidden"));

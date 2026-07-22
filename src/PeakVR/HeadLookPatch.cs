@@ -1,4 +1,5 @@
 using HarmonyLib;
+using UnityEngine;
 
 namespace PeakVR;
 
@@ -15,7 +16,8 @@ internal static class HeadLookPatch
         if (__instance.GetComponent<Character>() != character)
             return;
 
-        character.data.lookValues = HelperFunctions.DirectionToLook(MainCamera.instance.cam.transform.forward);
+        Vector3 forward = Quaternion.Inverse(VRHeadRig.ViewTilt) * MainCamera.instance.cam.transform.forward;
+        character.data.lookValues = HelperFunctions.DirectionToLook(forward);
         character.RecalculateLookDirections();
     }
 }

@@ -37,6 +37,10 @@ internal class VRHeadRig : MonoBehaviour
     public static bool RoomMoving;
     public static Vector2 RoomInput;
     public static bool Crouching;
+    public static Quaternion ViewTilt = Quaternion.identity;
+    private Quaternion viewTilt = Quaternion.identity;
+    private const float TiltSmoothSpeed = 12f;
+    private float tiltDbgTimer;
 
     private static bool recalibrateRequested;
 
@@ -134,6 +138,7 @@ internal class VRHeadRig : MonoBehaviour
                 VRCutscene.Active = false;
             else
             {
+                ViewTilt = viewTilt = Quaternion.identity;
                 HandleCutscene(cutsceneCam);
                 return;
             }
@@ -145,9 +150,12 @@ internal class VRHeadRig : MonoBehaviour
 
         if (character.data.fullyPassedOut)
         {
+            ViewTilt = viewTilt = Quaternion.identity;
             HandleSpectator(character);
             return;
         }
+
+        Quaternion flatCamRot = cam.transform.rotation;
 
         transform.localScale = Vector3.one * HandScale;
         transform.rotation = Quaternion.Euler(0f, turnYaw, 0f);
@@ -166,6 +174,41 @@ internal class VRHeadRig : MonoBehaviour
 
         RoomScale(character, new Vector2(scaledHmd.x, scaledHmd.z));
         HandleCrouch();
+        UpdateViewTilt(character, flatCamRot);
+    }
+
+    private void UpdateViewTilt(Character character, Quaternion flatCamRot)
+    {
+        Quaternion target = Quaternion.identity;
+
+        Vector3 lookDir = character.data.lookDirection;
+        if (lookDir.sqrMagnitude >= 1e-4f)
+        {
+            Quaternion baseInv = Quaternion.Inverse(Quaternion.LookRotation(lookDir));
+
+            if (Plugin.Config.CameraRoll.Value)
+                target = flatCamRot * baseInv * target;
+
+            if (Plugin.Config.CopyHeadRotation.Value)
+            {
+                var headRig = character.GetBodypartRig(BodypartType.Head);
+                if (headRig != null)
+                    target = headRig.transform.rotation * baseInv * target;
+            }
+        }
+
+        viewTilt = Quaternion.Slerp(viewTilt, target, Mathf.Clamp01(Time.deltaTime * TiltSmoothSpeed));
+        ViewTilt = viewTilt;
+
+        Vector3 pivot = transform.TransformPoint(hmdOffset);
+        transform.rotation = viewTilt * transform.rotation;
+        transform.position = pivot + viewTilt * (transform.position - pivot);
+
+        if (Plugin.DebugButtons && Time.time >= tiltDbgTimer && Quaternion.Angle(viewTilt, Quaternion.identity) > 0.5f)
+        {
+            tiltDbgTimer = Time.time + 0.3f;
+            Plugin.Log.LogInfo($"[PeakVR][TiltDbg] tilt={viewTilt.eulerAngles} target={target.eulerAngles}");
+        }
     }
 
     private void HandleCutscene(Transform cutsceneCam)

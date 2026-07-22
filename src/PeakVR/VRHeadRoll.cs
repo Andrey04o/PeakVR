@@ -10,6 +10,11 @@ internal class VRHeadRoll : MonoBehaviour
     private Camera cam;
     private Quaternion hmdLocalRot = Quaternion.identity;
 
+    private Quaternion lastHeadOutput;
+    private Vector3 lastAxis;
+    private float lastRoll;
+    private bool rollInit;
+
     private void Awake()
     {
         cam = GetComponentInChildren<Camera>();
@@ -34,9 +39,11 @@ internal class VRHeadRoll : MonoBehaviour
         LocalRoll = roll;
 
         var character = Character.localCharacter;
-        if (character == null || character.refs.head == null || VRPointer.Canvas != null
-            || character.data.fullyPassedOut)
+        if (character == null || character.refs.head == null || character.data.fullyPassedOut)
+        {
+            rollInit = false;
             return;
+        }
 
         var axis = character.data.lookDirection;
         if (axis.sqrMagnitude < 1e-4f)
@@ -44,6 +51,17 @@ internal class VRHeadRoll : MonoBehaviour
         axis.Normalize();
 
         var head = character.refs.head.transform;
-        head.rotation = Quaternion.AngleAxis(roll, axis) * head.rotation;
+
+        var baseRot = head.rotation;
+        if (rollInit && Quaternion.Angle(head.rotation, lastHeadOutput) < 1f)
+            baseRot = Quaternion.AngleAxis(-lastRoll, lastAxis) * head.rotation;
+
+        var output = Quaternion.AngleAxis(roll, axis) * baseRot;
+        head.rotation = output;
+
+        lastHeadOutput = output;
+        lastAxis = axis;
+        lastRoll = roll;
+        rollInit = true;
     }
 }
