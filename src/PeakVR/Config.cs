@@ -25,6 +25,8 @@ public class Config
     public ConfigEntry<float> ArmSpanScale { get; }
     public ConfigEntry<float> VirtualArmSpan { get; }
 
+    public ConfigEntry<float> LodBias { get; }
+
     public ConfigEntry<string> OpenXRRuntimeFile { get; }
 
     public Config(string assemblyPath, ConfigFile file)
@@ -76,6 +78,12 @@ public class Config
         VirtualArmSpan = file.Bind("Internal", "VirtualArmSpan", 1.851f,
             new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT — cached character wingspan for calibration.",
                 null, "Hidden"));
+
+        LodBias = file.Bind("VR Graphics", "LOD Bias", 2.5f,
+            new ConfigDescription("Level-of-detail bias in VR. Higher keeps distant objects detailed; " +
+                "lower boosts performance. Applies immediately.",
+                new AcceptableValueRange<float>(0.5f, 5f)));
+        LodBias.SettingChanged += (_, _) => UnityEngine.QualitySettings.lodBias = LodBias.Value;
 
         OpenXRRuntimeFile = file.Bind("Internal", "OpenXRRuntimeFile", "",
             new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT", null, "Hidden"));

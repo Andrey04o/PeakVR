@@ -24,14 +24,15 @@ internal static class RenderDiagnostics
     private static float nextScan;
     private static int cursor;
 
-    private const float LodBias = 2.5f;
+    private const float DefaultLodBias = 2.5f;
     private const float ScanInterval = 3f;
     private const int SpreadFrames = 4;
 
     public static void ApplyLodBias()
     {
-        var prev = QualitySettings.lodBias;
-        QualitySettings.lodBias = Mathf.Max(prev, LodBias);
+        float target = Plugin.Config != null ? Plugin.Config.LodBias.Value : DefaultLodBias;
+        float prev = QualitySettings.lodBias;
+        QualitySettings.lodBias = target;
         QualitySettings.maximumLODLevel = 0;
         Plugin.Log.LogInfo($"[PeakVR] lodBias {prev} -> {QualitySettings.lodBias}");
     }
