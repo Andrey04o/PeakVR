@@ -58,6 +58,7 @@ internal static class InGameCameraPatch
         VRHands.Create(rig.transform);
 
         RenderDiagnostics.ApplyLodBias();
+        VRRender.ApplyUpscaling();
         RenderDiagnostics.ScheduleScan();
 
         if (Plugin.DebugButtons || Plugin.Config.EnableVerboseLogging.Value)

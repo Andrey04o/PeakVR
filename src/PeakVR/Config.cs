@@ -26,6 +26,7 @@ public class Config
     public ConfigEntry<float> VirtualArmSpan { get; }
 
     public ConfigEntry<float> LodBias { get; }
+    public ConfigEntry<string> UpscalingFilter { get; }
 
     public ConfigEntry<string> OpenXRRuntimeFile { get; }
 
@@ -84,6 +85,14 @@ public class Config
                 "lower boosts performance. Applies immediately.",
                 new AcceptableValueRange<float>(0.5f, 5f)));
         LodBias.SettingChanged += (_, _) => UnityEngine.QualitySettings.lodBias = LodBias.Value;
+
+        UpscalingFilter = file.Bind("VR Graphics", "Upscaling Filter", "STP",
+            new ConfigDescription(
+                "Image upscaling filter for VR. The game default (STP) is a temporal upscaler that looks " +
+                "blurry in a VR headset; Linear or FSR are spatial and give a much sharper picture. " +
+                "Applies immediately.",
+                new AcceptableValueList<string>("Auto", "Linear", "Point", "FSR", "STP")));
+        UpscalingFilter.SettingChanged += (_, _) => PeakVR.VRRender.ApplyUpscaling();
 
         OpenXRRuntimeFile = file.Bind("Internal", "OpenXRRuntimeFile", "",
             new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT", null, "Hidden"));

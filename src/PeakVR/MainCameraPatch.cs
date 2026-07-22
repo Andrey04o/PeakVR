@@ -38,6 +38,7 @@ internal static class MainCameraPatch
 
         VRRender.DisableXRVisibilityMesh();
         VRRender.DisableBrokenAO();
+        VRRender.ApplyUpscaling();
 
         cam.gameObject.AddComponent<VRStereoCulling>();
 

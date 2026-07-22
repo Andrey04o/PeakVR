@@ -17,6 +17,8 @@ internal class VRNetReceiver : MonoBehaviour
         public Quaternion leftRot;
         public Vector3 rightPos;
         public Quaternion rightRot;
+        public Vector3 leftHint;
+        public Vector3 rightHint;
         public bool init;
 
         public int outlierCount;
@@ -80,6 +82,8 @@ internal class VRNetReceiver : MonoBehaviour
                 s.leftRot = pose.leftRot;
                 s.rightPos = pose.rightPos;
                 s.rightRot = pose.rightRot;
+                s.leftHint = pose.leftHint;
+                s.rightHint = pose.rightHint;
                 s.init = true;
             }
             else
@@ -104,6 +108,8 @@ internal class VRNetReceiver : MonoBehaviour
                         s.leftRot = pose.leftRot;
                         s.rightPos = pose.rightPos;
                         s.rightRot = pose.rightRot;
+                        s.leftHint = pose.leftHint;
+                        s.rightHint = pose.rightHint;
                     }
                 }
                 else
@@ -113,6 +119,8 @@ internal class VRNetReceiver : MonoBehaviour
                     s.leftRot = Quaternion.Slerp(s.leftRot, pose.leftRot, t);
                     s.rightPos = Vector3.Lerp(s.rightPos, pose.rightPos, t);
                     s.rightRot = Quaternion.Slerp(s.rightRot, pose.rightRot, t);
+                    s.leftHint = Vector3.Lerp(s.leftHint, pose.leftHint, t);
+                    s.rightHint = Vector3.Lerp(s.rightHint, pose.rightHint, t);
                 }
             }
 
@@ -146,6 +154,11 @@ internal class VRNetReceiver : MonoBehaviour
         refs.ikRig.weight = 1f;
         refs.ikLeft.weight = 1f;
         refs.ikRight.weight = 1f;
+
+        if (refs.ikLeft.data.hint != null)
+            refs.ikLeft.data.hint.position = root.TransformPoint(s.leftHint);
+        if (refs.ikRight.data.hint != null)
+            refs.ikRight.data.hint.position = root.TransformPoint(s.rightHint);
     }
 
     private static void ApplyHeadRoll(Character character, Smooth s)

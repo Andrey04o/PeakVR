@@ -23,6 +23,8 @@ internal static class VRNetworking
         public Quaternion leftRot;
         public Vector3 rightPos;
         public Quaternion rightRot;
+        public Vector3 leftHint;
+        public Vector3 rightHint;
         public bool hasHands;
         public float sinceReceived;
     }
@@ -57,19 +59,26 @@ internal static class VRNetworking
     {
         if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom.PlayerCount < 2)
             return;
-        if (c.refs.IKHandTargetLeft == null || c.refs.IKHandTargetRight == null)
+        var refs = c.refs;
+        if (refs.IKHandTargetLeft == null || refs.IKHandTargetRight == null)
             return;
         if (c.data.fullyPassedOut)
             return;
+        if (refs.ikLeft == null || refs.ikRight == null
+            || refs.ikLeft.data.hint == null || refs.ikRight.data.hint == null)
+            return;
 
-        var root = c.transform;
+        Transform root = c.transform;
+        Quaternion invRoot = Quaternion.Inverse(root.rotation);
 
-        var lp = root.InverseTransformPoint(c.refs.IKHandTargetLeft.position);
-        var lr = Quaternion.Inverse(root.rotation) * c.refs.IKHandTargetLeft.rotation;
-        var rp = root.InverseTransformPoint(c.refs.IKHandTargetRight.position);
-        var rr = Quaternion.Inverse(root.rotation) * c.refs.IKHandTargetRight.rotation;
+        Vector3 lp = root.InverseTransformPoint(refs.IKHandTargetLeft.position);
+        Quaternion lr = invRoot * refs.IKHandTargetLeft.rotation;
+        Vector3 rp = root.InverseTransformPoint(refs.IKHandTargetRight.position);
+        Quaternion rr = invRoot * refs.IKHandTargetRight.rotation;
+        Vector3 lh = root.InverseTransformPoint(refs.ikLeft.data.hint.position);
+        Vector3 rh = root.InverseTransformPoint(refs.ikRight.data.hint.position);
 
-        var content = new object[] { VRHeadRoll.LocalRoll, lp, lr, rp, rr };
+        object[] content = { VRHeadRoll.LocalRoll, lp, lr, rp, rr, lh, rh };
         PhotonNetwork.RaiseEvent(EventCode, content, SendOptionsToOthers, SendOptions.SendUnreliable);
     }
 
@@ -86,14 +95,16 @@ internal static class VRNetworking
         if (e.Code != EventCode)
             return;
 
-        var content = (object[])e.CustomData;
-        var pose = new RemotePose
+        object[] content = (object[])e.CustomData;
+        RemotePose pose = new RemotePose
         {
             headRoll = (float)content[0],
             leftPos = (Vector3)content[1],
             leftRot = (Quaternion)content[2],
             rightPos = (Vector3)content[3],
             rightRot = (Quaternion)content[4],
+            leftHint = (Vector3)content[5],
+            rightHint = (Vector3)content[6],
             hasHands = true,
             sinceReceived = 0f,
         };

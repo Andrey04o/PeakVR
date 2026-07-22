@@ -119,11 +119,11 @@ internal static class VRArmIKPatch
 
     private static void SetElbowHint(TwoBoneIKConstraint ik, Vector3 handPos, Quaternion ctrlRot)
     {
-        var hint = ik.data.hint;
-        if (hint == null)
+        Transform hint = ik.data.hint;
+        if (hint == null || ik.data.root == null)
             return;
 
-        var shoulderPos = ik.data.root.position;
+        Vector3 shoulderPos = ik.data.root.position;
         var axis = handPos - shoulderPos;
         if (axis.sqrMagnitude < 1e-4f)
             return;

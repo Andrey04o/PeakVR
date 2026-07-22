@@ -10,6 +10,34 @@ internal static class VRRender
     private static bool logged;
     private static bool aoDisabled;
 
+    // Set the URP upscaling filter from config. The game default (STP) is a TEMPORAL upscaler that looks
+    // great on a flat screen but blurs the whole image under VR MultiPass (its temporal reprojection is
+    // broken there, and renderScale 1.0 doesn't help since the temporal pass still runs). Linear/FSR are
+    // spatial and stay sharp. Anti-aliasing is intentionally left to other mods — this only sets upscaling,
+    // which no other PEAK mod exposes. Reflection keeps it URP-version-agnostic.
+    public static void ApplyUpscaling()
+    {
+        try
+        {
+            UnityEngine.Rendering.RenderPipelineAsset asset = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline;
+            PropertyInfo upProp = asset?.GetType().GetProperty("upscalingFilter");
+            if (upProp == null || !upProp.CanWrite)
+                return;
+
+            string choice = Plugin.Config != null ? Plugin.Config.UpscalingFilter.Value : "Linear";
+            object target = ParseEnum(upProp.PropertyType, choice);
+            if (target == null || target.Equals(upProp.GetValue(asset)))
+                return;
+
+            upProp.SetValue(asset, target);
+            Plugin.Log.LogInfo($"[PeakVR] Upscaling filter -> {target}");
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.LogWarning($"[PeakVR] Could not set upscaling filter: {e.Message}");
+        }
+    }
+
     // HBAO (Horizon-Based Ambient Occlusion, a screen-space AO renderer feature) renders wrong per-eye
     // under URP 17.3's XR path (PEAK beta, Unity 6000.3), giving inconsistent surface lighting between
     // the eyes. It's fine on the stable 6000.0 line (URP 17.0) — and the user wants AO there — so only
@@ -69,6 +97,16 @@ internal static class VRRender
         {
             Log($"[PeakVR] Could not disable XR visibility mesh: {e.Message}");
         }
+    }
+
+    private static object ParseEnum(Type type, params string[] names)
+    {
+        foreach (string n in names)
+        {
+            try { return Enum.Parse(type, n); }
+            catch { }
+        }
+        return null;
     }
 
     private static void Log(string message)
