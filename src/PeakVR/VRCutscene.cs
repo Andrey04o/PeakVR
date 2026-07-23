@@ -49,7 +49,13 @@ internal static class EndCutsceneVRPatch
         // detection in CurrentTransform() is unchanged). Extra render passes at the ending are a
         // suspected trigger of VDXR's D3D12 device-removed failure.
         if (VRCutscene.Sink == null)
-            VRCutscene.Sink = new RenderTexture(1, 1, 0) { name = "PeakVR CutsceneSink" };
+        {
+            VRCutscene.Sink = new RenderTexture(1, 1, 24, RenderTextureFormat.Default)
+            {
+                name = "PeakVR CutsceneSink"
+            };
+            VRCutscene.Sink.Create();
+        }
 
         foreach (var c in cams)
         {
