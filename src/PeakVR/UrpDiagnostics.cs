@@ -8,10 +8,9 @@ using UnityEngine.Rendering;
 
 namespace PeakVR;
 
-// One-shot dump of the active URP configuration so we can compare stable vs beta rendering
-// (e.g. ambient occlusion / lighting differences). Reflection-based so it survives URP version
-// changes (the beta runs URP 17.3, the build references 17.0.4). Logged once at level load and
-// re-triggerable with a debug key.
+// One-shot dump of the active URP configuration (e.g. ambient occlusion / lighting features).
+// Reflection-based so it survives URP version changes (PEAK runs URP 17.3 on Unity 6000.3; the
+// build references 17.0.4). Logged once at level load and re-triggerable with a debug key.
 internal static class UrpDiagnostics
 {
     private const BindingFlags Any = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
@@ -157,8 +156,8 @@ internal static class UrpDiagnostics
     private static int testMode;
     private static float baseRenderScale = -1f;
 
-    // Step through isolating the beta lighting suspects (bound to a debug key). The URP config is
-    // identical stable vs beta, so this narrows which effect renders differently under URP 17.3.
+    // Step through isolating the URP 17.3 lighting suspects (bound to a debug key) to narrow which
+    // effect renders differently under the XR path.
     //   0 = everything on (baseline)
     //   1 = HBAO (ambient occlusion) off
     //   2 = + EdgeDetection off

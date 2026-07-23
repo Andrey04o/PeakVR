@@ -16,7 +16,7 @@ Install PeakVR with a mod manager (such as [r2modman](https://thunderstore.io/c/
 
 Running the mod using r2modman can be done simply by clicking "Start Modded", which will automatically launch the game with the installed mods.
 
-Tested with PEAK **1.64.a** (stable) and **0.65.d** (beta), running on **DirectX 12**.
+Tested with PEAK **1.65.a**, running on **DirectX 12**.
 
 # Controls
 
@@ -83,7 +83,7 @@ The plugin needs a `RuntimeDeps` folder containing the Unity XR managed assembli
 
 > You can skip this part if you have taken the runtime dependencies from the Thunderstore package.
 
-First install Unity 6000.0.62f1, which is the Unity version that PEAK uses. Once you have the editor, create a new project. Then install these packages:
+First install Unity 6000.3.15f1, which is the Unity version that PEAK uses. Once you have the editor, create a new project. Then install these packages:
 
 - OpenXR Plugin
 - XR Core Utilities

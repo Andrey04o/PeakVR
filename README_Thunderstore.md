@@ -16,7 +16,7 @@ Install PeakVR with a mod manager (such as [r2modman](https://thunderstore.io/c/
 
 Running the mod using r2modman can be done simply by clicking "Start Modded", which will automatically launch the game with the installed mods.
 
-Tested with PEAK **1.64.a** (stable) and **0.65.d** (beta), running on **DirectX 12**.
+Tested with PEAK **1.65.a**, running on **DirectX 12**.
 
 # Controls
 

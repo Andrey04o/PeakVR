@@ -37,8 +37,8 @@ public partial class Plugin : BaseUnityPlugin
         UnityEngine.Application.runInBackground = true;
 
         // Registers the Input System's default plugins (incl. XR device layouts) — required for pose
-        // tracking. It's private static on stable and removed in the beta's newer Input System, so
-        // call it via reflection (NonPublic) only if present.
+        // tracking. Its accessibility has shifted across Input System versions (public/private, and
+        // sometimes absent), so call it via reflection only if present.
         typeof(InputSystem).GetMethod("PerformDefaultPluginInitialization",
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)?.Invoke(null, null);
 
@@ -265,13 +265,7 @@ public partial class Plugin : BaseUnityPlugin
         try
         {
             var deps = Path.Combine(Path.GetDirectoryName(Info.Location)!, "RuntimeDeps");
-            var loaded = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-            var versionFolder = GetVersionSpecificDeps(deps);
-            if (versionFolder != null)
-                PreloadFromFolder(versionFolder, loaded);
-
-            PreloadFromFolder(deps, loaded);
+            PreloadFromFolder(deps);
         }
         catch (Exception ex)
         {
@@ -283,22 +277,7 @@ public partial class Plugin : BaseUnityPlugin
         return true;
     }
 
-    private string GetVersionSpecificDeps(string deps)
-    {
-        var version = UnityEngine.Application.unityVersion;
-        var mapped = version.StartsWith("6000.") ? "6." + version.Substring("6000.".Length) : version;
-
-        var folder = Path.Combine(deps, mapped);
-        if (Directory.Exists(folder))
-        {
-            Logger.LogInfo($"Unity {version}: using version-specific RuntimeDeps folder '{mapped}'");
-            return folder;
-        }
-
-        return null;
-    }
-
-    private void PreloadFromFolder(string folder, HashSet<string> loaded)
+    private void PreloadFromFolder(string folder)
     {
         foreach (var file in Directory.GetFiles(folder, "*.dll"))
         {
@@ -306,10 +285,6 @@ public partial class Plugin : BaseUnityPlugin
 
             // Ignore known unmanaged libraries
             if (filename is "UnityOpenXR.dll" or "openxr_loader.dll")
-                continue;
-
-            // A version-specific DLL loaded first wins over the same-named base DLL
-            if (!loaded.Add(filename))
                 continue;
 
             Logger.LogDebug($"Preloading '{filename}'...");

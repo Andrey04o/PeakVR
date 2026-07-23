@@ -86,14 +86,11 @@ internal static class VRRender
     }
 
     // HBAO (Horizon-Based Ambient Occlusion, a screen-space AO renderer feature) renders wrong per-eye
-    // under URP 17.3's XR path (PEAK beta, Unity 6000.3), giving inconsistent surface lighting between
-    // the eyes. It's fine on the stable 6000.0 line (URP 17.0) — and the user wants AO there — so only
-    // disable it on the newer Unity/URP.
+    // under PEAK's URP 17.3 XR path (Unity 6000.3), giving inconsistent surface lighting between the
+    // eyes, so disable it. (It was fine on the old 6000.0 / URP 17.0 line, but PEAK has since moved
+    // everyone onto 6000.3.)
     public static void DisableBrokenAO()
     {
-        if (Application.unityVersion.StartsWith("6000.0."))
-            return;
-
         try
         {
             UrpDiagnostics.SetFeatureActive("HBAO", false);
