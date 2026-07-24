@@ -19,6 +19,11 @@ internal static class ItemAim
         if (character == null || character.data.currentItem == null)
             return fallback;
 
+        // Blowgun
+        var dart = character.data.currentItem.GetComponentInChildren<Action_RaycastDart>();
+        if (dart != null && dart.spawnTransform != null)
+            return dart.spawnTransform;
+
         if (!VRAim.TryRight(out var origin, out var dir))
             return fallback;
 
