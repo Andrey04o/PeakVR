@@ -16,7 +16,11 @@ Install PeakVR with a mod manager (such as [r2modman](https://thunderstore.io/c/
 
 Running the mod using r2modman can be done simply by clicking "Start Modded", which will automatically launch the game with the installed mods.
 
-Tested with PEAK **1.65.a**, running on **DirectX 12**.
+| Mod version | Tested game version |
+| --- | --- |
+| 1.2.0 | 1.65.a |
+| 1.1.0 | 1.64.a and 0.65.d (beta) |
+| 1.0.0 | 1.64.a and 0.65.d (beta) |
 
 # Funny tip
 
@@ -24,21 +28,7 @@ DirectX 11 can give you an extra **10–27 FPS**! Add the launch option `-force-
 
 # Controls
 
-| Control | Action |
-| --- | --- |
-| Left stick | Move |
-| Left stick (click) | Sprint |
-| Right stick (left / right) | Turn (snap or smooth) |
-| Right stick (up / down) | Scroll (rope length, cannon angle, guidebook pages) |
-| Right stick (click) | Ping |
-| Right grip | Interact / grab  |
-| Left grip | Drop the held item |
-| Right trigger | Primary action / climb |
-| Left trigger | Secondary action |
-| A (right) | Jump |
-| B (right) | Hold / holster the item |
-| X (left) | Crouch |
-| Y (left) | Pause menu |
+![Controls](https://github.com/Andrey04o/PeakVR/blob/main/controls.png?raw=true)
 
 
 | Select an item slot | Open the emote wheel |
