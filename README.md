@@ -18,6 +18,10 @@ Running the mod using r2modman can be done simply by clicking "Start Modded", wh
 
 Tested with PEAK **1.65.a**, running on **DirectX 12**.
 
+# Funny tip
+
+DirectX 11 can give you an extra **10–27 FPS**! Add the launch option `-force-d3d11` to start the game in DirectX 11.
+
 # Controls
 
 | Control | Action |

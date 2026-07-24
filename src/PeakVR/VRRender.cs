@@ -87,14 +87,23 @@ internal static class VRRender
 
     // HBAO (Horizon-Based Ambient Occlusion, a screen-space AO renderer feature) renders wrong per-eye
     // under PEAK's URP 17.3 XR path (Unity 6000.3), giving inconsistent surface lighting between the
-    // eyes, so disable it. (It was fine on the old 6000.0 / URP 17.0 line, but PEAK has since moved
-    // everyone onto 6000.3.)
+    // eyes. Disabled by default via the "Force Disable HBAO" config; users can turn it back on.
+    // Called at scene setup; ApplyHBAO does the actual work and is also the live-toggle handler.
     public static void DisableBrokenAO()
     {
+        ApplyHBAO();
+    }
+
+    public static void ApplyHBAO()
+    {
+        if (!Plugin.VrEnabled)
+            return;
+
+        bool disable = Plugin.Config == null || Plugin.Config.ForceDisableHBAO.Value;
         try
         {
-            UrpDiagnostics.SetFeatureActive("HBAO", false);
-            if (!aoDisabled)
+            UrpDiagnostics.SetFeatureActive("HBAO", !disable);
+            if (disable && !aoDisabled)
             {
                 aoDisabled = true;
                 Plugin.Log.LogInfo($"[PeakVR] Disabled HBAO ambient occlusion (broken under Unity {Application.unityVersion} / URP 17.3 XR path)");
@@ -102,7 +111,7 @@ internal static class VRRender
         }
         catch (Exception e)
         {
-            Plugin.Log.LogWarning($"[PeakVR] Could not disable HBAO: {e.Message}");
+            Plugin.Log.LogWarning($"[PeakVR] Could not apply HBAO setting: {e.Message}");
         }
     }
 
@@ -118,14 +127,32 @@ internal static class VRRender
         try
         {
             var settings = AccessTools.TypeByName("UnityEngine.Rendering.XRSRPSettings");
-            var prop = settings?.GetProperty("useVisibilityMesh", BindingFlags.Public | BindingFlags.Static);
-            if (prop != null && prop.CanWrite)
+            if (settings != null)
             {
-                if ((bool)prop.GetValue(null))
+                bool changed = false;
+
+                // The VISIBLE mesh: URP 17.3 routes post-processing (RG_UberPost) through it — a GPU
+                // regression on Unity 6.3 — and PEAK's build lacks that pass, so it also gives the
+                // "invalid pass index 1" black/flickering headset. false = full-screen blit (pass 0).
+                var visMesh = settings.GetProperty("useVisibilityMesh", BindingFlags.Public | BindingFlags.Static);
+                if (visMesh != null && visMesh.CanWrite && (bool)visMesh.GetValue(null))
                 {
-                    prop.SetValue(null, false);
-                    Log("[PeakVR] Disabled XR visibility mesh (URP post-processing uses pass 0)");
+                    visMesh.SetValue(null, false);
+                    changed = true;
                 }
+
+                // The OCCLUSION mesh (the OpenXR visibility mask rendered early to skip lens-hidden
+                // pixels): on standalone/streamed OpenXR the 6.3 mesh path costs more than it saves
+                // (~0.2 ms GPU regression), so scale it to 0 to skip it entirely.
+                var occScale = settings.GetProperty("occlusionMeshScale", BindingFlags.Public | BindingFlags.Static);
+                if (occScale != null && occScale.CanWrite && (float)occScale.GetValue(null) != 0f)
+                {
+                    occScale.SetValue(null, 0f);
+                    changed = true;
+                }
+
+                if (changed)
+                    Log("[PeakVR] Disabled XR visibility + occlusion meshes (useVisibilityMesh=false, occlusionMeshScale=0)");
                 return;
             }
 

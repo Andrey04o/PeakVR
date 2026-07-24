@@ -30,6 +30,7 @@ public class Config
 
     public ConfigEntry<float> LodBias { get; }
     public ConfigEntry<string> SharpenImage { get; }
+    public ConfigEntry<bool> ForceDisableHBAO { get; }
 
     public ConfigEntry<string> OpenXRRuntimeFile { get; }
 
@@ -104,6 +105,12 @@ public class Config
                 "game's own graphics settings.",
                 new AcceptableValueList<string>("Enable", "Disable")));
         SharpenImage.SettingChanged += (_, _) => PeakVR.VRRender.ApplySharpening();
+
+        ForceDisableHBAO = file.Bind("VR Graphics", "Force Disable HBAO", true,
+            new ConfigDescription(
+                "Disable HBAO ambient occlusion, which renders wrong per-eye in VR on PEAK's Unity 6.3 " +
+                "(URP 17.3) and costs performance. On by default; turn off to keep the game's ambient occlusion."));
+        ForceDisableHBAO.SettingChanged += (_, _) => PeakVR.VRRender.ApplyHBAO();
 
         OpenXRRuntimeFile = file.Bind("Internal", "OpenXRRuntimeFile", "",
             new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT", null, "Hidden"));

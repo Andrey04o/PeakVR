@@ -524,6 +524,8 @@ internal static class OpenXR
             OpenXRSettings.Instance.renderMode = OpenXRSettings.RenderMode.MultiPass;
             OpenXRSettings.Instance.depthSubmissionMode = OpenXRSettings.DepthSubmissionMode.None;
 
+            OpenXRSettings.Instance.optimizeBufferDiscards = true;
+
             if (OpenXRSettings.Instance.features.Length != 0)
                 return;
 
