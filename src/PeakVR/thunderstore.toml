@@ -7,7 +7,7 @@ repository = "https://thunderstore.io"
 [package]
 namespace = "Andrey04o"
 name = "PeakVR"
-description = "Climbing Peaks in VR"
+description = "Climbing PEAKs in VR"
 websiteUrl = "https://github.com/Andrey04o/PeakVR"
 containsNsfwContent = false
 
