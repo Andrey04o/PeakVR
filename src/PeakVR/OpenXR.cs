@@ -526,6 +526,24 @@ internal static class OpenXR
 
             OpenXRSettings.Instance.optimizeBufferDiscards = true;
 
+            // Prefer the SRP foveation backend (recommended on Unity 6+) over the legacy Meta path.
+            try
+            {
+                var apiProp = typeof(OpenXRSettings).GetProperty("foveatedRenderingApi");
+                if (apiProp != null && apiProp.CanWrite)
+                    foreach (var name in Enum.GetNames(apiProp.PropertyType))
+                        if (name.IndexOf("SRP", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            apiProp.SetValue(OpenXRSettings.Instance, Enum.Parse(apiProp.PropertyType, name));
+                            Logger.LogInfo($"Foveation backend set to {name}");
+                            break;
+                        }
+            }
+            catch (Exception e)
+            {
+                Logger.LogWarning($"Could not set SRP foveation API: {e.Message}");
+            }
+
             if (OpenXRSettings.Instance.features.Length != 0)
                 return;
 
@@ -558,6 +576,54 @@ internal static class OpenXR
                 oculusTouch,
                 sessionMonitor
             ];
+
+            EnableFoveationFeature();
+        }
+
+        // The OpenXR "Foveated Rendering" feature must be enabled for Unity to set up the SRP foveation path.
+        private static void EnableFoveationFeature()
+        {
+            try
+            {
+                System.Type fovType = null;
+                foreach (System.Reflection.Assembly asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    System.Type[] types;
+                    try { types = asm.GetTypes(); }
+                    catch { continue; }
+
+                    foreach (System.Type t in types)
+                        if (!t.IsAbstract
+                            && typeof(UnityEngine.XR.OpenXR.Features.OpenXRFeature).IsAssignableFrom(t)
+                            && t.Name.IndexOf("Foveat", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            fovType = t;
+                            break;
+                        }
+
+                    if (fovType != null)
+                        break;
+                }
+
+                if (fovType == null)
+                {
+                    Logger.LogWarning("OpenXR Foveated Rendering feature type not found");
+                    return;
+                }
+
+                var feature = (UnityEngine.XR.OpenXR.Features.OpenXRFeature)ScriptableObject.CreateInstance(fovType);
+                feature.enabled = true;
+
+                var withFov = new List<UnityEngine.XR.OpenXR.Features.OpenXRFeature>(OpenXRSettings.Instance.features)
+                    { feature };
+                OpenXRSettings.Instance.features = withFov.ToArray();
+
+                Logger.LogInfo($"Enabled OpenXR Foveated Rendering feature: {fovType.Name}");
+            }
+            catch (Exception e)
+            {
+                Logger.LogWarning($"Could not enable OpenXR foveation feature: {e.Message}");
+            }
         }
     }
 }

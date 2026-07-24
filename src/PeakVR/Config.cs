@@ -31,6 +31,7 @@ public class Config
     public ConfigEntry<float> LodBias { get; }
     public ConfigEntry<string> SharpenImage { get; }
     public ConfigEntry<bool> ForceDisableHBAO { get; }
+    public ConfigEntry<float> FoveationLevel { get; }
 
     public ConfigEntry<string> OpenXRRuntimeFile { get; }
 
@@ -111,6 +112,13 @@ public class Config
                 "Disable HBAO ambient occlusion, which renders wrong per-eye in VR on PEAK's Unity 6.3 " +
                 "(URP 17.3) and costs performance. On by default; turn off to keep the game's ambient occlusion."));
         ForceDisableHBAO.SettingChanged += (_, _) => PeakVR.VRRender.ApplyHBAO();
+
+        FoveationLevel = file.Bind("VR Graphics", "Foveated Rendering", 0f,
+            new ConfigDescription(
+                "Render the periphery at lower detail to save GPU. Seems like it don't work." + 
+                "0 = off, 1 = strongest.",
+                new AcceptableValueRange<float>(0f, 1f)));
+        FoveationLevel.SettingChanged += (_, _) => PeakVR.VRFoveation.Apply();
 
         OpenXRRuntimeFile = file.Bind("Internal", "OpenXRRuntimeFile", "",
             new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT", null, "Hidden"));
