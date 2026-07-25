@@ -39,6 +39,7 @@ internal static class MainCameraPatch
         VRRender.DisableXRVisibilityMesh();
         VRRender.DisableBrokenAO();
         VRRender.ApplySharpening();
+        RenderDiagnostics.ApplyLodBias();
 
         cam.gameObject.AddComponent<VRStereoCulling>();
 
