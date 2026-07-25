@@ -54,6 +54,7 @@ internal static class UrpDiagnostics
                 DumpRenderers(asset);
             }
 
+            DumpGpuResidentDrawer();
             DumpVolumes();
 
             log.LogInfo("[PeakVR][URP] ===== end dump =====");
@@ -101,6 +102,220 @@ internal static class UrpDiagnostics
                 if (tn.Contains("occlusion") || tn.Contains("ssao") || tn.Contains("hbao") || tn.Contains("gtao"))
                     DumpFields(Member(f, "m_Settings") ?? f, "settings");
             }
+        }
+    }
+
+    // URP 17's GPU Resident Drawer does its own per-view LOD/occlusion/small-mesh culling, separate
+    // from Camera.useOcclusionCulling. Per-view means per-eye under MultiPass.
+    private static readonly string[] GrdKeywords = { "gpuresident", "occlusionculling", "smallmesh", "instanceocclusion" };
+
+    private static void DumpGpuResidentDrawer()
+    {
+        var asset = GraphicsSettings.currentRenderPipeline;
+        if (asset == null)
+            return;
+
+        var type = asset.GetType();
+        var found = 0;
+
+        foreach (var p in type.GetProperties(Any | BindingFlags.Static))
+        {
+            if (!Matches(p.Name) || !p.CanRead)
+                continue;
+            Plugin.Log.LogInfo($"[PeakVR][GRD] prop {p.Name} = {SafeGet(() => p.GetValue(asset))}");
+            found++;
+        }
+
+        foreach (var f in type.GetFields(Any | BindingFlags.Static))
+        {
+            if (!Matches(f.Name))
+                continue;
+            Plugin.Log.LogInfo($"[PeakVR][GRD] field {f.Name} = {SafeGet(() => f.GetValue(asset))}");
+            found++;
+        }
+
+        var drawer = Type.GetType("UnityEngine.Rendering.GPUResidentDrawer, Unity.RenderPipelines.Core.Runtime");
+        if (drawer != null)
+        {
+            foreach (var m in drawer.GetMethods(BindingFlags.Public | BindingFlags.Static))
+                if (m.GetParameters().Length == 0 && m.ReturnType == typeof(bool) && Matches(m.Name))
+                    Plugin.Log.LogInfo($"[PeakVR][GRD] {m.Name}() = {SafeGet(() => m.Invoke(null, null))}");
+        }
+        else
+        {
+            Plugin.Log.LogInfo("[PeakVR][GRD] GPUResidentDrawer type not found");
+        }
+
+        if (found == 0)
+            Plugin.Log.LogInfo("[PeakVR][GRD] no GPU-Resident-Drawer members on the pipeline asset");
+    }
+
+    private static bool Matches(string name)
+    {
+        var lower = name.ToLowerInvariant();
+        foreach (var k in GrdKeywords)
+            if (lower.Contains(k))
+                return true;
+        return false;
+    }
+
+    private static string SafeGet(Func<object> get)
+    {
+        try { return get()?.ToString() ?? "<null>"; }
+        catch (Exception e) { return $"<{e.GetType().Name}>"; }
+    }
+
+    // Debug toggle: force every GPU-Resident-Drawer knob we can find to its "off" value (mode 0,
+    // occlusion culling false, small-mesh percentage 0) and back again.
+    public static bool GrdDisabled;
+
+    // Original values, captured the first time we disable so restore puts back what PEAK shipped
+    // rather than a guessed default.
+    private static readonly Dictionary<string, object> grdOriginals = new();
+
+    public static void ToggleGpuResidentDrawer()
+    {
+        var asset = GraphicsSettings.currentRenderPipeline;
+        if (asset == null)
+        {
+            Plugin.Log.LogWarning("[PeakVR][GRD] no active pipeline asset");
+            return;
+        }
+
+        GrdDisabled = !GrdDisabled;
+        var changed = 0;
+
+        // Prefer the properties: URP's setters call GPUResidentDrawer.ReinitializeIfNeeded(), which is
+        // what actually restarts the drawer. Writing the m_ backing fields alone does nothing.
+        foreach (var p in asset.GetType().GetProperties(Any))
+        {
+            if (!Matches(p.Name) || !p.CanRead || !p.CanWrite)
+                continue;
+
+            try
+            {
+                if (!grdOriginals.ContainsKey(p.Name))
+                    grdOriginals[p.Name] = p.GetValue(asset);
+
+                var value = GrdDisabled ? OffValue(p.PropertyType) : grdOriginals[p.Name];
+                if (value == null)
+                    continue;
+
+                p.SetValue(asset, value);
+                Plugin.Log.LogInfo($"[PeakVR][GRD] prop {p.Name} -> {p.GetValue(asset)}");
+                changed++;
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning($"[PeakVR][GRD] prop {p.Name} set failed: {e.Message}");
+            }
+        }
+
+        ReinitializeDrawer();
+        Plugin.Log.LogInfo($"[PeakVR][GRD] {(GrdDisabled ? "DISABLED" : "restored")} ({changed} properties)");
+    }
+
+    // URP's GPU Resident Drawer culls meshes below smallMeshScreenPercentage of the screen, and does it
+    // per view — so under MultiPass an object can survive the cull in one eye and be dropped in the
+    // other. Zeroing the threshold stops that cull while leaving InstancedDrawing (and its batching)
+    // intact, which measured as free: 37 fps either way.
+    //
+    // Applied once at startup BEFORE XRMirror.Setup(), because the drawer's reinitialize tears down
+    // URP's XR system and freezes an already-installed desktop mirror.
+    public static void ApplySmallMeshCulling()
+    {
+        if (!Plugin.VrEnabled)
+            return;
+
+        var asset = GraphicsSettings.currentRenderPipeline;
+        if (asset == null)
+        {
+            Plugin.Log.LogWarning("[PeakVR][GRD] no active pipeline asset; per-eye culling fix not applied");
+            return;
+        }
+
+        var prop = asset.GetType().GetProperty("smallMeshScreenPercentage", Any);
+        if (prop == null || !prop.CanWrite)
+        {
+            Plugin.Log.LogWarning("[PeakVR][GRD] smallMeshScreenPercentage not writable; per-eye culling fix unavailable");
+            return;
+        }
+
+        if (!grdOriginals.ContainsKey(prop.Name))
+            grdOriginals[prop.Name] = prop.GetValue(asset);
+
+        var fix = Plugin.Config == null || Plugin.Config.FixPerEyeCulling.Value;
+        var target = fix ? 0f : grdOriginals[prop.Name];
+
+        if (Equals(prop.GetValue(asset), target))
+            return;
+
+        prop.SetValue(asset, target);
+        ReinitializeDrawer();
+
+        Plugin.Log.LogInfo($"[PeakVR][GRD] smallMeshScreenPercentage -> {prop.GetValue(asset)} " +
+            $"(drawer mode {Member(asset, "gpuResidentDrawerMode")})");
+    }
+
+    // Debug key: flip the config entry so the toggle and the setting can't drift apart.
+    public static void ToggleSmallMeshCulling()
+    {
+        if (Plugin.Config == null)
+            return;
+
+        Plugin.Config.FixPerEyeCulling.Value = !Plugin.Config.FixPerEyeCulling.Value;
+    }
+
+    private static object OffValue(Type type)
+    {
+        if (type == typeof(bool))
+            return false;
+        if (type == typeof(float))
+            return 0f;
+        if (type == typeof(int))
+            return 0;
+        if (type.IsEnum)
+            return Enum.ToObject(type, 0);
+        return null;
+    }
+
+    // GPUResidentDrawer is internal, so find it by scanning loaded assemblies rather than by
+    // assembly-qualified name (which is why the earlier Type.GetType lookup failed).
+    private static void ReinitializeDrawer()
+    {
+        try
+        {
+            Type type = null;
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                type = asm.GetType("UnityEngine.Rendering.GPUResidentDrawer", false);
+                if (type != null)
+                    break;
+            }
+
+            if (type == null)
+            {
+                Plugin.Log.LogInfo("[PeakVR][GRD] GPUResidentDrawer type not found in any loaded assembly");
+                return;
+            }
+
+            var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+            foreach (var name in new[] { "ReinitializeIfNeeded", "Reinitialize", "CleanUp" })
+            {
+                var m = type.GetMethod(name, flags, null, Type.EmptyTypes, null);
+                if (m == null)
+                    continue;
+
+                m.Invoke(null, null);
+                Plugin.Log.LogInfo($"[PeakVR][GRD] {name}() invoked");
+                return;
+            }
+
+            Plugin.Log.LogInfo("[PeakVR][GRD] no reinitialize method found");
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.LogWarning($"[PeakVR][GRD] reinitialize failed: {e.Message}");
         }
     }
 

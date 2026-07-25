@@ -32,6 +32,7 @@ public class Config
     public ConfigEntry<string> SharpenImage { get; }
     public ConfigEntry<bool> ForceDisableHBAO { get; }
     public ConfigEntry<float> FoveationLevel { get; }
+    public ConfigEntry<bool> FixPerEyeCulling { get; }
 
     public ConfigEntry<string> OpenXRRuntimeFile { get; }
 
@@ -112,6 +113,13 @@ public class Config
                 "Disable HBAO ambient occlusion, which renders wrong per-eye in VR on PEAK's Unity 6.3 " +
                 "(URP 17.3) and costs performance. On by default; turn off to keep the game's ambient occlusion."));
         ForceDisableHBAO.SettingChanged += (_, _) => PeakVR.VRRender.ApplyHBAO();
+
+        FixPerEyeCulling = file.Bind("VR Graphics", "Fix Per-Eye Object Culling", true,
+            new ConfigDescription(
+                "URP's GPU Resident Drawer culls small meshes per view, so in VR an object can vanish in " +
+                "one eye only (coconuts, lights, elevator pings). Turning this on stops that cull and costs " +
+                "no measurable performance. Changing it mid-game can freeze the desktop mirror until restart."));
+        FixPerEyeCulling.SettingChanged += (_, _) => PeakVR.UrpDiagnostics.ApplySmallMeshCulling();
 
         FoveationLevel = file.Bind("VR Graphics", "Foveated Rendering", 0f,
             new ConfigDescription(

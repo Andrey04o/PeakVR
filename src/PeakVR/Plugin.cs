@@ -93,6 +93,10 @@ public partial class Plugin : BaseUnityPlugin
         // post-processing also falls back to pass 0 (the camera patches run too late for the splash).
         VRRender.DisableXRVisibilityMesh();
 
+        // Before XRMirror.Setup(): this reinitializes URP's GPU Resident Drawer, which tears down the
+        // XR system and freezes the desktop mirror if it is already installed.
+        UrpDiagnostics.ApplySmallMeshCulling();
+
         PeakAssets.Load();
         XRMirror.Setup();
         VRControls.Init();
@@ -190,6 +194,24 @@ public partial class Plugin : BaseUnityPlugin
 
         if (kb.lKey.wasPressedThisFrame)
             RenderDiagnostics.Toggle();
+
+        if (kb.kKey.wasPressedThisFrame)
+            RenderDiagnostics.ToggleLod0Only();
+
+        if (kb.jKey.wasPressedThisFrame && MainCamera.instance != null)
+            RenderDiagnostics.LogByName(MainCamera.instance.cam);
+
+        if (kb.mKey.wasPressedThisFrame)
+            RenderDiagnostics.CycleMeshLodThreshold();
+
+        if (kb.nKey.wasPressedThisFrame)
+            RenderDiagnostics.ToggleForceMeshLod0();
+
+        if (kb.gKey.wasPressedThisFrame)
+            UrpDiagnostics.ToggleGpuResidentDrawer();
+
+        if (kb.hKey.wasPressedThisFrame)
+            UrpDiagnostics.ToggleSmallMeshCulling();
 
         if (kb.f4Key.wasPressedThisFrame)
             UIOverlay.SetLogging(!UIOverlay.Logging);
