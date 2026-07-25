@@ -1,10 +1,13 @@
 using System.IO;
+using TMPro;
 using UnityEngine;
 
 namespace PeakVR;
 
 internal static class PeakAssets
 {
+    public const string QuestFontName = "kenney_input_meta_quest SDF";
+
     private static AssetBundle bundle;
 
     public static Sprite Reticle { get; private set; }
@@ -16,6 +19,9 @@ internal static class PeakAssets
     public static Sprite Logo { get; private set; }
     public static Sprite AboutButton { get; private set; }
     public static Sprite TPose { get; private set; }
+
+    // Kenney Meta Quest button font (glyphs in the Private Use Area) used for the VR input prompts.
+    public static TMP_FontAsset QuestFont { get; private set; }
 
     public static void Load()
     {
@@ -42,7 +48,32 @@ internal static class PeakAssets
         AboutButton = bundle.LoadAsset<Sprite>("SmallVRButton");
         TPose = bundle.LoadAsset<Sprite>("TPoseWhite");
 
+        LoadQuestFont();
+
         Plugin.Log.LogInfo($"[PeakVR] Bundle loaded (reticle={Reticle != null}, controller={Controller != null}, vignette={Vignette != null}, mirror={MirrorView != null})");
         Plugin.Log.LogInfo($"[PeakVR] Sprites (emote={EmoteButton != null}, logo={Logo != null}, about={AboutButton != null}, tpose={TPose != null})");
+    }
+
+    // TMP resolves a <font="name"> tag by looking in Resources, which a bundled asset is not in, so
+    // register it with the MaterialReferenceManager instead — that's what the tag lookup checks first.
+    private static void LoadQuestFont()
+    {
+        QuestFont = bundle.LoadAsset<TMP_FontAsset>(QuestFontName);
+        if (QuestFont == null)
+        {
+            Plugin.Log.LogWarning($"[PeakVR] '{QuestFontName}' not in the bundle — input prompts fall back to text labels");
+            return;
+        }
+
+        try
+        {
+            MaterialReferenceManager.AddFontAsset(QuestFont);
+            Plugin.Log.LogInfo($"[PeakVR] Quest button font registered ('{QuestFont.name}')");
+        }
+        catch (System.Exception e)
+        {
+            Plugin.Log.LogWarning($"[PeakVR] Could not register the Quest button font: {e.Message}");
+            QuestFont = null;
+        }
     }
 }

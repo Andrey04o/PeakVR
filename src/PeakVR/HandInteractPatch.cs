@@ -14,6 +14,13 @@ internal static class HandInteractPatch
     private static readonly RaycastHit[] SphereBuffer = new RaycastHit[32];
 
     private const float LineStartOffset = 0.1f;
+    private const float MinHitDistance = 0.0001f;
+
+    // Contact point of whichever cast acquired the current target, so the line can end exactly where
+    // we touched it rather than at the object's centre.
+    private static IInteractible hitTarget;
+    private static Vector3 hitPoint;
+    private static int hitFrame = -1;
 
     [HarmonyPostfix]
     private static void Postfix(Interaction __instance, ref IInteractible interactableResult)
@@ -38,7 +45,7 @@ internal static class HandInteractPatch
         }
 
         Vector3 end;
-        if (hovering && Plugin.Config.AimAtObjectCenter.Value && TryGetCenter(interactableResult, out var center))
+        if (hovering && Plugin.Config.AimAtObjectCenter.Value && TryGetCenter(interactableResult, origin, out var center))
             end = center;
         else
             end = origin + dir * RayLength(__instance, local);
@@ -50,14 +57,35 @@ internal static class HandInteractPatch
         VRHands.SetInteractRay(true, lineStart, end, color);
     }
 
-    private static bool TryGetCenter(IInteractible interactable, out Vector3 center)
+    // The line ends at the CENTRE of the hovered interactable, as before. The only change is which
+    // collider counts: a chain is many segment colliders, and taking the first one parked the line at
+    // the start of the chain no matter where you aimed. Pick the segment we actually touched (or the
+    // nearest one) and centre on that. Single-collider objects — every normal item — are unaffected.
+    private static bool TryGetCenter(IInteractible interactable, Vector3 origin, out Vector3 center)
     {
         center = default;
         if (interactable is not Component comp || comp == null)
             return false;
 
-        var col = comp.GetComponentInChildren<Collider>();
-        center = col != null ? col.bounds.center : comp.transform.position;
+        var aim = hitFrame == Time.frameCount && ReferenceEquals(hitTarget, interactable) ? hitPoint : origin;
+
+        Collider best = null;
+        var bestSqr = float.MaxValue;
+
+        foreach (var col in comp.GetComponentsInChildren<Collider>())
+        {
+            if (col == null || !col.enabled)
+                continue;
+
+            var sqr = col.bounds.SqrDistance(aim);
+            if (sqr >= bestSqr)
+                continue;
+
+            bestSqr = sqr;
+            best = col;
+        }
+
+        center = best != null ? best.bounds.center : comp.transform.position;
         return true;
     }
 
@@ -115,6 +143,8 @@ internal static class HandInteractPatch
 
         IInteractible best = null;
         var bestDist = float.MaxValue;
+        var bestPoint = Vector3.zero;
+        var bestPointValid = false;
         for (var i = 0; i < lineCount; i++)
         {
             var h = LineBuffer[i];
@@ -122,10 +152,15 @@ internal static class HandInteractPatch
                 continue;
             best = candidate;
             bestDist = h.distance;
+            bestPoint = h.point;
+            bestPointValid = h.distance > MinHitDistance;
         }
 
         if (best != null)
+        {
+            Remember(best, bestPoint, bestPointValid);
             return best;
+        }
 
         var area = AreaField != null ? (float)AreaField.GetValue(interaction) : 0.3f;
         var count = Physics.SphereCastNonAlloc(origin + dir * (area / 2f), area, dir, SphereBuffer,
@@ -142,8 +177,29 @@ internal static class HandInteractPatch
                 continue;
             best = candidate;
             bestAngle = angle;
+            bestPoint = h.point;
+            bestPointValid = h.distance > MinHitDistance;
         }
 
+        if (best != null)
+            Remember(best, bestPoint, bestPointValid);
+
         return best;
+    }
+
+    // A cast that starts already overlapping a collider reports distance 0 and point (0,0,0). Taking
+    // that as a contact point picks whichever collider sits nearest the world origin — which on a
+    // chain reads as "always snaps back to the start". Treat it as no contact instead.
+    private static void Remember(IInteractible target, Vector3 point, bool valid)
+    {
+        if (!valid)
+        {
+            hitFrame = -1;
+            return;
+        }
+
+        hitTarget = target;
+        hitPoint = point;
+        hitFrame = Time.frameCount;
     }
 }

@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 using Zorro.Core;
 
 namespace PeakVR;
@@ -12,6 +14,8 @@ internal class VRControllerHud : MonoBehaviour
     private const int HudLayer = 3;
     private const float PointerMaxDistance = 1.5f;
     private const float HoverScale = 1.14f;
+    private const float PromptsY = 165f;
+    private const float PromptSpacing = 0f;
 
     private static readonly Vector3 LeftPos = new(0f, 0.03f, -0.06f);
     private static readonly Vector3 RightPos = new(0f, 0.03f, -0.06f);
@@ -85,11 +89,15 @@ internal class VRControllerHud : MonoBehaviour
             RegisterCell(gui.temporaryItem.transform, 250);
         }
 
-        UIOverlay.MakeAlwaysVisible(left, UIOverlay.HandQueue);
-        UIOverlay.MakeAlwaysVisible(right, UIOverlay.HandQueue);
-
+        // Hide the cells' own inline prompts BEFORE moving the item tips in, so the tips (which are
+        // InLineInputPrompts too, and now render VR button glyphs) aren't caught by the same sweep.
         HideInputPrompts(left);
         HideInputPrompts(right);
+
+        MovePrompts(gui);
+
+        UIOverlay.MakeAlwaysVisible(left, UIOverlay.HandQueue);
+        UIOverlay.MakeAlwaysVisible(right, UIOverlay.HandQueue);
 
         // Keep the wrist HUD out of the airport mirror; preserve the raycast collider layers
         // (HudLayer cells, emote-button layer 7) so pointing at them still works.
@@ -100,6 +108,61 @@ internal class VRControllerHud : MonoBehaviour
         Plugin.Log.LogInfo("[PeakVR] HUD moved onto controllers");
     }
 
+    // The item control-tips ("[USEPRIMARY] Eat" etc.) live at the bottom of the screen-space HUD,
+    // which is invisible in VR. Stack them under the item cells on the right wrist canvas instead —
+    // they show VR button glyphs now (see VRInputPrompts). The game keeps toggling each one's
+    // activeSelf per item capability in GUIManager.UpdateItemPrompts, so the layout group reflows.
+    private void MovePrompts(GUIManager gui)
+    {
+        TextMeshProUGUI[] prompts =
+        {
+            gui.itemPromptMain, gui.itemPromptSecondary, gui.itemPromptScroll,
+            gui.itemPromptDrop, gui.itemPromptThrow
+        };
+
+        var go = new GameObject("PeakVR ItemPrompts", typeof(RectTransform));
+        var rt = (RectTransform)go.transform;
+        rt.SetParent(right.transform, false);
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.anchoredPosition = new Vector2(0f, PromptsY);
+        rt.sizeDelta = new Vector2(420f, 140f);
+        rt.localScale = Vector3.one;
+        rt.localRotation = Quaternion.identity;
+
+        var layout = go.AddComponent<VerticalLayoutGroup>();
+        // Grow upward from just above the item cells, so the gap stays constant as prompts appear.
+        layout.childAlignment = TextAnchor.LowerRight;
+        // Control the width too, so every row shares the container's edge for the right alignment to
+        // line up against — the prompts keep their much wider screen-HUD rects otherwise.
+        layout.childControlWidth = true;
+        layout.childForceExpandWidth = true;
+        // Let the layout size each row to its text, otherwise every prompt keeps its original
+        // full-width HUD height and the lines sit far apart.
+        layout.childControlHeight = true;
+        layout.childForceExpandHeight = false;
+        layout.spacing = PromptSpacing;
+
+        var count = 0;
+        foreach (var prompt in prompts)
+        {
+            if (prompt == null)
+                continue;
+
+            var pt = prompt.transform;
+            pt.SetParent(rt, false);
+            pt.localScale = Vector3.one;
+            pt.localRotation = Quaternion.identity;
+
+            if (pt is RectTransform prt)
+                prt.anchorMin = prt.anchorMax = prt.pivot = new Vector2(0.5f, 0.5f);
+
+            prompt.alignment = TextAlignmentOptions.Right;
+            count++;
+        }
+
+        Plugin.Log.LogInfo($"[PeakVR] Item prompts moved to the right wrist canvas ({count})");
+    }
+
     private static void HideInputPrompts(Canvas canvas)
     {
         if (canvas == null)
@@ -108,6 +171,11 @@ internal class VRControllerHud : MonoBehaviour
         // The moved item cells carry inline keyboard/gamepad button prompts — hide them in VR.
         foreach (var prompt in canvas.GetComponentsInChildren<InLineInputPrompts>(true))
             prompt.gameObject.SetActive(false);
+
+        // The per-slot button icons (InputIcon) are separate components — slots are picked by
+        // pointing at the wrist in VR, so the icons are noise.
+        foreach (var icon in canvas.GetComponentsInChildren<InputIcon>(true))
+            icon.gameObject.SetActive(false);
     }
 
     private void UpdateBackface()
