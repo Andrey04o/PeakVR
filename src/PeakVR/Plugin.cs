@@ -66,6 +66,8 @@ public partial class Plugin : BaseUnityPlugin
 
         PeakAssets.Load();
 
+        gameObject.AddComponent<VRRemoteBinoculars>();
+
         if (disableVr)
         {
             VrEnabled = false;
@@ -280,6 +282,7 @@ public partial class Plugin : BaseUnityPlugin
         harmony.CreateClassProcessor(typeof(OneHandedHoldPatch)).Patch();
         harmony.CreateClassProcessor(typeof(AboutButtonPatch)).Patch();
         harmony.CreateClassProcessor(typeof(HeadRotationCopyPatch)).Patch();
+        harmony.CreateClassProcessor(typeof(HeadTiltPatch)).Patch();
     }
 
     private bool PreloadRuntimeDependencies()

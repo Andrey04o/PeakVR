@@ -204,10 +204,7 @@ internal class VRMenuManager : MonoBehaviour
 
     private static TrackedDeviceGraphicRaycaster EnsureRaycaster(Canvas canvas)
     {
-        var r = canvas.GetComponent<TrackedDeviceGraphicRaycaster>();
-        if (r == null)
-            r = canvas.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
-        return r;
+        return VRPointer.Attach(canvas);
     }
 
     private static void EnsureEventSystem()

@@ -126,9 +126,7 @@ internal class VRMenuPopup : MonoBehaviour
 
     private static void PointAt(Canvas c)
     {
-        var raycaster = c.GetComponent<TrackedDeviceGraphicRaycaster>();
-        if (raycaster == null)
-            raycaster = c.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+        var raycaster = VRPointer.Attach(c);
 
         if (EventSystem.current == null)
             new GameObject("PeakVR EventSystem").AddComponent<EventSystem>();

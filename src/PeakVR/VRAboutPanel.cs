@@ -63,9 +63,12 @@ internal static class VRAboutPanel
         Place(close.RectTransform, new Vector2(0f, -165f + dy), new Vector2(320f, 72f));
         close.OnClick(() => page.Close());
 
+        var credit = new Color(0.72f, 0.72f, 0.74f);
         Label(page, "Used Assets", -240f + dy, 28f, Color.white);
-        Label(page, "VR controller FBX model — Unity VR Template",
-            -288f + dy, 22f, new Color(0.72f, 0.72f, 0.74f));
+        Label(page, "VR controller FBX model — Unity VR Template", -280f + dy, 22f, credit);
+        Label(page, "Input Prompts (1.5A) — created/distributed by Kenney (www.kenney.nl)",
+            -318f + dy, 22f, credit);
+        Label(page, "License: Creative Commons Zero (CC0)", -352f + dy, 22f, credit);
 
         return page;
     }

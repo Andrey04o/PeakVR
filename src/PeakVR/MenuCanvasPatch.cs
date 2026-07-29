@@ -30,9 +30,7 @@ internal static class MenuCanvasPatch
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
 
-        var raycaster = canvas.GetComponent<TrackedDeviceGraphicRaycaster>();
-        if (raycaster == null)
-            raycaster = canvas.gameObject.AddComponent<TrackedDeviceGraphicRaycaster>();
+        var raycaster = VRPointer.Attach(canvas);
 
         if (EventSystem.current == null)
             new GameObject("PeakVR EventSystem").AddComponent<EventSystem>();

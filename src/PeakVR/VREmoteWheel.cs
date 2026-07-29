@@ -38,6 +38,7 @@ internal class VREmoteWheel : MonoBehaviour
             RightTriggerConsumed = true;
             button.localScale = Vector3.one;
             HideLine();
+            FixPageIcons();
 
             var ch = Character.localCharacter;
             if (ch == null || ch.data.fullyPassedOut ||
@@ -69,6 +70,46 @@ internal class VREmoteWheel : MonoBehaviour
             if (VRControls.RightTrigger != null && VRControls.RightTrigger.WasPressedThisFrame())
                 EmoteActive = true;
         }
+    }
+
+    private GameObject pagedWheel;
+
+    private void FixPageIcons()
+    {
+        var gui = GUIManager.instance;
+        if (gui == null || gui.emoteWheel == null || pagedWheel == gui.emoteWheel)
+            return;
+
+        var wheel = gui.emoteWheel.GetComponent<EmoteWheel>();
+        if (wheel == null)
+            return;
+
+        pagedWheel = gui.emoteWheel;
+        SetIcon(wheel.prevButton, VRInputPrompts.LeftStickLeft);
+        SetIcon(wheel.nextButton, VRInputPrompts.LeftStickRight);
+    }
+
+    private static void SetIcon(Button target, string glyph)
+    {
+        if (target == null)
+            return;
+
+        var icons = target.GetComponentsInChildren<InputIcon>(true);
+        foreach (var icon in icons)
+            icon.enabled = false;
+
+        var text = target.GetComponentInChildren<TMP_Text>(true);
+        if (text == null)
+        {
+            Plugin.Log.LogWarning($"[PeakVR] Emote page button '{target.name}' has no text to put the stick glyph on");
+            return;
+        }
+
+        text.text = glyph;
+        text.enabled = true;
+        text.gameObject.SetActive(true);
+
+        Plugin.Log.LogInfo($"[PeakVR] Emote page button '{target.name}': icons={icons.Length} text='{text.name}'");
     }
 
     private void UpdateLine(bool hovering, RaycastHit hit)

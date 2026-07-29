@@ -23,6 +23,9 @@ internal static class PeakAssets
     // Kenney Meta Quest button font (glyphs in the Private Use Area) used for the VR input prompts.
     public static TMP_FontAsset QuestFont { get; private set; }
 
+    // Authored placement for the binoculars: a prefab with a "Scope" child (quad offset/rotation/size relative to the item) and a "Grip" child (item offset/rotation relative to the controller).
+    public static GameObject BinocularsRig { get; private set; }
+
     public static void Load()
     {
         if (bundle != null)
@@ -48,10 +51,13 @@ internal static class PeakAssets
         AboutButton = bundle.LoadAsset<Sprite>("SmallVRButton");
         TPose = bundle.LoadAsset<Sprite>("TPoseWhite");
 
+        BinocularsRig = bundle.LoadAsset<GameObject>("BinocularsRig");
+
         LoadQuestFont();
 
         Plugin.Log.LogInfo($"[PeakVR] Bundle loaded (reticle={Reticle != null}, controller={Controller != null}, vignette={Vignette != null}, mirror={MirrorView != null})");
         Plugin.Log.LogInfo($"[PeakVR] Sprites (emote={EmoteButton != null}, logo={Logo != null}, about={AboutButton != null}, tpose={TPose != null})");
+        Plugin.Log.LogInfo($"[PeakVR] Binoculars rig prefab: {(BinocularsRig != null ? "loaded" : "not in bundle, using built-in offsets")}");
     }
 
     // TMP resolves a <font="name"> tag by looking in Resources, which a bundled asset is not in, so

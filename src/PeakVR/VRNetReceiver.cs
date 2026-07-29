@@ -33,6 +33,7 @@ internal class VRNetReceiver : MonoBehaviour
 
     private readonly Dictionary<int, Smooth> smoothing = new();
     private readonly List<int> stale = new();
+    public static readonly Dictionary<Character, float> RemoteRolls = new();
 
     private void Update()
     {
@@ -127,13 +128,16 @@ internal class VRNetReceiver : MonoBehaviour
             if (pose.hasHands)
                 ApplyHands(character, s);
 
-            ApplyHeadRoll(character, s);
+            RemoteRolls[character] = s.headRoll;
         }
 
         foreach (var key in stale)
         {
             VRNetworking.Remotes.Remove(key);
             smoothing.Remove(key);
+
+            if (PlayerHandler.TryGetCharacter(key, out var gone) && gone != null)
+                RemoteRolls.Remove(gone);
         }
     }
 
@@ -161,25 +165,4 @@ internal class VRNetReceiver : MonoBehaviour
             refs.ikRight.data.hint.position = root.TransformPoint(s.rightHint);
     }
 
-    private static void ApplyHeadRoll(Character character, Smooth s)
-    {
-        var axis = character.data.lookDirection;
-        if (axis.sqrMagnitude < 1e-4f)
-            return;
-        axis.Normalize();
-
-        var head = character.refs.head.transform;
-
-        var baseRot = head.rotation;
-        if (s.rollInit && Quaternion.Angle(head.rotation, s.lastHeadOutput) < 1f)
-            baseRot = Quaternion.AngleAxis(-s.lastRoll, s.lastAxis) * head.rotation;
-
-        var output = Quaternion.AngleAxis(s.headRoll, axis) * baseRot;
-        head.rotation = output;
-
-        s.lastHeadOutput = output;
-        s.lastAxis = axis;
-        s.lastRoll = s.headRoll;
-        s.rollInit = true;
-    }
 }

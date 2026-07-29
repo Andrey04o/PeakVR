@@ -44,6 +44,7 @@ internal static class InGameCameraPatch
 
         cam.gameObject.AddComponent<VRStereoCulling>();
         cam.gameObject.AddComponent<VRTunneling>();
+        cam.gameObject.AddComponent<VRBinoculars>();
 
         rig.AddComponent<VRHeadRig>();
         rig.AddComponent<VRMenuManager>();

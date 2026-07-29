@@ -14,6 +14,11 @@ internal class VRControllerHud : MonoBehaviour
     private const int HudLayer = 3;
     private const float PointerMaxDistance = 1.5f;
     private const float HoverScale = 1.14f;
+    private const float LateSweepDelay = 5f;
+    private float lateSweepAt;
+    private bool lateSweepDone;
+    private RectTransform promptsRoot;
+
     private const float PromptsY = 165f;
     private const float PromptSpacing = 0f;
 
@@ -55,6 +60,15 @@ internal class VRControllerHud : MonoBehaviour
 
         if (!moved || gui.staminaCanvasGroup.transform.parent != left.transform)
             MoveHud(gui);
+
+        // The game repaints the HUD (and re-enables the slot prompts) shortly after a level loads, so
+        // the sweep in MoveHud can land too early. One more pass once things have settled.
+        if (!lateSweepDone && Time.time >= lateSweepAt)
+        {
+            lateSweepDone = true;
+            HideInputPrompts(left);
+            HideInputPrompts(right);
+        }
 
         UpdateBackface();
         UpdateSelection();
@@ -104,6 +118,9 @@ internal class VRControllerHud : MonoBehaviour
         VRLayers.HideFromMirror(left.gameObject, HudLayer, 7);
         VRLayers.HideFromMirror(right.gameObject, HudLayer, 7);
 
+        lateSweepAt = Time.time + LateSweepDelay;
+        lateSweepDone = false;
+
         moved = true;
         Plugin.Log.LogInfo("[PeakVR] HUD moved onto controllers");
     }
@@ -122,6 +139,7 @@ internal class VRControllerHud : MonoBehaviour
 
         var go = new GameObject("PeakVR ItemPrompts", typeof(RectTransform));
         var rt = (RectTransform)go.transform;
+        promptsRoot = rt;
         rt.SetParent(right.transform, false);
         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.anchoredPosition = new Vector2(0f, PromptsY);
@@ -163,19 +181,31 @@ internal class VRControllerHud : MonoBehaviour
         Plugin.Log.LogInfo($"[PeakVR] Item prompts moved to the right wrist canvas ({count})");
     }
 
-    private static void HideInputPrompts(Canvas canvas)
+    private void HideInputPrompts(Canvas canvas)
     {
         if (canvas == null)
             return;
 
-        // The moved item cells carry inline keyboard/gamepad button prompts — hide them in VR.
+        // The moved item cells carry inline keyboard/gamepad button prompts — hide them in VR. The
+        // item tips we deliberately moved onto this canvas are InLineInputPrompts too, so skip
+        // anything inside their container or the sweep would erase them.
         foreach (var prompt in canvas.GetComponentsInChildren<InLineInputPrompts>(true))
+        {
+            if (promptsRoot != null && prompt.transform.IsChildOf(promptsRoot))
+                continue;
+
             prompt.gameObject.SetActive(false);
+        }
 
         // The per-slot button icons (InputIcon) are separate components — slots are picked by
         // pointing at the wrist in VR, so the icons are noise.
         foreach (var icon in canvas.GetComponentsInChildren<InputIcon>(true))
+        {
+            if (promptsRoot != null && icon.transform.IsChildOf(promptsRoot))
+                continue;
+
             icon.gameObject.SetActive(false);
+        }
     }
 
     private void UpdateBackface()

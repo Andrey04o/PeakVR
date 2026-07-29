@@ -11,9 +11,13 @@ internal static class InteractionInputPatch
     private const float ScrollOff = 0.4f;
     private const float ScrollRepeat = 0.18f;
 
+    private const float PageOn = 0.7f;
+    private const float PageOff = 0.4f;
+
     private static int scrollDir;
     private static float scrollTickTime;
     private static bool crouchToggle;
+    private static int pageDir;
 
     [HarmonyPostfix]
     private static void Postfix(CharacterInput __instance, bool playerMovementActive)
@@ -77,7 +81,14 @@ internal static class InteractionInputPatch
 
         // Emote wheel held open by the left-wrist emote button (T6).
         if (VREmoteWheel.EmoteActive)
+        {
             __instance.emoteIsPressed = true;
+            InjectEmotePaging(__instance);
+        }
+        else
+        {
+            pageDir = 0;
+        }
 
         if (!playerMovementActive)
             return;
@@ -114,6 +125,28 @@ internal static class InteractionInputPatch
             __instance.crouchIsPressed = true;
 
         InjectScroll(__instance);
+    }
+
+    // EmoteWheel.Update pages on selectSlotBackward/ForwardWasPressed. Drive those from the left stick
+    // so the wheel can be paged with the same hand that holds it open — one page per tilt, with the
+    // stick having to return towards centre before it fires again.
+    private static void InjectEmotePaging(CharacterInput input)
+    {
+        var x = VRControls.MoveStick.ReadValue<Vector2>().x;
+        var dir = x > PageOn ? 1 : x < -PageOn ? -1 : 0;
+
+        if (pageDir != 0 && Mathf.Abs(x) < PageOff)
+            pageDir = 0;
+
+        if (dir == 0 || dir == pageDir)
+            return;
+
+        pageDir = dir;
+
+        if (dir > 0)
+            input.selectSlotForwardWasPressed = true;
+        else
+            input.selectSlotBackwardWasPressed = true;
     }
 
     private static void InjectScroll(CharacterInput input)

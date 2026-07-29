@@ -128,6 +128,18 @@ internal static class VRInputPrompts
         { InputSpriteData.InputAction.SpectateRight, "A" },
     };
 
+    // Left-stick tilt, for UI we drive ourselves (the emote wheel's page buttons).
+    public static string LeftStickLeft => Wrap(StickLeftLeft, "<");
+    public static string LeftStickRight => Wrap(StickLeftRight, ">");
+
+    private static string Wrap(int code, string fallback)
+    {
+        if (PeakAssets.QuestFont == null)
+            return fallback;
+
+        return $"<font=\"{PeakAssets.QuestFontName}\"><size={GlyphSizePercent}%>{(char)code}</size></font>";
+    }
+
     [HarmonyPostfix]
     private static void Postfix(InputSpriteData.InputAction action, ref string __result)
     {
@@ -137,7 +149,7 @@ internal static class VRInputPrompts
         if (PeakAssets.QuestFont != null)
         {
             if (Glyphs.TryGetValue(action, out int code))
-                __result = $"<font=\"{PeakAssets.QuestFontName}\"><size={GlyphSizePercent}%>{(char)code}</size></font>";
+                __result = Wrap(code, __result);
             return;
         }
 
