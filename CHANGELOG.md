@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.3.0
+
+- Added: Binoculars for VR
+- Added: Controller Rotation Offset X / Y / Z settings
+- Added: "Depth Prepass" setting (on by default) - a big performance boost, up to twice the framerate in grassy areas, with no visual change
+- Added: "Fix Per-Eye Object Culling" setting (on by default)
+- Added: "Foliage Draw Distance" setting to hide distant grass and leaves
+- Changed: The LOD Bias setting now also applies in the main menu
+- Changed: Button prompts now show VR controller buttons
+- Changed: Item tips are back, moved onto the right wrist HUD. Hidden the button icons on the item slots
+- Changed: Emote wheel pages are changed with the left stick
+- Fixed: Objects disappearing in one eye only (coconuts, lights, elevator pings, small luggage buttons)
+- Fixed: The character head twitching when tilting your head while moving
+- Fixed: The interaction line on chains
+- Fixed: Gamepad prompts showing up in VR
+- Fixed: Main menu buttons being selected just by looking at them
+- Updated README
+
 ## 1.2.0
 
 - Updated for the latest PEAK

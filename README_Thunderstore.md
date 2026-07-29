@@ -10,6 +10,11 @@ It brings your head and hands into VR with motion controls, but it does **not** 
 
 Forked from [LCVR](https://github.com/DaXcess/LCVR) by DaXcess.
 
+# Videos
+
+- [VR gameplay](https://www.youtube.com/watch?v=tGuPRKLCrDk)
+- [Copy Head Rotation, in flat mode](https://www.youtube.com/watch?v=k4QVnr2x-jU)
+
 # Usage
 
 Install PeakVR with a mod manager (such as [r2modman](https://thunderstore.io/c/peak/p/ebkr/r2modman/), Gale, or the Thunderstore Mod Manager) from the [Thunderstore page](https://thunderstore.io/c/peak/p/Andrey04o/PeakVR/) — dependencies are installed automatically.
@@ -18,9 +23,16 @@ Running the mod using r2modman can be done simply by clicking "Start Modded", wh
 
 | Mod version | Tested game version |
 | --- | --- |
+| 1.3.0 | 1.65.a |
 | 1.2.0 | 1.65.a |
 | 1.1.0 | 1.64.a and 0.65.d (beta) |
 | 1.0.0 | 1.64.a and 0.65.d (beta) |
+
+# Image looks blurry?
+
+Set **Settings / Mod Settings / PEAK VR / VR GRAPHICS / MAKE IMAGE SHARPER** to **Enable**.
+
+![Make Image Sharper](https://github.com/Andrey04o/PeakVR/blob/main/MakeImageSharper.jpg?raw=true)
 
 # Funny tip
 
