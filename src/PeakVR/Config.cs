@@ -33,6 +33,11 @@ public class Config
     public ConfigEntry<bool> ForceDisableHBAO { get; }
     public ConfigEntry<float> FoveationLevel { get; }
     public ConfigEntry<bool> FixPerEyeCulling { get; }
+    public ConfigEntry<float> FoliageDistance { get; }
+    public ConfigEntry<bool> DepthPrepass { get; }
+    public ConfigEntry<float> ControllerOffsetX { get; }
+    public ConfigEntry<float> ControllerOffsetY { get; }
+    public ConfigEntry<float> ControllerOffsetZ { get; }
 
     public ConfigEntry<string> OpenXRRuntimeFile { get; }
 
@@ -94,6 +99,23 @@ public class Config
             new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT — cached character wingspan for calibration.",
                 null, "Hidden"));
 
+        ControllerOffsetX = file.Bind("VR", "Controller Rotation Offset X", 0f,
+            new ConfigDescription(
+                "Tilt of the controllers up or down, in degrees. Both the hands and the aim follow it, " +
+                "so raise it if you hold the controllers angled and the aim points too low.",
+                new AcceptableValueRange<float>(-90f, 90f)));
+        ControllerOffsetX.SettingChanged += (_, _) => PeakVR.VRHands.ApplyRotationOffset();
+
+        ControllerOffsetY = file.Bind("VR", "Controller Rotation Offset Y", 0f,
+            new ConfigDescription("Turn of the controllers left or right, in degrees.",
+                new AcceptableValueRange<float>(-90f, 90f)));
+        ControllerOffsetY.SettingChanged += (_, _) => PeakVR.VRHands.ApplyRotationOffset();
+
+        ControllerOffsetZ = file.Bind("VR", "Controller Rotation Offset Z", 0f,
+            new ConfigDescription("Roll of the controllers, in degrees.",
+                new AcceptableValueRange<float>(-90f, 90f)));
+        ControllerOffsetZ.SettingChanged += (_, _) => PeakVR.VRHands.ApplyRotationOffset();
+
         LodBias = file.Bind("VR Graphics", "LOD Bias", 2.5f,
             new ConfigDescription("Level-of-detail bias in VR. Higher keeps distant objects detailed; " +
                 "lower boosts performance. Applies immediately.",
@@ -113,6 +135,20 @@ public class Config
                 "Disable HBAO ambient occlusion, which renders wrong per-eye in VR on PEAK's Unity 6.3 " +
                 "(URP 17.3) and costs performance. On by default; turn off to keep the game's ambient occlusion."));
         ForceDisableHBAO.SettingChanged += (_, _) => PeakVR.VRRender.ApplyHBAO();
+
+        DepthPrepass = file.Bind("VR Graphics", "Depth Prepass", true,
+            new ConfigDescription(
+                "Draw scene depth first so hidden pixels are skipped instead of shaded. Grass and leaves " +
+                "are alpha-clipped, which normally defeats that optimisation, and they are the most " +
+                "expensive thing on screen in VR - this can nearly double the framerate with no visual " +
+                "change. Takes effect on restart."));
+
+        FoliageDistance = file.Bind("VR Graphics", "Foliage Draw Distance", 0f,
+            new ConfigDescription(
+                "Hide grass, leaves and bushes further away than this many metres. Foliage is the most " +
+                "expensive thing on screen in VR - hundreds of separate alpha-clipped draws, each one " +
+                "rendered twice, once per eye. 0 disables the limit and draws everything.",
+                new AcceptableValueRange<float>(0f, 300f)));
 
         FixPerEyeCulling = file.Bind("VR Graphics", "Fix Per-Eye Object Culling", true,
             new ConfigDescription(

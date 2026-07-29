@@ -375,6 +375,87 @@ internal static class RenderDiagnostics
         }
     }
 
+    public static void LogShaders(Camera cam)
+    {
+        if (cam == null)
+            return;
+
+        var counts = new Dictionary<string, int>();
+        var verts = new Dictionary<string, long>();
+        var info = new Dictionary<string, string>();
+        var camPos = cam.transform.position;
+
+        foreach (Renderer r in Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
+        {
+            if (r == null || !r.isVisible || r.sharedMaterial == null)
+                continue;
+
+            if (Vector3.Distance(camPos, r.bounds.center) > ShaderScanRange)
+                continue;
+
+            Material mat = r.sharedMaterial;
+            string key = mat.shader != null ? mat.shader.name : "<null>";
+
+            counts.TryGetValue(key, out int c);
+            counts[key] = c + 1;
+
+            long v = 0;
+            if (r is MeshRenderer && r.TryGetComponent(out MeshFilter mf) && mf.sharedMesh != null)
+                v = mf.sharedMesh.vertexCount;
+
+            verts.TryGetValue(key, out long total);
+            verts[key] = total + v;
+
+            if (!info.ContainsKey(key))
+                info[key] = $"queue={mat.renderQueue} instancing={mat.enableInstancing} " +
+                    $"keywords=[{string.Join(",", mat.shaderKeywords)}] renderType={mat.GetTag("RenderType", false, "?")}";
+        }
+
+        Plugin.Log.LogInfo($"[PeakVR][Shaders] visible renderers within {ShaderScanRange}m, by shader:");
+
+        var sorted = new List<KeyValuePair<string, long>>(verts);
+        sorted.Sort((a, b) => b.Value.CompareTo(a.Value));
+
+        foreach (var kv in sorted)
+        {
+            if (counts[kv.Key] < 2)
+                continue;
+
+            Plugin.Log.LogInfo($"[PeakVR][Shaders] {kv.Value / 1000}k verts / {counts[kv.Key]} renderers  " +
+                $"'{kv.Key}'  {info[kv.Key]}");
+        }
+
+        LogParticles(cam);
+    }
+
+    private static void LogParticles(Camera cam)
+    {
+        var camPos = cam.transform.position;
+        Plugin.Log.LogInfo("[PeakVR][Shaders] particle systems in range (fill-rate suspects):");
+
+        foreach (ParticleSystem ps in Object.FindObjectsByType<ParticleSystem>(FindObjectsSortMode.None))
+        {
+            if (ps == null || !ps.isPlaying)
+                continue;
+
+            var dist = Vector3.Distance(camPos, ps.transform.position);
+            if (dist > ShaderScanRange)
+                continue;
+
+            var rend = ps.GetComponent<ParticleSystemRenderer>();
+            if (rend == null || !rend.isVisible)
+                continue;
+
+            var mat = rend.sharedMaterial;
+            Plugin.Log.LogInfo($"[PeakVR][Shaders]   '{Path(ps.transform)}' particles={ps.particleCount} " +
+                $"maxSize={ps.main.startSizeMultiplier:F2} dist={dist:F0} " +
+                $"shader='{(mat != null && mat.shader != null ? mat.shader.name : "<none>")}' " +
+                $"queue={(mat != null ? mat.renderQueue : -1)} mode={rend.renderMode}");
+        }
+    }
+
+    private const float ShaderScanRange = 120f;
+
     private static bool loggedFeatures;
 
     // Unity 6.2+ added per-mesh "Mesh LOD", which selects detail (and can drop a renderer) WITHOUT a

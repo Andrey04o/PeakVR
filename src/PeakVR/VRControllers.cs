@@ -19,8 +19,17 @@ internal static class VRControllers
 
     private static void CreateHand(Transform rig, string hand, string name)
     {
+        var pose = new GameObject($"{name} Pose");
+        pose.transform.SetParent(rig, false);
+
         var obj = new GameObject(name);
-        obj.transform.SetParent(rig, false);
+        obj.transform.SetParent(pose.transform, false);
+
+        if (Plugin.Config != null)
+            obj.transform.localRotation = Quaternion.Euler(
+                Plugin.Config.ControllerOffsetX.Value,
+                Plugin.Config.ControllerOffsetY.Value,
+                Plugin.Config.ControllerOffsetZ.Value);
 
         var posAction = new InputAction($"{hand} Position", InputActionType.Value,
             $"<XRController>{{{hand}}}/pointer/position", expectedControlType: "Vector3");
@@ -29,7 +38,7 @@ internal static class VRControllers
         posAction.Enable();
         rotAction.Enable();
 
-        var driver = obj.AddComponent<TrackedPoseDriver>();
+        var driver = pose.AddComponent<TrackedPoseDriver>();
         driver.trackingType = TrackedPoseDriver.TrackingType.RotationAndPosition;
         driver.updateType = TrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
         driver.positionInput = new InputActionProperty(posAction);

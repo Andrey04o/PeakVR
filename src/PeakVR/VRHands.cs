@@ -88,8 +88,11 @@ internal static class VRHands
 
     private static Transform CreateHand(Transform rig, string hand, string name, out VRLaser laser)
     {
+        var pose = new GameObject($"{name} Pose");
+        pose.transform.SetParent(rig, false);
+
         var obj = new GameObject(name);
-        obj.transform.SetParent(rig, false);
+        obj.transform.SetParent(pose.transform, false);
 
         var pos = new InputAction($"{hand} HandPos", InputActionType.Value,
             $"<XRController>{{{hand}}}/pointer/position", expectedControlType: "Vector3");
@@ -98,7 +101,7 @@ internal static class VRHands
         pos.Enable();
         rot.Enable();
 
-        var driver = obj.AddComponent<TrackedPoseDriver>();
+        var driver = pose.AddComponent<TrackedPoseDriver>();
         driver.trackingType = TrackedPoseDriver.TrackingType.RotationAndPosition;
         driver.updateType = TrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
         driver.positionInput = new InputActionProperty(pos);
@@ -144,7 +147,24 @@ internal static class VRHands
         }
 
         Plugin.Log.LogInfo($"[PeakVR] Created in-game {name}");
+        ApplyRotationOffset();
         return obj.transform;
+    }
+
+    public static void ApplyRotationOffset()
+    {
+        if (Plugin.Config == null)
+            return;
+
+        var offset = Quaternion.Euler(
+            Plugin.Config.ControllerOffsetX.Value,
+            Plugin.Config.ControllerOffsetY.Value,
+            Plugin.Config.ControllerOffsetZ.Value);
+
+        if (Left != null)
+            Left.localRotation = offset;
+        if (Right != null)
+            Right.localRotation = offset;
     }
 
     private static Material CreateLaserMaterial()

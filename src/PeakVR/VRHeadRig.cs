@@ -80,6 +80,7 @@ internal class VRHeadRig : MonoBehaviour
             hmdOffset = cam.transform.localPosition;
 
         RenderDiagnostics.Tick(cam);
+        VRFoliage.Tick(cam);
         VRControllerVisibility.Tick();
         HandleTurn();
 

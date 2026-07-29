@@ -62,6 +62,7 @@ internal static class InGameCameraPatch
         VRRender.ApplySharpening();
         VRFoveation.Apply();
         RenderDiagnostics.ScheduleScan();
+        VRFoliage.ScheduleScan();
 
         if (Plugin.DebugButtons || Plugin.Config.EnableVerboseLogging.Value)
             UrpDiagnostics.DumpOnce();

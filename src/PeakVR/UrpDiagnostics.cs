@@ -319,6 +319,71 @@ internal static class UrpDiagnostics
         }
     }
 
+    public static bool DepthPriming { get; private set; }
+
+    public static void ApplyDepthPriming()
+    {
+        if (!Plugin.VrEnabled || Plugin.Config == null)
+            return;
+
+        var wanted = Plugin.Config.DepthPrepass.Value;
+        if (wanted == DepthPriming)
+            return;
+
+        SetDepthPriming(wanted);
+    }
+
+    public static void ToggleDepthPriming()
+    {
+        SetDepthPriming(!DepthPriming);
+    }
+
+    private static void SetDepthPriming(bool enabled)
+    {
+        var asset = GraphicsSettings.currentRenderPipeline;
+        if (asset == null)
+            return;
+
+        var field = asset.GetType().GetField("m_RendererDataList", Any);
+        if (field?.GetValue(asset) is not Array list)
+        {
+            Plugin.Log.LogWarning("[PeakVR][Priming] renderer data list not found");
+            return;
+        }
+
+        DepthPriming = enabled;
+        var changed = 0;
+
+        for (var i = 0; i < list.Length; i++)
+        {
+            var data = list.GetValue(i);
+            if (data == null)
+                continue;
+
+            var mode = data.GetType().GetField("m_DepthPrimingMode", Any);
+            if (mode == null)
+                continue;
+
+            try
+            {
+                var value = Enum.ToObject(mode.FieldType, DepthPriming ? 2 : 0);
+                mode.SetValue(data, value);
+
+                var dirty = data.GetType().GetMethod("SetDirty", Any);
+                dirty?.Invoke(data, null);
+
+                Plugin.Log.LogInfo($"[PeakVR][Priming] renderer[{i}] depthPrimingMode -> {mode.GetValue(data)}");
+                changed++;
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning($"[PeakVR][Priming] renderer[{i}] failed: {e.Message}");
+            }
+        }
+
+        Plugin.Log.LogInfo($"[PeakVR][Priming] {(DepthPriming ? "ENABLED" : "disabled")} on {changed} renderer(s)");
+    }
+
     private static void DumpVolumes()
     {
         var volumes = UnityEngine.Object.FindObjectsByType<Volume>(FindObjectsSortMode.None);

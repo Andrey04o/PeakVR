@@ -98,6 +98,7 @@ public partial class Plugin : BaseUnityPlugin
         // Before XRMirror.Setup(): this reinitializes URP's GPU Resident Drawer, which tears down the
         // XR system and freezes the desktop mirror if it is already installed.
         UrpDiagnostics.ApplySmallMeshCulling();
+        UrpDiagnostics.ApplyDepthPriming();
 
         PeakAssets.Load();
         XRMirror.Setup();
@@ -202,6 +203,12 @@ public partial class Plugin : BaseUnityPlugin
 
         if (kb.jKey.wasPressedThisFrame && MainCamera.instance != null)
             RenderDiagnostics.LogByName(MainCamera.instance.cam);
+
+        if (kb.vKey.wasPressedThisFrame && MainCamera.instance != null)
+            RenderDiagnostics.LogShaders(MainCamera.instance.cam);
+
+        if (kb.pKey.wasPressedThisFrame)
+            UrpDiagnostics.ToggleDepthPriming();
 
         if (kb.mKey.wasPressedThisFrame)
             RenderDiagnostics.CycleMeshLodThreshold();
