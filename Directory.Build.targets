@@ -76,8 +76,23 @@
       <BuildArgument Condition="'$(PublishTS)' != 'true'">build</BuildArgument>
       <BuildArgument Condition="'$(PublishTS)' == 'true'">publish</BuildArgument>
     </PropertyGroup>
+
+    <!--
+      tcli copies the RuntimeDeps folders wholesale and has no exclude option, so the .gitkeep
+      placeholders end up inside the package. Remove them for the duration of the build and put them
+      back afterwards - they only exist to keep the otherwise empty folders in git.
+    -->
+    <ItemGroup>
+      <GitKeepFiles Include="$(MSBuildThisFileDirectory)RuntimeDeps/**/.gitkeep" />
+      <GitKeepFiles Include="$(MSBuildThisFileDirectory)Preloader/RuntimeDeps/**/.gitkeep" />
+    </ItemGroup>
+
+    <Delete Files="@(GitKeepFiles)" />
+
     <Exec Command="dotnet tool restore" />
-    <Exec Command="dotnet tcli $(BuildArgument) --package-version $(Version)" />
+    <Exec Command="dotnet tcli $(BuildArgument) --package-version $(Version)" ContinueOnError="ErrorAndContinue" />
+
+    <Touch Files="@(GitKeepFiles)" AlwaysCreate="true" />
   </Target>
 
 </Project>
