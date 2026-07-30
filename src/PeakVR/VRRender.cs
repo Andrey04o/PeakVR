@@ -94,6 +94,22 @@ internal static class VRRender
         ApplyHBAO();
     }
 
+    public static void ApplyFarPlane()
+    {
+        if (!Plugin.VrEnabled || Plugin.Config == null)
+            return;
+
+        var main = MainCamera.instance;
+        if (main == null || main.cam == null)
+            return;
+
+        var distance = Plugin.Config.FarPlane.Value;
+        if (distance <= main.cam.nearClipPlane)
+            return;
+
+        main.cam.farClipPlane = distance;
+    }
+
     public static void ApplyHBAO()
     {
         if (!Plugin.VrEnabled)

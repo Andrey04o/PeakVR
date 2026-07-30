@@ -293,6 +293,8 @@ internal class VRBinoculars : MonoBehaviour
     private Transform fog;
     private int fogLayer = -1;
     private float nextFogTry;
+    private Renderer fogSource;
+    private Renderer fogClone;
 
     private CameraQuad FindFogQuad()
     {
@@ -317,10 +319,22 @@ internal class VRBinoculars : MonoBehaviour
 
     private void EnsureFog()
     {
-        if (fog != null || Time.time < nextFogTry)
+        if (Time.time < nextFogTry)
             return;
 
         nextFogTry = Time.time + 1f;
+
+        var stale = fog == null || fogSource == null || !fogSource.gameObject.activeInHierarchy;
+        if (!stale)
+            return;
+
+        if (fog != null)
+        {
+            Destroy(fog.gameObject);
+            fog = null;
+            fogClone = null;
+        }
+
         BuildFog();
     }
 
@@ -344,12 +358,17 @@ internal class VRBinoculars : MonoBehaviour
             clone.layer = 0;
 
         fogLayer = clone.layer;
+        fogSource = source.GetComponentInChildren<Renderer>(true);
+        fogClone = clone.GetComponentInChildren<Renderer>(true);
     }
 
     private void UpdateFog()
     {
         if (fog == null)
             return;
+
+        if (fogSource != null && fogClone != null && fogClone.sharedMaterial != fogSource.sharedMaterial)
+            fogClone.sharedMaterial = fogSource.sharedMaterial;
 
         var d = scopeCam.nearClipPlane + 0.01f;
         var h = 2f * d * Mathf.Tan(scopeCam.fieldOfView * 0.5f * Mathf.Deg2Rad);
@@ -401,8 +420,12 @@ internal class VRBinoculars : MonoBehaviour
         quad.enabled = false;
     }
 
+    public static bool ScopeActive { get; private set; }
+
     private void SetActive(bool active)
     {
+        ScopeActive = active;
+
         if (scopeCam != null && scopeCam.enabled != active)
             scopeCam.enabled = active;
 

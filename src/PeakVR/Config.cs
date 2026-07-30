@@ -35,6 +35,7 @@ public class Config
     public ConfigEntry<bool> FixPerEyeCulling { get; }
     public ConfigEntry<float> FoliageDistance { get; }
     public ConfigEntry<bool> DepthPrepass { get; }
+    public ConfigEntry<float> FarPlane { get; }
     public ConfigEntry<float> ControllerOffsetX { get; }
     public ConfigEntry<float> ControllerOffsetY { get; }
     public ConfigEntry<float> ControllerOffsetZ { get; }
@@ -135,6 +136,13 @@ public class Config
                 "Disable HBAO ambient occlusion, which renders wrong per-eye in VR on PEAK's Unity 6.3 " +
                 "(URP 17.3) and costs performance. On by default; turn off to keep the game's ambient occlusion."));
         ForceDisableHBAO.SettingChanged += (_, _) => PeakVR.VRRender.ApplyHBAO();
+
+        FarPlane = file.Bind("VR Graphics", "Far Plane Culling Distance", 3000f,
+            new ConfigDescription(
+                "How far away the game still draws things, in metres. Lower values cull distant scenery " +
+                "and gain performance; too low and far islands or mountain tops pop out of view.",
+                new AcceptableValueRange<float>(500f, 20000f)));
+        FarPlane.SettingChanged += (_, _) => PeakVR.VRRender.ApplyFarPlane();
 
         DepthPrepass = file.Bind("VR Graphics", "Depth Prepass", true,
             new ConfigDescription(
