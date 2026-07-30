@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
@@ -92,9 +93,7 @@ internal class VRBinoculars : MonoBehaviour
 
         scopeCam.transform.SetPositionAndRotation(over.transform.position, view.rotation);
         scopeCam.fieldOfView = Mathf.Clamp(over.fov, MinFov, MaxFov);
-        scopeCam.cullingMask = mainCam.cullingMask & ~(1 << VRLayers.UI);
-        if (fogLayer >= 0)
-            scopeCam.cullingMask |= 1 << fogLayer;
+        scopeCam.cullingMask = (mainCam.cullingMask & ~(1 << VRLayers.UI)) | fogMask;
         scopeCam.clearFlags = mainCam.clearFlags;
         scopeCam.backgroundColor = mainCam.backgroundColor;
         scopeCam.nearClipPlane = mainCam.nearClipPlane;
@@ -290,31 +289,43 @@ internal class VRBinoculars : MonoBehaviour
             prop.SetValue(target, value);
     }
 
-    private Transform fog;
-    private int fogLayer = -1;
-    private float nextFogTry;
-    private Renderer fogSource;
-    private Renderer fogClone;
-
-    private CameraQuad FindFogQuad()
+    private class ScopeOverlay
     {
-        CameraQuad best = null;
+        public CameraQuad Source;
+        public Renderer SourceRenderer;
+        public Renderer CloneRenderer;
+        public Transform Clone;
+        public float Distance;
+    }
+
+    private readonly List<ScopeOverlay> overlays = new();
+    private readonly List<CameraQuad> sourceScratch = new();
+    private int fogMask;
+    private float nextFogTry;
+
+    private void CollectSources(List<CameraQuad> into)
+    {
+        into.Clear();
 
         foreach (var candidate in Resources.FindObjectsOfTypeAll<CameraQuad>())
         {
             if (candidate == null || !candidate.gameObject.scene.IsValid())
                 continue;
 
-            var rend = candidate.GetComponentInChildren<Renderer>(true);
-            if (rend == null || !candidate.gameObject.activeInHierarchy)
+            if (!candidate.gameObject.activeInHierarchy || !candidate.enabled)
                 continue;
 
-            var shader = rend.sharedMaterial != null ? rend.sharedMaterial.shader.name : string.Empty;
-            if (best == null || shader.IndexOf("Fog", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                best = candidate;
-        }
+            if (candidate.GetComponentInChildren<Renderer>(true) == null)
+                continue;
 
-        return best;
+            if (scopeCam != null && candidate.transform.IsChildOf(scopeCam.transform))
+                continue;
+
+            if (candidate.GetComponentInParent<GUIManager>(true) != null)
+                continue;
+
+            into.Add(candidate);
+        }
     }
 
     private void EnsureFog()
@@ -324,59 +335,86 @@ internal class VRBinoculars : MonoBehaviour
 
         nextFogTry = Time.time + 1f;
 
-        var stale = fog == null || fogSource == null || !fogSource.gameObject.activeInHierarchy;
-        if (!stale)
+        CollectSources(sourceScratch);
+
+        if (!SourcesChanged(sourceScratch))
             return;
 
-        if (fog != null)
-        {
-            Destroy(fog.gameObject);
-            fog = null;
-            fogClone = null;
-        }
+        foreach (var overlay in overlays)
+            if (overlay.Clone != null)
+                Destroy(overlay.Clone.gameObject);
+        overlays.Clear();
+        fogMask = 0;
 
-        BuildFog();
+        foreach (var source in sourceScratch)
+            BuildOverlay(source);
+
+        Plugin.Log.LogInfo($"[PeakVR] Scope overlays rebuilt: {overlays.Count} camera quad(s)");
     }
 
-    private void BuildFog()
+    private bool SourcesChanged(List<CameraQuad> sources)
     {
-        var source = FindFogQuad();
-        if (source == null)
-            return;
+        if (sources.Count != overlays.Count)
+            return true;
 
+        for (var i = 0; i < sources.Count; i++)
+            if (overlays[i].Source != sources[i])
+                return true;
+
+        return false;
+    }
+
+    private void BuildOverlay(CameraQuad source)
+    {
         var clone = Instantiate(source.gameObject);
-        clone.name = "PeakVR ScopeFog";
+        clone.name = $"PeakVR Scope {source.name}";
 
-        var comp = clone.GetComponent<CameraQuad>();
-        if (comp != null)
-            Destroy(comp);
+        foreach (var behaviour in clone.GetComponentsInChildren<MonoBehaviour>(true))
+            if (behaviour != null)
+                Destroy(behaviour);
 
-        fog = clone.transform;
-        fog.SetParent(scopeCam.transform, false);
+        var transformClone = clone.transform;
+        transformClone.SetParent(scopeCam.transform, false);
 
         if (clone.layer == VRLayers.UI)
             clone.layer = 0;
 
-        fogLayer = clone.layer;
-        fogSource = source.GetComponentInChildren<Renderer>(true);
-        fogClone = clone.GetComponentInChildren<Renderer>(true);
+        fogMask |= 1 << clone.layer;
+
+        overlays.Add(new ScopeOverlay
+        {
+            Source = source,
+            SourceRenderer = source.GetComponentInChildren<Renderer>(true),
+            CloneRenderer = clone.GetComponentInChildren<Renderer>(true),
+            Clone = transformClone,
+            Distance = source.distance,
+        });
     }
 
     private void UpdateFog()
     {
-        if (fog == null)
-            return;
-
-        if (fogSource != null && fogClone != null && fogClone.sharedMaterial != fogSource.sharedMaterial)
-            fogClone.sharedMaterial = fogSource.sharedMaterial;
-
-        var d = scopeCam.nearClipPlane + 0.01f;
-        var h = 2f * d * Mathf.Tan(scopeCam.fieldOfView * 0.5f * Mathf.Deg2Rad);
+        var h = 2f * Mathf.Tan(scopeCam.fieldOfView * 0.5f * Mathf.Deg2Rad);
         var w = h * scopeCam.aspect;
 
-        fog.localPosition = new Vector3(0f, 0f, d);
-        fog.localRotation = Quaternion.identity;
-        fog.localScale = new Vector3(w, h, 1f);
+        foreach (var overlay in overlays)
+        {
+            if (overlay.Clone == null)
+                continue;
+
+            if (overlay.SourceRenderer != null && overlay.CloneRenderer != null)
+            {
+                if (overlay.CloneRenderer.sharedMaterial != overlay.SourceRenderer.sharedMaterial)
+                    overlay.CloneRenderer.sharedMaterial = overlay.SourceRenderer.sharedMaterial;
+
+                if (overlay.CloneRenderer.enabled != overlay.SourceRenderer.enabled)
+                    overlay.CloneRenderer.enabled = overlay.SourceRenderer.enabled;
+            }
+
+            var d = scopeCam.nearClipPlane + overlay.Distance;
+            overlay.Clone.localPosition = new Vector3(0f, 0f, d);
+            overlay.Clone.localRotation = Quaternion.identity;
+            overlay.Clone.localScale = new Vector3(w * d, h * d, 1f);
+        }
     }
 
     private void BuildQuad()
