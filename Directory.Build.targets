@@ -30,8 +30,6 @@
     <PackageReference Include="Unity.Animation.Rigging" Version="1.2.1" />
     <PackageReference Include="Unity.InputSystem" Version="1.14.2" />
     <PackageReference Include="Unity.Netcode.Runtime" Version="1.6.0" />
-    <PackageReference Include="Unity.RenderPipelines.Core" Version="14.0.12" />
-    <PackageReference Include="Unity.RenderPipelines.HighDefinition" Version="14.0.12" />
     <PackageReference Include="Unity.TextMeshPro" Version="3.0.6" />
     <PackageReference Include="Unity.XR.CoreUtils" Version="2.3.0" />
     <PackageReference Include="Unity.XR.Interaction.Toolkit" Version="3.0.9" />
@@ -46,6 +44,7 @@
   <!-- NuGet fallback stripped game references -->
   <ItemGroup Condition="!Exists('$(ManagedDir)')">
     <PackageReference Include="UnityEngine.Modules" Version="6000.0.62" PrivateAssets="all" />
+    <PackageReference Include="Unity.RenderPipelines.Core" Version="14.0.12" />
   </ItemGroup>
 
   <!-- Local game references -->

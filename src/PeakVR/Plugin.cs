@@ -99,6 +99,7 @@ public partial class Plugin : BaseUnityPlugin
         // XR system and freezes the desktop mirror if it is already installed.
         UrpDiagnostics.ApplySmallMeshCulling();
         UrpDiagnostics.ApplyDepthPriming();
+        ForegroundUI.Apply();
 
         PeakAssets.Load();
         XRMirror.Setup();

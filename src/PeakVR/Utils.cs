@@ -2,7 +2,6 @@
 using UnityEngine;
 using UnityEngine.InputSystem.XR;
 using UnityEngine.InputSystem;
-using UnityEngine.Rendering.HighDefinition;
 using System.Collections.Generic;
 using LCVR.Assets;
 using UnityEngine.XR.Interaction.Toolkit;
@@ -78,18 +77,6 @@ internal static class Utils
         }
 
         return builder.ToString();
-    }
-
-    public static void EnableQualitySetting(this HDAdditionalCameraData camera, FrameSettingsField setting)
-    {
-        camera.renderingPathCustomFrameSettingsOverrideMask.mask[(uint)setting] = false;
-        camera.renderingPathCustomFrameSettings.SetEnabled(setting, true);
-    }
-
-    public static void DisableQualitySetting(this HDAdditionalCameraData camera, FrameSettingsField setting)
-    {
-        camera.renderingPathCustomFrameSettingsOverrideMask.mask[(uint)setting] = true;
-        camera.renderingPathCustomFrameSettings.SetEnabled(setting, false);
     }
 
     public static void AttachHeadTrackedPoseDriver(this GameObject @object)

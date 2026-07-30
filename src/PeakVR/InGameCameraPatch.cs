@@ -66,7 +66,10 @@ internal static class InGameCameraPatch
         VRFoliage.ScheduleScan();
 
         if (Plugin.DebugButtons || Plugin.Config.EnableVerboseLogging.Value)
+        {
             UrpDiagnostics.DumpOnce();
+            ForegroundUI.LogUiLayerRenderers();
+        }
 
         ForceKeyboardMouseScheme();
 

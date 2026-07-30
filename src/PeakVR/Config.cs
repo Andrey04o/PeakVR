@@ -35,6 +35,8 @@ public class Config
     public ConfigEntry<bool> FixPerEyeCulling { get; }
     public ConfigEntry<float> FoliageDistance { get; }
     public ConfigEntry<bool> DepthPrepass { get; }
+    public ConfigEntry<bool> ForegroundUI { get; }
+    public ConfigEntry<bool> ForegroundUIOverGeometry { get; }
     public ConfigEntry<float> FarPlane { get; }
     public ConfigEntry<float> ControllerOffsetX { get; }
     public ConfigEntry<float> ControllerOffsetY { get; }
@@ -150,6 +152,19 @@ public class Config
                 "are alpha-clipped, which normally defeats that optimisation, and they are the most " +
                 "expensive thing on screen in VR - this can nearly double the framerate with no visual " +
                 "change. Takes effect on restart."));
+
+        ForegroundUI = file.Bind("VR Graphics", "Foreground UI", true,
+            new ConfigDescription(
+                "Draw the VR interface in its own render pass after everything else, so world glass, " +
+                "rain and fog can never cover the wrist HUD, menus or the stamina bar. Replaces the old " +
+                "render-order workaround, which could not win against transparent scenery."));
+        ForegroundUI.SettingChanged += (_, _) => PeakVR.ForegroundUI.Apply();
+
+        ForegroundUIOverGeometry = file.Bind("VR Graphics", "Foreground UI Over Geometry", true,
+            new ConfigDescription(
+                "Let the foreground interface draw over solid objects too, instead of being hidden " +
+                "behind walls and terrain. Only applies when Foreground UI is on."));
+        ForegroundUIOverGeometry.SettingChanged += (_, _) => PeakVR.ForegroundUI.ApplyDepthMode();
 
         FoliageDistance = file.Bind("VR Graphics", "Foliage Draw Distance", 0f,
             new ConfigDescription(
