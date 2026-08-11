@@ -196,24 +196,6 @@ public partial class Plugin : BaseUnityPlugin
         if (kb.yKey.wasPressedThisFrame)
             VRFrameTiming.CycleRenderScale();
 
-        if (kb.uKey.wasPressedThisFrame)
-            VRSmokeShader.Dump();
-
-        if (kb.iKey.wasPressedThisFrame)
-            VRSmokeShader.Cycle();
-
-        if (kb.oKey.wasPressedThisFrame)
-            VRSmokeShader.TuneAlpha();
-
-        if (kb.rKey.wasPressedThisFrame)
-            VRSmokeShader.TuneTexture();
-
-        if (kb.cKey.wasPressedThisFrame)
-            VRSmokeShader.TuneRoundness();
-
-        if (kb.xKey.wasPressedThisFrame)
-            VRSmokeShader.TuneSunGlow();
-
         if (kb.f1Key.wasPressedThisFrame)
             DumpCanvases();
 

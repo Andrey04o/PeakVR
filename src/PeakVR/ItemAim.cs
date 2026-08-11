@@ -24,6 +24,11 @@ internal static class ItemAim
         if (dart != null && dart.spawnTransform != null)
             return dart.spawnTransform;
 
+        // Anti Bazooka
+        var spawner = character.data.currentItem.GetComponentInChildren<Peak.Action_RaycastSpawnSomething>();
+        if (spawner != null && spawner.rayOrigin != null)
+            return spawner.rayOrigin;
+
         if (!VRAim.TryRight(out var origin, out var dir))
             return fallback;
 

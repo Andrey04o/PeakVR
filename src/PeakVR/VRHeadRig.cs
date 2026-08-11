@@ -62,6 +62,9 @@ internal class VRHeadRig : MonoBehaviour
     private bool physInit;
     private Vector2 physVel;
 
+    private Transform cutsceneSource;
+    private float cutsceneYaw;
+
     private float hmdRef;
     private float standingHmdY;
     private float crouchCenter;
@@ -235,8 +238,57 @@ internal class VRHeadRig : MonoBehaviour
         if (headDriver != null && !headDriver.enabled)
             headDriver.enabled = true;
 
+        var tracked = TryHeadPose(out var headPos, out var headRot);
+
+        if (cutsceneSource != cutsceneCam)
+        {
+            cutsceneSource = cutsceneCam;
+            cutsceneYaw = FlatYaw(cutsceneCam.rotation) - (tracked ? FlatYaw(headRot) : 0f);
+
+            Plugin.Log.LogInfo($"[PeakVR] Cutscene cam '{cutsceneCam.name}': yaw={cutsceneYaw:F1} " +
+                $"tracked={tracked} driver={(headDriver == null ? "null" : headDriver.enabled.ToString())} " +
+                $"head={headPos} {headRot.eulerAngles}");
+        }
+
         transform.localScale = Vector3.one * HandScale;
-        transform.SetPositionAndRotation(cutsceneCam.position, cutsceneCam.rotation);
+        transform.SetPositionAndRotation(cutsceneCam.position, Quaternion.Euler(0f, cutsceneYaw, 0f));
+
+        if (tracked)
+        {
+            cam.transform.localPosition = headPos;
+            cam.transform.localRotation = headRot;
+        }
+    }
+
+    private static XRHMD hmdDevice;
+
+    private static bool TryHeadPose(out Vector3 position, out Quaternion rotation)
+    {
+        if (hmdDevice == null || !hmdDevice.added)
+            hmdDevice = InputSystem.GetDevice<XRHMD>();
+
+        var hmd = hmdDevice;
+        if (hmd == null)
+        {
+            position = Vector3.zero;
+            rotation = Quaternion.identity;
+            return false;
+        }
+
+        position = hmd.centerEyePosition.ReadValue();
+        rotation = hmd.centerEyeRotation.ReadValue();
+        return true;
+    }
+
+    private static float FlatYaw(Quaternion rotation)
+    {
+        var flat = Vector3.ProjectOnPlane(rotation * Vector3.forward, Vector3.up);
+        if (flat.sqrMagnitude < 1e-6f)
+            flat = Vector3.ProjectOnPlane(rotation * Vector3.up, Vector3.up);
+
+        return flat.sqrMagnitude > 1e-6f
+            ? Quaternion.LookRotation(flat, Vector3.up).eulerAngles.y
+            : 0f;
     }
 
     private const float SpecDistance = 3f;

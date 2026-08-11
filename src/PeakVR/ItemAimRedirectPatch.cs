@@ -20,6 +20,8 @@ internal static class ItemAimRedirectPatch
             (typeof(RopeTier), "Update"),
             (typeof(Action_RaycastDart), "RunAction"),
             (typeof(Action_RaycastDart), "FireDart"),
+            (typeof(Peak.Action_RaycastSpawnSomething), "RunAction"),
+            (typeof(Peak.Action_RaycastSpawnSomething), "FixedUpdate"),
             (typeof(Constructable), "Update"),
             (typeof(Constructable), nameof(Constructable.TryUpdatePreview)),
             (typeof(Constructable), "CreateOrMovePreview"),
