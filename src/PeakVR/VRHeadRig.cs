@@ -76,6 +76,13 @@ internal class VRHeadRig : MonoBehaviour
 
     private void Update()
     {
+        var profile = VRProfile.Begin();
+        UpdateBody();
+        VRProfile.End(VRProfile.HeadRig, profile);
+    }
+
+    private void UpdateBody()
+    {
         if (cam != null)
             hmdOffset = cam.transform.localPosition;
 
@@ -131,6 +138,13 @@ internal class VRHeadRig : MonoBehaviour
     }
 
     private void LateUpdate()
+    {
+        var profile = VRProfile.Begin();
+        LateUpdateBody();
+        VRProfile.End(VRProfile.HeadRig, profile);
+    }
+
+    private void LateUpdateBody()
     {
         if (VRCutscene.Active)
         {

@@ -62,6 +62,9 @@ internal static class UIOverlay
         // masks (mask still draws before its children in hierarchy order). NOTE: dynamic masked
         // graphics (the stamina fill) still fall back below world glass because they regenerate their
         // material each frame — deferred to the future URP UI-camera-stacking port.
+        if (ForegroundUI.Active && canvas.gameObject.layer != VRLayers.UI)
+            VRLayers.HideFromMirror(canvas.gameObject, VRControllerHud.HudLayer, 7);
+
         var applyQueue = baseQueue != DefaultQueue;
         var log = Logging && Logged.Add(canvas);
         if (log)

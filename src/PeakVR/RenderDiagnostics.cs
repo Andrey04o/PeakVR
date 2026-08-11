@@ -54,6 +54,13 @@ internal static class RenderDiagnostics
 
     public static void Tick(Camera cam)
     {
+        var profile = VRProfile.Begin();
+        TickBody(cam);
+        VRProfile.End(VRProfile.Lod, profile);
+    }
+
+    private static void TickBody(Camera cam)
+    {
         // Catch renderers that streamed in after the toggle.
         if (ForceMeshLod0 && Time.time >= nextMeshLodSweep)
         {

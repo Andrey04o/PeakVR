@@ -119,6 +119,13 @@ internal static class ForegroundUI
 
     private static void OnBeginCamera(ScriptableRenderContext context, Camera camera)
     {
+        var profile = VRProfile.Begin();
+        OnBeginCameraBody(camera);
+        VRProfile.End(VRProfile.Foreground, profile);
+    }
+
+    private static void OnBeginCameraBody(Camera camera)
+    {
         if (!Active || camera.cameraType != CameraType.Game)
             return;
 

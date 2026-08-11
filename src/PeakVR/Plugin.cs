@@ -99,6 +99,7 @@ public partial class Plugin : BaseUnityPlugin
         // XR system and freezes the desktop mirror if it is already installed.
         UrpDiagnostics.ApplySmallMeshCulling();
         UrpDiagnostics.ApplyDepthPriming();
+        UrpDiagnostics.ApplyGpuOcclusionCulling();
         ForegroundUI.Apply();
 
         PeakAssets.Load();
@@ -133,6 +134,8 @@ public partial class Plugin : BaseUnityPlugin
     {
         if (DebugButtons && Keyboard.current != null)
             HandleDebugKeys();
+
+        VRFrameTiming.Tick();
 
         if (!VrEnabled)
             return;
@@ -186,6 +189,30 @@ public partial class Plugin : BaseUnityPlugin
     private static void HandleDebugKeys()
     {
         var kb = Keyboard.current;
+
+        if (kb.tKey.wasPressedThisFrame)
+            VRFrameTiming.Toggle();
+
+        if (kb.yKey.wasPressedThisFrame)
+            VRFrameTiming.CycleRenderScale();
+
+        if (kb.uKey.wasPressedThisFrame)
+            VRSmokeShader.Dump();
+
+        if (kb.iKey.wasPressedThisFrame)
+            VRSmokeShader.Cycle();
+
+        if (kb.oKey.wasPressedThisFrame)
+            VRSmokeShader.TuneAlpha();
+
+        if (kb.rKey.wasPressedThisFrame)
+            VRSmokeShader.TuneTexture();
+
+        if (kb.cKey.wasPressedThisFrame)
+            VRSmokeShader.TuneRoundness();
+
+        if (kb.xKey.wasPressedThisFrame)
+            VRSmokeShader.TuneSunGlow();
 
         if (kb.f1Key.wasPressedThisFrame)
             DumpCanvases();

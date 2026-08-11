@@ -17,6 +17,13 @@ internal static class HeadTiltPatch
     [HarmonyPostfix]
     private static void Postfix(Bodypart __instance)
     {
+        var profile = VRProfile.Begin();
+        PostfixBody(__instance);
+        VRProfile.End(VRProfile.HeadTilt, profile);
+    }
+
+    private static void PostfixBody(Bodypart __instance)
+    {
         if (__instance == null || __instance.partType != BodypartType.Head)
             return;
 

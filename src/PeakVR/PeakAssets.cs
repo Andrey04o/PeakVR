@@ -14,6 +14,8 @@ internal static class PeakAssets
     public static GameObject Controller { get; private set; }
     public static Texture2D Vignette { get; private set; }
     public static Shader MirrorView { get; private set; }
+    public static Shader SimpleSmoke { get; private set; }
+    public static Shader SimpleSmoke2 { get; private set; }
 
     public static Sprite EmoteButton { get; private set; }
     public static Sprite Logo { get; private set; }
@@ -45,6 +47,8 @@ internal static class PeakAssets
             ?? bundle.LoadAsset<GameObject>("UniversalController");
         Vignette = bundle.LoadAsset<Texture2D>("vignette");
         MirrorView = bundle.LoadAsset<Shader>("XRMirrorView");
+        SimpleSmoke = bundle.LoadAsset<Shader>("SimpleSmoke");
+        SimpleSmoke2 = bundle.LoadAsset<Shader>("SimpleSmoke2");
 
         EmoteButton = bundle.LoadAsset<Sprite>("ButtonEmote");
         Logo = bundle.LoadAsset<Sprite>("Logo");

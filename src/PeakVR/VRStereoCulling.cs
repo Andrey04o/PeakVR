@@ -42,6 +42,13 @@ internal class VRStereoCulling : MonoBehaviour
 
     private void OnBeginCamera(ScriptableRenderContext ctx, Camera rendering)
     {
+        var profile = VRProfile.Begin();
+        OnBeginCameraBody(ctx, rendering);
+        VRProfile.End(VRProfile.StereoCull, profile);
+    }
+
+    private void OnBeginCameraBody(ScriptableRenderContext ctx, Camera rendering)
+    {
         if (rendering != cam)
             return;
 

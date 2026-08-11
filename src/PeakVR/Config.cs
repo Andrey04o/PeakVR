@@ -33,6 +33,7 @@ public class Config
     public ConfigEntry<bool> ForceDisableHBAO { get; }
     public ConfigEntry<float> FoveationLevel { get; }
     public ConfigEntry<bool> FixPerEyeCulling { get; }
+    public ConfigEntry<bool> GpuOcclusionCulling { get; }
     public ConfigEntry<float> FoliageDistance { get; }
     public ConfigEntry<bool> DepthPrepass { get; }
     public ConfigEntry<bool> ForegroundUI { get; }
@@ -179,6 +180,12 @@ public class Config
                 "one eye only (coconuts, lights, elevator pings). Turning this on stops that cull and costs " +
                 "no measurable performance. Changing it mid-game can freeze the desktop mirror until restart."));
         FixPerEyeCulling.SettingChanged += (_, _) => PeakVR.UrpDiagnostics.ApplySmallMeshCulling();
+
+        GpuOcclusionCulling = file.Bind("VR Graphics", "GPU Occlusion Culling", false,
+            new ConfigDescription(
+                "Let the GPU skip objects hidden behind other objects, using the previous frame's depth. " +
+                "Measured no framerate gain in PEAK, which is limited by the processor rather than the " +
+                "graphics card, so leave it off unless you want to experiment. Takes effect on restart."));
 
         FoveationLevel = file.Bind("VR Graphics", "Foveated Rendering", 0f,
             new ConfigDescription(

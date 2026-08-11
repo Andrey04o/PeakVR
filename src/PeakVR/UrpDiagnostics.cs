@@ -257,6 +257,33 @@ internal static class UrpDiagnostics
             $"(drawer mode {Member(asset, "gpuResidentDrawerMode")})");
     }
 
+    public static void ApplyGpuOcclusionCulling()
+    {
+        if (!Plugin.VrEnabled || Plugin.Config == null)
+            return;
+
+        var asset = GraphicsSettings.currentRenderPipeline;
+        if (asset == null)
+            return;
+
+        var prop = asset.GetType().GetProperty("gpuResidentDrawerEnableOcclusionCullingInCameras", Any);
+        if (prop == null || !prop.CanWrite)
+        {
+            Plugin.Log.LogWarning("[PeakVR][GRD] GPU occlusion culling not available on this URP version");
+            return;
+        }
+
+        var target = Plugin.Config.GpuOcclusionCulling.Value;
+        if (Equals(prop.GetValue(asset), target))
+            return;
+
+        prop.SetValue(asset, target);
+        ReinitializeDrawer();
+
+        Plugin.Log.LogInfo($"[PeakVR][GRD] GPU occlusion culling -> {prop.GetValue(asset)} " +
+            $"(drawer mode {Member(asset, "gpuResidentDrawerMode")})");
+    }
+
     // Debug key: flip the config entry so the toggle and the setting can't drift apart.
     public static void ToggleSmallMeshCulling()
     {

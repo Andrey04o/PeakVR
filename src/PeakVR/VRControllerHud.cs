@@ -11,7 +11,7 @@ internal class VRControllerHud : MonoBehaviour
 {
     private const float Scale = 0.0007f;
     private const float ItemSpacing = 90f;
-    private const int HudLayer = 3;
+    public const int HudLayer = 3;
     private const float PointerMaxDistance = 1.5f;
     private const float HoverScale = 1.14f;
     private const float LateSweepDelay = 5f;
@@ -48,6 +48,13 @@ internal class VRControllerHud : MonoBehaviour
     }
 
     private void LateUpdate()
+    {
+        var profile = VRProfile.Begin();
+        LateUpdateBody();
+        VRProfile.End(VRProfile.Hud, profile);
+    }
+
+    private void LateUpdateBody()
     {
         LeftTriggerConsumed = false;
 
