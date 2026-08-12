@@ -97,22 +97,32 @@ internal static class UIOverlay
         if (Cache.TryGetValue(g, out var cached) && cached != null)
             return cached;
 
+        if (g is TMP_SubMeshUI)
+            return null;
+
         Material mat;
 
-        if (g is TMP_Text tmp)
+        try
         {
-            mat = tmp.fontMaterial;
-            if (mat == null)
-                return null;
-        }
-        else
-        {
-            var src = g.material != null ? g.material : g.defaultMaterial;
-            if (src == null)
-                return null;
+            if (g is TMP_Text tmp)
+            {
+                mat = tmp.fontMaterial;
+                if (mat == null)
+                    return null;
+            }
+            else
+            {
+                var src = g.material != null ? g.material : g.defaultMaterial;
+                if (src == null)
+                    return null;
 
-            mat = new Material(src);
-            g.material = mat;
+                mat = new Material(src);
+                g.material = mat;
+            }
+        }
+        catch (System.Exception)
+        {
+            return null;
         }
 
         Cache[g] = mat;

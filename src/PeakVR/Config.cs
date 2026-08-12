@@ -9,6 +9,7 @@ public class Config
 
     public ConfigEntry<string> OpenXRRuntime { get; }
     public ConfigEntry<bool> EnableVerboseLogging { get; }
+    public ConfigEntry<bool> ReacquireAudioDevice { get; }
 
     public ConfigEntry<bool> SmoothTurn { get; }
     public ConfigEntry<float> SnapTurnAngle { get; }
@@ -57,6 +58,12 @@ public class Config
 
         EnableVerboseLogging = file.Bind("VR", "Verbose Logging", false,
             "Enables verbose debug logging during OpenXR initialization.");
+
+        ReacquireAudioDevice = file.Bind("VR", "Reacquire Audio Device", false,
+            "Troubleshooting only. Re-initialises Unity's audio output when the headset session becomes focused so "
+            + "the game re-reads the current Windows default playback device. Only try this if you get NO sound in "
+            + "the headset - the re-initialise can itself silence audio that was working. Does NOT choose a device: "
+            + "set the headset as the Windows default output for that.");
 
         SmoothTurn = file.Bind("Comfort", "Smooth Turn", false,
             "Turn smoothly with the right stick instead of snapping by a fixed angle.");

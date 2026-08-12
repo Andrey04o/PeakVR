@@ -63,6 +63,7 @@ public partial class Plugin : BaseUnityPlugin
         DebugButtons = args.Contains("-vr-debugbuttons", StringComparer.OrdinalIgnoreCase);
 
         VRNetworking.CreateReceiver();
+        VRModCanvas.Create();
 
         PeakAssets.Load();
 

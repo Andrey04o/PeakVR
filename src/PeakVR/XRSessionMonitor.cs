@@ -30,7 +30,17 @@ internal class XRSessionMonitor : OpenXRFeature
         _ => s.ToString()
     };
 
-    public override void OnSessionStateChange(int oldState, int newState) => Log($"state {StateName(oldState)} -> {StateName(newState)}");
+    public override void OnSessionStateChange(int oldState, int newState)
+    {
+        Log($"state {StateName(oldState)} -> {StateName(newState)}");
+
+        if (newState != 5)
+            return;
+
+        VRAudio.Subscribe();
+        VRAudio.ReacquireOutputDevice();
+    }
+
     public override void OnSessionExiting(ulong xrSession) => Log("OnSessionExiting");
     public override void OnSessionLossPending(ulong xrSession) => Log("OnSessionLossPending");
     public override void OnInstanceLossPending(ulong xrInstance) => Log("OnInstanceLossPending");

@@ -75,6 +75,8 @@ internal class VRMenuPopup : MonoBehaviour
             return false;
         if (c.GetComponentInParent<LoadingScreen>() != null)
             return false;
+        if (!VRCanvasOwner.IsGame(c))
+            return false;
 
         // A Zorro Modal (DontDestroyOnLoad singleton) sits ACTIVE-but-closed on the menu after
         // returning from a level; its canvas is a CHILD of the Modal root, so check the parent.

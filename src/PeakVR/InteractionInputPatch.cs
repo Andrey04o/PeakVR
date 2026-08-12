@@ -170,6 +170,7 @@ internal static class InteractionInputPatch
         {
             scrollDir = dir;
             scrollTickTime = now;
+            input.scrollInput = dir;
 
             if (dir > 0)
                 input.scrollForwardWasPressed = true;
