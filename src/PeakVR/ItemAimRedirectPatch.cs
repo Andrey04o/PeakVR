@@ -59,6 +59,15 @@ internal static class ItemAimRedirectPatch
             }
             else if (c.operand is MethodInfo m && m.Name == "GetMiddleScreenRay")
             {
+                if (!m.IsStatic)
+                {
+                    if (i == 0 || codes[i - 1].opcode != OpCodes.Ldarg_0)
+                        continue;
+
+                    codes[i - 1].opcode = OpCodes.Nop;
+                    codes[i - 1].operand = null;
+                }
+
                 c.opcode = OpCodes.Call;
                 c.operand = getRayMethod;
             }

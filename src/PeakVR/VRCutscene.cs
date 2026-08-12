@@ -13,6 +13,7 @@ internal static class VRCutscene
 
     private static readonly List<GameObject> Roots = new();
     private static readonly List<Camera> Cameras = new();
+    private static readonly Dictionary<int, int> lastEnabled = new();
     private static Transform lastKnown;
     private static int rootMask;
 
@@ -20,8 +21,11 @@ internal static class VRCutscene
     {
         Roots.Clear();
         Cameras.Clear();
+        logged.Clear();
+        lastEnabled.Clear();
         lastKnown = null;
         rootMask = -1;
+        repairs = 0;
 
         foreach (var field in typeof(PeakHandler).GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
         {
@@ -58,14 +62,37 @@ internal static class VRCutscene
             Rescan();
         }
 
+        EnforceSink();
+
+        Camera pick = null;
+        var newest = -1;
+
         foreach (var c in Cameras)
         {
-            if (c == null || !c.isActiveAndEnabled)
+            if (c == null || !c.gameObject.activeInHierarchy)
                 continue;
 
-            lastKnown = c.transform;
-            return lastKnown;
+            var id = c.GetInstanceID();
+
+            if (c.enabled)
+            {
+                if (!lastEnabled.ContainsKey(id))
+                    Plugin.Log.LogInfo($"[PeakVR] Cutscene: suppressing camera '{c.name}' parent='{(c.transform.parent != null ? c.transform.parent.name : "none")}'");
+
+                lastEnabled[id] = Time.frameCount;
+                c.enabled = false;
+            }
+
+            var seen = lastEnabled.TryGetValue(id, out var frame) ? frame : -1;
+            if (seen > newest)
+            {
+                newest = seen;
+                pick = c;
+            }
         }
+
+        if (pick != null)
+            lastKnown = pick.transform;
 
         return lastKnown;
     }
@@ -92,7 +119,7 @@ internal static class VRCutscene
         Camera active = null;
         foreach (var c in Cameras)
         {
-            if (c == null || !c.isActiveAndEnabled)
+            if (c == null || !c.gameObject.activeInHierarchy)
                 continue;
 
             active = c;
@@ -106,6 +133,69 @@ internal static class VRCutscene
             MainCamera.instance.cam.cullingMask = (active != null ? active : Cameras[0]).cullingMask;
 
         Plugin.Log.LogInfo($"[PeakVR] Cutscene: {Cameras.Count} camera(s), active='{(active != null ? active.name : "none yet")}'");
+    }
+
+    private static Camera[] buffer = new Camera[16];
+    private static readonly HashSet<int> logged = new();
+    private static int repairs;
+
+    private static void EnforceSink()
+    {
+        var ours = MainCamera.instance != null ? MainCamera.instance.cam : null;
+        if (ours == null)
+            return;
+
+        KeepOursPresenting(ours);
+
+        var count = Camera.allCamerasCount;
+        if (buffer.Length < count)
+            buffer = new Camera[count];
+
+        Camera.GetAllCameras(buffer);
+
+        for (var i = 0; i < count; i++)
+        {
+            var c = buffer[i];
+            if (c == null || c == ours || c.targetTexture != null)
+                continue;
+
+            if (logged.Add(c.GetInstanceID()))
+                Plugin.Log.LogInfo($"[PeakVR] Cutscene: sinking '{c.name}' parent='{(c.transform.parent != null ? c.transform.parent.name : "none")}' depth={c.depth} eye={c.stereoTargetEye}");
+
+            Neuter(c);
+        }
+    }
+
+    private static void KeepOursPresenting(Camera ours)
+    {
+        var repaired = string.Empty;
+
+        if (!ours.gameObject.activeSelf)
+        {
+            ours.gameObject.SetActive(true);
+            repaired += " gameObject";
+        }
+
+        if (!ours.enabled)
+        {
+            ours.enabled = true;
+            repaired += " enabled";
+        }
+
+        if (ours.targetTexture != null)
+        {
+            ours.targetTexture = null;
+            repaired += " targetTexture";
+        }
+
+        if (ours.stereoTargetEye != StereoTargetEyeMask.Both)
+        {
+            ours.stereoTargetEye = StereoTargetEyeMask.Both;
+            repaired += " stereoTargetEye";
+        }
+
+        if (repaired.Length > 0 && repairs++ < 10)
+            Plugin.Log.LogWarning($"[PeakVR] Cutscene: VR camera was taken away, restored:{repaired}");
     }
 
     private static void Neuter(Camera c)
