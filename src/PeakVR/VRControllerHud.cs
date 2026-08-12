@@ -29,10 +29,16 @@ internal class VRControllerHud : MonoBehaviour
 
     public static bool LeftTriggerConsumed { get; private set; }
 
+    public static Transform LeftHud => instance != null && instance.left != null ? instance.left.transform : null;
+
+    private static VRControllerHud instance;
+
     internal static Canvas LeftHudCanvas;
 
     private Canvas left;
     private Canvas right;
+
+    private void Awake() => instance = this;
     private bool moved;
 
     private readonly List<CellTarget> targets = new();

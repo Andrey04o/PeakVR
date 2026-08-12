@@ -10,6 +10,8 @@ public class Config
     public ConfigEntry<string> OpenXRRuntime { get; }
     public ConfigEntry<bool> EnableVerboseLogging { get; }
     public ConfigEntry<bool> ReacquireAudioDevice { get; }
+    public ConfigEntry<bool> ModForegroundUI { get; }
+    public ConfigEntry<bool> ModUIOnLeftHand { get; }
 
     public ConfigEntry<bool> SmoothTurn { get; }
     public ConfigEntry<float> SnapTurnAngle { get; }
@@ -58,6 +60,14 @@ public class Config
 
         EnableVerboseLogging = file.Bind("VR", "Verbose Logging", false,
             "Enables verbose debug logging during OpenXR initialization.");
+
+        ModForegroundUI = file.Bind("VR", "Other Mods UI In VR", true,
+            "Pull flat screen-space UI created by other mods into VR as a head-locked foreground panel. "
+            + "Turn off to leave it alone (it will then be invisible in the headset).");
+
+        ModUIOnLeftHand = file.Bind("VR", "sPEAKer UI On Left Hand", true,
+            "Move the sPEAKer music HUD (timer, current song, mixtape name and icon) onto the left wrist "
+            + "instead of leaving it head-locked. Requires the sPEAKer mod.");
 
         ReacquireAudioDevice = file.Bind("VR", "Reacquire Audio Device", false,
             "Troubleshooting only. Re-initialises Unity's audio output when the headset session becomes focused so "

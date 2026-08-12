@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
 
@@ -53,7 +54,30 @@ internal static class VRAudio
             return;
 
         reacquired = true;
+        Reload();
+    }
+
+    public static void WatchSetting()
+    {
+        if (Plugin.Config == null)
+            return;
+
+        Plugin.Config.ReacquireAudioDevice.SettingChanged += (_, _) =>
+        {
+            if (!Plugin.Config.ReacquireAudioDevice.Value)
+                return;
+
+            Plugin.Log.LogInfo("[PeakVR][Audio] Reacquire toggled on — reloading the audio output now");
+            reacquired = true;
+            Reload();
+        };
+    }
+
+    private static void Reload()
+    {
         Report("before reset");
+
+        var resume = Capture();
 
         if (!AudioSettings.Reset(AudioSettings.GetConfiguration()))
         {
@@ -61,8 +85,50 @@ internal static class VRAudio
             return;
         }
 
+        var restarted = Restore(resume);
+
         Report("after reset");
-        Plugin.Log.LogInfo("[PeakVR][Audio] Audio output re-acquired (Unity re-reads the current Windows default device)");
+        Plugin.Log.LogInfo($"[PeakVR][Audio] Audio output re-acquired, resumed {restarted}/{resume.Count} playing source(s)");
+    }
+
+    private static List<(AudioSource source, float time, bool loop)> Capture()
+    {
+        var playing = new List<(AudioSource, float, bool)>();
+
+        foreach (var source in UnityEngine.Object.FindObjectsByType<AudioSource>(FindObjectsSortMode.None))
+        {
+            if (source == null || !source.isPlaying || source.clip == null)
+                continue;
+
+            playing.Add((source, source.time, source.loop));
+        }
+
+        return playing;
+    }
+
+    private static int Restore(List<(AudioSource source, float time, bool loop)> playing)
+    {
+        var restarted = 0;
+
+        foreach (var (source, time, loop) in playing)
+        {
+            if (source == null || source.clip == null || source.isPlaying)
+                continue;
+
+            try
+            {
+                source.time = Mathf.Clamp(time, 0f, Mathf.Max(0f, source.clip.length - 0.01f));
+                source.loop = loop;
+                source.Play();
+                restarted++;
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning($"[PeakVR][Audio] Could not resume '{source.name}': {e.Message}");
+            }
+        }
+
+        return restarted;
     }
 
     public static void Reset() => reacquired = false;

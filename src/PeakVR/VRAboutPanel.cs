@@ -10,6 +10,8 @@ internal static class VRAboutPanel
 {
     private const string GithubUrl = "https://github.com/Andrey04o/PeakVR";
     private const string ItchUrl = "https://andrey04o.itch.io/";
+    private const string BoostyUrl = "https://boosty.to/04o";
+    private const string PatreonUrl = "https://www.patreon.com/cw/04o";
 
     private static PeakCustomPage page;
 
@@ -54,30 +56,35 @@ internal static class VRAboutPanel
                 "Is the game lagging and has low FPS?\nTry switching to DirectX 11: add \"-force-d3d11\" to the launch options.",
                 104f, 22f, new Color(1f, 0.85f, 0.2f));
 
-        LinkButton(page, "GitHub   —   github.com/Andrey04o/PeakVR", 70f + dy, GithubUrl);
-        LinkButton(page, "My other games   —   andrey04o.itch.io", -20f + dy, ItchUrl);
-        Label(page, "Links open in your desktop web browser.", -80f + dy, 22f, new Color(0.6f, 0.6f, 0.62f));
+        LinkButton(page, "GitHub   —   github.com/Andrey04o/PeakVR", 70f + dy, GithubUrl, 0f, 820f);
+        LinkButton(page, "My other games   —   andrey04o.itch.io", -20f + dy, ItchUrl, 0f, 820f);
+
+        Label(page, "You can support me", -78f + dy, 26f, Color.white);
+        LinkButton(page, "Boosty", -128f + dy, BoostyUrl, -206f, 396f);
+        LinkButton(page, "Patreon", -128f + dy, PatreonUrl, 206f, 396f);
+
+        Label(page, "Links open in your desktop web browser.", -180f + dy, 22f, new Color(0.6f, 0.6f, 0.62f));
 
         var close = MenuAPI.CreateButton("Close");
         close.ParentTo(page.transform);
-        Place(close.RectTransform, new Vector2(0f, -165f + dy), new Vector2(320f, 72f));
+        Place(close.RectTransform, new Vector2(0f, -245f + dy), new Vector2(320f, 72f));
         close.OnClick(() => page.Close());
 
         var credit = new Color(0.72f, 0.72f, 0.74f);
-        Label(page, "Used Assets", -240f + dy, 28f, Color.white);
-        Label(page, "VR controller FBX model — Unity VR Template", -280f + dy, 22f, credit);
+        Label(page, "Used Assets", -310f + dy, 28f, Color.white);
+        Label(page, "VR controller FBX model — Unity VR Template", -348f + dy, 22f, credit);
         Label(page, "Input Prompts (1.5A) — created/distributed by Kenney (www.kenney.nl)",
-            -318f + dy, 22f, credit);
-        Label(page, "License: Creative Commons Zero (CC0)", -352f + dy, 22f, credit);
+            -384f + dy, 22f, credit);
+        Label(page, "License: Creative Commons Zero (CC0)", -418f + dy, 22f, credit);
 
         return page;
     }
 
-    private static void LinkButton(PeakCustomPage page, string text, float y, string url)
+    private static void LinkButton(PeakCustomPage page, string text, float y, string url, float x, float width)
     {
         var button = MenuAPI.CreateButton(text);
         button.ParentTo(page.transform);
-        Place(button.RectTransform, new Vector2(0f, y), new Vector2(820f, 74f));
+        Place(button.RectTransform, new Vector2(x, y), new Vector2(width, 74f));
         button.OnClick(() => Application.OpenURL(url));
     }
 

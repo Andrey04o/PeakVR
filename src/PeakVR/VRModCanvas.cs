@@ -33,17 +33,22 @@ internal class VRModCanvas : MonoBehaviour
     [BeforeRenderOrder(1000)]
     private void OnBeforeRender()
     {
-        if (!Plugin.VrEnabled || adopted.Count == 0)
+        if (!Plugin.VrEnabled)
             return;
 
         var cam = MainCamera.instance != null ? MainCamera.instance.cam : null;
         if (cam != null)
             Follow(cam);
+
+        VRModHandUI.Follow();
     }
 
     private void LateUpdate()
     {
-        if (!Plugin.VrEnabled || ++frame % ScanInterval != 0)
+        if (!Plugin.VrEnabled || Plugin.Config == null || !Plugin.Config.ModForegroundUI.Value)
+            return;
+
+        if (++frame % ScanInterval != 0)
             return;
 
         var cam = MainCamera.instance != null ? MainCamera.instance.cam : null;
@@ -125,6 +130,7 @@ internal class VRModCanvas : MonoBehaviour
             if (c.worldCamera == null)
                 c.worldCamera = cam;
 
+            VRModHandUI.Claim(c);
             UIOverlay.MakeAlwaysVisible(c, true);
         }
     }

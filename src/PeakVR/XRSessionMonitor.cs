@@ -38,6 +38,7 @@ internal class XRSessionMonitor : OpenXRFeature
             return;
 
         VRAudio.Subscribe();
+        VRAudio.WatchSetting();
         VRAudio.ReacquireOutputDevice();
     }
 
