@@ -1,5 +1,6 @@
 using HarmonyLib;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace PeakVR;
 
@@ -19,8 +20,15 @@ internal class VRLoadingScreen : MonoBehaviour
     private const float Scale = 0.003f;
     private const float Distance = 3f;
 
+    private const float CoverScale = 0.004f;
+    private const float CoverDistance = 0.4f;
+    private const int CoverQueue = 3004;
+
     private LoadingScreen loadingScreen;
     private bool converted;
+
+    private Canvas cover;
+    private Image coverFill;
 
     private void Awake()
     {
@@ -31,13 +39,21 @@ internal class VRLoadingScreen : MonoBehaviour
     {
         if (!Plugin.VrEnabled || loadingScreen == null || loadingScreen.canvas == null)
             return;
-        if (!loadingScreen.canvas.enabled)
-            return;
 
         var cam = Camera.main;
         if (cam == null && MainCamera.instance != null)
             cam = MainCamera.instance.cam;
         if (cam == null)
+            return;
+
+        var showing = loadingScreen.canvas.enabled;
+        var alpha = !showing ? 0f
+            : loadingScreen.group != null ? loadingScreen.group.alpha
+            : 1f;
+
+        UpdateCover(cam, alpha);
+
+        if (!showing)
             return;
 
         if (!converted)
@@ -53,5 +69,82 @@ internal class VRLoadingScreen : MonoBehaviour
         rt.localScale = Vector3.one * Scale;
         rt.position = head.position + head.forward * Distance;
         rt.rotation = head.rotation;
+    }
+
+    private void UpdateCover(Camera cam, float alpha)
+    {
+        if (alpha <= 0.001f)
+        {
+            if (cover != null && cover.enabled)
+                cover.enabled = false;
+            return;
+        }
+
+        if (!EnsureCover(cam))
+            return;
+
+        var color = BackgroundColor();
+        color.a = alpha;
+        coverFill.color = color;
+
+        if (!cover.enabled)
+            cover.enabled = true;
+    }
+
+    private bool EnsureCover(Camera cam)
+    {
+        if (cover != null)
+            return true;
+
+        var go = new GameObject("PeakVR LoadingCover");
+        go.transform.SetParent(cam.transform, false);
+        go.transform.localPosition = new Vector3(0f, 0f, CoverDistance);
+        go.transform.localRotation = Quaternion.identity;
+        go.transform.localScale = Vector3.one * CoverScale;
+
+        cover = go.AddComponent<Canvas>();
+        cover.renderMode = RenderMode.WorldSpace;
+        cover.worldCamera = cam;
+
+        var rt = (RectTransform)cover.transform;
+        rt.sizeDelta = new Vector2(2000f, 2000f);
+
+        var fill = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        fill.transform.SetParent(rt, false);
+
+        coverFill = fill.GetComponent<Image>();
+        coverFill.raycastTarget = false;
+
+        var frt = coverFill.rectTransform;
+        frt.anchorMin = Vector2.zero;
+        frt.anchorMax = Vector2.one;
+        frt.sizeDelta = Vector2.zero;
+        frt.anchoredPosition = Vector2.zero;
+
+        UIOverlay.MakeAlwaysVisible(cover, CoverQueue);
+        Plugin.Log.LogInfo($"[PeakVR] Loading screen cover created (colour {BackgroundColor()})");
+        return true;
+    }
+
+    private Color BackgroundColor()
+    {
+        Image best = null;
+        var bestArea = 0f;
+
+        foreach (var img in loadingScreen.canvas.GetComponentsInChildren<Image>(true))
+        {
+            if (img == null || img == coverFill || img.sprite != null)
+                continue;
+
+            var rect = img.rectTransform.rect;
+            var area = rect.width * rect.height;
+            if (area <= bestArea)
+                continue;
+
+            bestArea = area;
+            best = img;
+        }
+
+        return best != null ? best.color : Color.black;
     }
 }
