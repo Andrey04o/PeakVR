@@ -32,7 +32,8 @@ internal static class VRCanvasOwner
 
             var name = behaviour.GetType().Assembly.GetName().Name;
             if (!name.StartsWith("Assembly-CSharp", StringComparison.OrdinalIgnoreCase)
-                && !name.StartsWith("Zorro", StringComparison.OrdinalIgnoreCase))
+                && !name.StartsWith("Zorro", StringComparison.OrdinalIgnoreCase)
+                && name.IndexOf("PEAKLib", StringComparison.OrdinalIgnoreCase) < 0)
                 continue;
 
             owner = name;

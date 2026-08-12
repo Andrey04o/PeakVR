@@ -29,6 +29,8 @@ internal class VRLoadingScreen : MonoBehaviour
 
     private Canvas cover;
     private Image coverFill;
+    private Color background = Color.black;
+    private bool sampled;
 
     private void Awake()
     {
@@ -128,12 +130,18 @@ internal class VRLoadingScreen : MonoBehaviour
 
     private Color BackgroundColor()
     {
+        if (sampled)
+            return background;
+
+        sampled = true;
+        background = Color.black;
+
         Image best = null;
         var bestArea = 0f;
 
         foreach (var img in loadingScreen.canvas.GetComponentsInChildren<Image>(true))
         {
-            if (img == null || img == coverFill || img.sprite != null)
+            if (img == null || img.color.a < 0.1f)
                 continue;
 
             var rect = img.rectTransform.rect;
@@ -145,6 +153,59 @@ internal class VRLoadingScreen : MonoBehaviour
             best = img;
         }
 
-        return best != null ? best.color : Color.black;
+        if (best == null)
+            return background;
+
+        background = best.sprite != null ? Sample(best.sprite) * best.color : best.color;
+        background.a = 1f;
+
+        Plugin.Log.LogInfo($"[PeakVR] Loading cover colour {background} from '{best.name}' " +
+            $"(sprite={(best.sprite != null ? best.sprite.name : "none")})");
+
+        return background;
+    }
+
+    private static Color Sample(Sprite sprite)
+    {
+        RenderTexture rt = null;
+        Texture2D readback = null;
+        var previous = RenderTexture.active;
+
+        try
+        {
+            var texture = sprite.texture;
+            var region = sprite.textureRect;
+
+            var scale = new Vector2(region.width / texture.width, region.height / texture.height);
+            var offset = new Vector2(region.x / texture.width, region.y / texture.height);
+
+            rt = RenderTexture.GetTemporary(8, 8, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+            Graphics.Blit(texture, rt, scale, offset);
+
+            RenderTexture.active = rt;
+            readback = new Texture2D(8, 8, TextureFormat.RGBA32, false);
+            readback.ReadPixels(new Rect(0f, 0f, 8f, 8f), 0, 0);
+            readback.Apply();
+
+            var sum = Color.clear;
+            var pixels = readback.GetPixels();
+            foreach (var p in pixels)
+                sum += p;
+
+            return sum / pixels.Length;
+        }
+        catch (System.Exception e)
+        {
+            Plugin.Log.LogWarning($"[PeakVR] Could not sample loading sprite '{sprite.name}': {e.Message}");
+            return Color.black;
+        }
+        finally
+        {
+            RenderTexture.active = previous;
+            if (rt != null)
+                RenderTexture.ReleaseTemporary(rt);
+            if (readback != null)
+                Destroy(readback);
+        }
     }
 }

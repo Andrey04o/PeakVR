@@ -62,6 +62,8 @@ internal class VRModCanvas : MonoBehaviour
     private void Follow(Camera cam)
     {
         var head = cam.transform;
+        var menu = MenuCanvasPatch.MenuCanvas;
+        var atMenu = menu != null && menu.isActiveAndEnabled;
 
         for (var i = adopted.Count - 1; i >= 0; i--)
         {
@@ -79,6 +81,15 @@ internal class VRModCanvas : MonoBehaviour
             }
 
             var rt = (RectTransform)c.transform;
+
+            if (atMenu)
+            {
+                var mt = menu.transform;
+                rt.SetPositionAndRotation(mt.position, mt.rotation);
+                rt.localScale = mt.localScale;
+                continue;
+            }
+
             rt.SetPositionAndRotation(head.TransformPoint(0f, 0f, Distance), head.rotation);
             rt.localScale = Vector3.one * Scale;
         }
