@@ -30,6 +30,9 @@ internal class VRItemCollision : MonoBehaviour
 
     private void Apply(Character character, Item item)
     {
+        if (item.GetComponentInChildren<Peak.Action_Antizooka>(true) == null)
+            return;
+
         var ragdoll = character.refs != null ? character.refs.ragdoll : null;
         if (ragdoll == null || ragdoll.colliderList == null)
             return;
