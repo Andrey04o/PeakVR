@@ -63,7 +63,7 @@ internal class VRHeadRig : MonoBehaviour
     private Vector2 physVel;
 
     private Transform cutsceneSource;
-    private float cutsceneYaw;
+    private float cutsceneHeadYaw;
     private Vector3 cutsceneHeadOffset;
 
     private float hmdRef;
@@ -244,15 +244,14 @@ internal class VRHeadRig : MonoBehaviour
         if (cutsceneSource != cutsceneCam)
         {
             cutsceneSource = cutsceneCam;
-            cutsceneYaw = FlatYaw(cutsceneCam.rotation) - (tracked ? FlatYaw(headRot) : 0f);
+            cutsceneHeadYaw = tracked ? FlatYaw(headRot) : 0f;
             cutsceneHeadOffset = tracked ? headPos : Vector3.zero;
 
-            Plugin.Log.LogInfo($"[PeakVR] Cutscene cam '{cutsceneCam.name}': yaw={cutsceneYaw:F1} " +
-                $"tracked={tracked} driver={(headDriver == null ? "null" : headDriver.enabled.ToString())} " +
-                $"head={headPos} {headRot.eulerAngles}");
+            Plugin.Log.LogInfo($"[PeakVR] Cutscene cam '{cutsceneCam.name}': headYaw={cutsceneHeadYaw:F1} " +
+                $"tracked={tracked} head={headPos} {headRot.eulerAngles}");
         }
 
-        var rigRot = Quaternion.Euler(0f, cutsceneYaw, 0f);
+        var rigRot = cutsceneCam.rotation * Quaternion.Euler(0f, -cutsceneHeadYaw, 0f);
 
         transform.localScale = Vector3.one * HandScale;
         transform.SetPositionAndRotation(
