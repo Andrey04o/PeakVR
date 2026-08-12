@@ -170,13 +170,26 @@ internal static class InteractionInputPatch
         {
             scrollDir = dir;
             scrollTickTime = now;
-            input.scrollInput = dir;
+
+            if (!UsesScrollButtons())
+                input.scrollInput = dir;
 
             if (dir > 0)
                 input.scrollForwardWasPressed = true;
             else
                 input.scrollBackwardWasPressed = true;
         }
+    }
+
+    private static bool UsesScrollButtons()
+    {
+        var character = Character.localCharacter;
+        var item = character != null && character.data != null ? character.data.currentItem : null;
+        if (item == null)
+            return false;
+
+        return item.OnScrollForwardPressed != null || item.OnScrollBackwardPressed != null
+            || item.OnScrollForwardHeld != null || item.OnScrollBackwardHeld != null;
     }
 
     private static void Inject(InputAction action, ref bool wasPressed, ref bool isPressed, ref bool wasReleased)

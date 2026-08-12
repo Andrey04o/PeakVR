@@ -23,6 +23,7 @@ Running the mod using r2modman can be done simply by clicking "Start Modded", wh
 
 | Mod version | Tested game version |
 | --- | --- |
+| 1.4.0 | 2.0.a |
 | 1.3.0 | 1.65.a |
 | 1.2.0 | 1.65.a |
 | 1.1.0 | 1.64.a and 0.65.d (beta) |

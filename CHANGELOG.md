@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.4.0
+
+- Updated for the latest PEAK
+- Added: Foreground UI - the interface is no longer cut off by world objects. Can be turned off in "VR Graphics"
+- Added: UI from other mods is now visible in VR. New "Other Mods UI In VR" setting
+- Added: The sPEAKer music mod's HUD can be moved onto your left wrist. New "sPEAKer UI On Left Hand" setting
+- Added: Loading screens now fill the whole view
+- Added: "Far Plane Culling Distance" setting
+- Added: "Reacquire Audio Device" setting - an experiment to fix the game audio for people who hear nothing in the headset. It reloads the audio output and resumes what was playing. It might not help. Off by default
+- Added: Support links (Boosty and Patreon) in the About window
+- Changed: The Anti Bazooka is held by the VR controller
+- Changed: "Make Image Sharper" is now on by default, and is turned on once when you update
+- Changed: Improved the ending cutscenes - they now set your view camera
+- Fixed: Rescue hook spamming errors
+- Fixed: The sPEAKer mod breaking main menu interaction
+- Fixed: Binoculars not showing the fog on every island
+
 ## 1.3.0
 
 - Added: Binoculars for VR

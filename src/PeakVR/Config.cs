@@ -143,7 +143,7 @@ public class Config
                 new AcceptableValueRange<float>(0.5f, 5f)));
         LodBias.SettingChanged += (_, _) => UnityEngine.QualitySettings.lodBias = LodBias.Value;
 
-        SharpenImage = file.Bind("VR Graphics", "Make Image Sharper", "Disable",
+        SharpenImage = file.Bind("VR Graphics", "Make Image Sharper", "Enable",
             new ConfigDescription(
                 "Sharpen the VR image: disables temporal anti-aliasing (TAA) and MSAA and uses a spatial " +
                 "(Linear) upscaler. TAA in particular blurs the image in a VR headset. Disable to keep the " +
@@ -217,5 +217,32 @@ public class Config
         OpenXRRuntimeFile.Value = OpenXR.ResolveRuntimePath(OpenXRRuntime.Value);
         OpenXRRuntime.SettingChanged += (_, _) =>
             OpenXRRuntimeFile.Value = OpenXR.ResolveRuntimePath(OpenXRRuntime.Value);
+
+        ConfigVersion = file.Bind("Internal", "ConfigVersion", 0,
+            new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT", null, "Hidden"));
+
+        Migrate(file);
+    }
+
+    private const int CurrentConfigVersion = 1;
+
+    public ConfigEntry<int> ConfigVersion { get; }
+
+    private void Migrate(ConfigFile file)
+    {
+        var from = ConfigVersion.Value;
+        if (from >= CurrentConfigVersion)
+            return;
+
+        if (from < 1 && SharpenImage.Value != "Enable")
+        {
+            SharpenImage.Value = "Enable";
+            PeakVR.Plugin.Log.LogInfo("[PeakVR] Config update: turned on \"Make Image Sharper\" (it is now on by default)");
+        }
+
+        ConfigVersion.Value = CurrentConfigVersion;
+        file.Save();
+
+        PeakVR.Plugin.Log.LogInfo($"[PeakVR] Config migrated {from} -> {CurrentConfigVersion}");
     }
 }
