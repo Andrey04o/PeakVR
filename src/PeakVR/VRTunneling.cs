@@ -139,11 +139,14 @@ internal class VRTunneling : MonoBehaviour
 
         var speed = character.data.avarageVelocity.magnitude;
 
-        logTimer += Time.deltaTime;
-        if (logTimer >= LogInterval && speed > 0.05f)
+        if (Plugin.Config.EnableVerboseLogging.Value)
         {
-            logTimer = 0f;
-            Plugin.Log.LogInfo($"[PeakVR][Tunnel] speed={speed:F2} current={current:F2}");
+            logTimer += Time.deltaTime;
+            if (logTimer >= LogInterval && speed > 0.05f)
+            {
+                logTimer = 0f;
+                Plugin.Log.LogInfo($"[PeakVR][Tunnel] speed={speed:F2} current={current:F2}");
+            }
         }
 
         var turning = Plugin.Config.SmoothTurn.Value && VRControls.TurnStick != null
