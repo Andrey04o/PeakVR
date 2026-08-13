@@ -13,6 +13,9 @@ public class Config
     public ConfigEntry<bool> ModForegroundUI { get; }
     public ConfigEntry<bool> ModUIOnLeftHand { get; }
 
+    public ConfigEntry<bool> ImmersiveHands { get; }
+    public ConfigEntry<float> ThrowStrength { get; }
+
     public ConfigEntry<bool> SmoothTurn { get; }
     public ConfigEntry<float> SnapTurnAngle { get; }
     public ConfigEntry<float> SmoothTurnSpeed { get; }
@@ -74,6 +77,17 @@ public class Config
             + "the game re-reads the current Windows default playback device. Only try this if you get NO sound in "
             + "the headset - the re-initialise can itself silence audio that was working. Does NOT choose a device: "
             + "set the headset as the Windows default output for that.");
+
+        ImmersiveHands = file.Bind("Immersive", "Immersive Hand Interactions", true,
+            "Grab items by squeezing the right grip and keep holding it. Letting go releases the item with "
+            + "the speed of your hand, so you throw by flicking your arm. Turn off to go back to the old "
+            + "behaviour, where the grip is a plain interact button and throwing is charged with the left grip.");
+
+        ThrowStrength = file.Bind("Immersive", "Throw Strength", 1.5f,
+            new ConfigDescription(
+                "Multiplier from your real hand speed to the thrown item's speed. Raise it if items land "
+                + "short of where you aimed. Only applies with Immersive Hand Interactions on.",
+                new AcceptableValueRange<float>(0.5f, 4f)));
 
         SmoothTurn = file.Bind("Comfort", "Smooth Turn", false,
             "Turn smoothly with the right stick instead of snapping by a fixed angle.");
