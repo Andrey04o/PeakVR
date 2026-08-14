@@ -17,8 +17,21 @@ internal class VRGrab : MonoBehaviour
     private const float MinThrowSpeed = 0.5f;
     private const float ChargeMarker = 1f;
     private const float AnimateChargeAbove = 0.1f;
+    private const float GrabRange = 0.3f;
+    private const float MaxGripOffset = 0.35f;
+    private const float CaptureTimeout = 3f;
 
     private static VRGrab instance;
+
+    private static bool captured;
+    private static ushort capturedId;
+    private static float capturedAt;
+    private static Vector3 capturedDir;
+    private static Quaternion capturedRot;
+
+    private static Item gripItem;
+    private static Vector3 gripDir;
+    private static Quaternion gripRot;
 
     private readonly Vector3[] positions = new Vector3[SampleCount];
     private readonly float[] times = new float[SampleCount];
@@ -27,6 +40,7 @@ internal class VRGrab : MonoBehaviour
 
     private Item latched;
     private Item heldAtPress;
+    private Item lastHeld;
     private bool watching;
     private bool relatchCheck;
     private bool interactAllowed = true;
@@ -99,6 +113,16 @@ internal class VRGrab : MonoBehaviour
 
         var held = character.data.currentItem;
 
+        if (held != lastHeld)
+        {
+            lastHeld = held;
+            if (held != gripItem)
+                gripItem = null;
+        }
+
+        if (captured && Time.time - capturedAt > CaptureTimeout)
+            captured = false;
+
         if (latched != null && latched != held)
             latched = null;
 
@@ -144,6 +168,125 @@ internal class VRGrab : MonoBehaviour
         }
 
         interactAllowed = latched == null;
+    }
+
+    public static void Capture(Item target)
+    {
+        if (!Enabled || target == null)
+            return;
+
+        if (Excluded(target))
+        {
+            Log($"skip '{target.name}' - excluded item");
+            return;
+        }
+
+        var character = Character.localCharacter;
+        var bone = character != null ? character.GetBodypartRig(BodypartType.Hand_R) : null;
+        if (bone == null)
+        {
+            Log($"skip '{target.name}' - no hand bone");
+            return;
+        }
+
+        var handPos = bone.transform.position;
+        var handRot = bone.transform.rotation;
+        var distance = Distance(target, handPos);
+
+        if (distance > GrabRange)
+        {
+            Log($"skip '{target.name}' - {distance:F2}m away (range {GrabRange:F2})");
+            return;
+        }
+
+        var inv = Quaternion.Inverse(target.transform.rotation);
+        var dir = inv * (handPos - target.transform.position);
+        var raw = dir.magnitude;
+
+        var authored = target.transform.Find("Hand_R");
+        if (authored != null)
+        {
+            var authoredDir = inv * (authored.position - target.transform.position);
+            dir = authoredDir + Vector3.ClampMagnitude(dir - authoredDir, MaxGripOffset);
+        }
+
+        capturedDir = dir;
+        capturedRot = inv * handRot;
+        capturedId = target.itemID;
+        capturedAt = Time.time;
+        captured = true;
+
+        var controller = VRHands.Right;
+        var lag = controller != null ? Vector3.Distance(controller.position, handPos) : 0f;
+
+        Log($"captured '{target.name}' id={capturedId} surface={distance:F2}m offset={raw:F2}->{dir.magnitude:F2}m "
+            + $"rot={capturedRot.eulerAngles} boneLag={lag:F2}m");
+    }
+
+    private static void Log(string message)
+    {
+        if (Plugin.Config != null && Plugin.Config.EnableVerboseLogging.Value)
+            Plugin.Log.LogInfo($"[PeakVR][Grab] {message}");
+    }
+
+    public static bool TryGripOffset(Item item, out Vector3 dir, out Quaternion rot)
+    {
+        dir = default;
+        rot = default;
+
+        if (!Enabled || item == null)
+            return false;
+
+        if (gripItem != item)
+        {
+            if (!captured || item.itemID != capturedId || Time.time - capturedAt > CaptureTimeout)
+                return false;
+
+            gripItem = item;
+            gripDir = capturedDir;
+            gripRot = capturedRot;
+            captured = false;
+
+            Log($"bound '{item.name}' id={item.itemID} after {Time.time - capturedAt:F2}s");
+        }
+
+        dir = gripDir;
+        rot = gripRot;
+        return true;
+    }
+
+    private static bool Excluded(Item item)
+    {
+        if (item.UIData != null && item.UIData.isShootable)
+            return true;
+
+        if (item.GetComponentInChildren<Peak.Action_Antizooka>(true) != null)
+            return true;
+
+        if (item.GetComponentInChildren<Peak.Action_RaycastSpawnSomething>(true) != null)
+            return true;
+
+        return item.GetComponentInChildren<Action_ShowBinocularOverlay>(true) != null;
+    }
+
+    private static float Distance(Item item, Vector3 point)
+    {
+        var best = float.MaxValue;
+
+        foreach (var col in item.GetComponentsInChildren<Collider>(true))
+        {
+            if (col == null || !col.enabled || col.isTrigger)
+                continue;
+
+            var sqr = col is MeshCollider mesh && !mesh.convex
+                ? col.bounds.SqrDistance(point)
+                : (col.ClosestPoint(point) - point).sqrMagnitude;
+
+            if (sqr < best)
+                best = sqr;
+        }
+
+        return best == float.MaxValue ? float.MaxValue : Mathf.Sqrt(best);
     }
 
     private static bool NothingWasInteracted()
