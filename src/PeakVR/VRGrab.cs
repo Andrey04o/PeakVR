@@ -9,6 +9,8 @@ internal class VRGrab : MonoBehaviour
 {
     private const int SampleCount = 16;
     private const int Baseline = 2;
+    private const int DirectionBaseline = 3;
+    private const float DirectionMinSpeed = 0.3f;
     private const float Window = 0.12f;
     private const float MaxThrowSpeed = 25f;
     private const float FullChargeSpeed = 8f;
@@ -235,6 +237,24 @@ internal class VRGrab : MonoBehaviour
             best = v;
         }
 
+        var release = ReleaseDirection();
+        if (release != Vector3.zero)
+            best = release * best.magnitude;
+
         return transform.TransformVector(best);
+    }
+
+    private Vector3 ReleaseDirection()
+    {
+        if (filled <= DirectionBaseline)
+            return Vector3.zero;
+
+        var older = (head - DirectionBaseline + SampleCount) % SampleCount;
+        var dt = times[head] - times[older];
+        if (dt <= 0f)
+            return Vector3.zero;
+
+        var v = (positions[head] - positions[older]) / dt;
+        return v.magnitude < DirectionMinSpeed ? Vector3.zero : v.normalized;
     }
 }
