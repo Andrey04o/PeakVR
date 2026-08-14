@@ -52,6 +52,10 @@ internal class VRGrab : MonoBehaviour
 
     public static bool AllowVanillaDrop => instance == null || !Enabled;
 
+    public static bool LeftHandEnabled => Enabled;
+
+    public static void LeftLog(string message) => Log($"left: {message}");
+
     private void OnEnable() => instance = this;
 
     private void OnDisable()
@@ -160,7 +164,7 @@ internal class VRGrab : MonoBehaviour
             latched = null;
         }
 
-        if (VRControls.LeftGrip != null && VRControls.LeftGrip.WasReleasedThisFrame()
+        if (!LeftHandEnabled && VRControls.LeftGrip != null && VRControls.LeftGrip.WasReleasedThisFrame()
             && held != null && threwFrame != Time.frameCount)
         {
             Throw(character, held);
@@ -203,11 +207,12 @@ internal class VRGrab : MonoBehaviour
         var dir = inv * (handPos - target.transform.position);
         var raw = dir.magnitude;
 
+        var limit = Mathf.Max(MaxGripOffset, Radius(target) + GrabRange);
         var authored = target.transform.Find("Hand_R");
         if (authored != null)
         {
             var authoredDir = inv * (authored.position - target.transform.position);
-            dir = authoredDir + Vector3.ClampMagnitude(dir - authoredDir, MaxGripOffset);
+            dir = authoredDir + Vector3.ClampMagnitude(dir - authoredDir, limit);
         }
 
         capturedDir = dir;
@@ -220,7 +225,7 @@ internal class VRGrab : MonoBehaviour
         var lag = controller != null ? Vector3.Distance(controller.position, handPos) : 0f;
 
         Log($"captured '{target.name}' id={capturedId} surface={distance:F2}m offset={raw:F2}->{dir.magnitude:F2}m "
-            + $"rot={capturedRot.eulerAngles} boneLag={lag:F2}m");
+            + $"limit={limit:F2}m rot={capturedRot.eulerAngles} boneLag={lag:F2}m");
     }
 
     private static void Log(string message)
@@ -267,6 +272,30 @@ internal class VRGrab : MonoBehaviour
             return true;
 
         return item.GetComponentInChildren<Action_ShowBinocularOverlay>(true) != null;
+    }
+
+    private static float Radius(Item item)
+    {
+        var found = false;
+        var bounds = new Bounds();
+
+        foreach (var col in item.GetComponentsInChildren<Collider>(true))
+        {
+            if (col == null || !col.enabled || col.isTrigger)
+                continue;
+
+            if (!found)
+            {
+                bounds = col.bounds;
+                found = true;
+            }
+            else
+            {
+                bounds.Encapsulate(col.bounds);
+            }
+        }
+
+        return found ? bounds.extents.magnitude : 0f;
     }
 
     private static float Distance(Item item, Vector3 point)

@@ -28,6 +28,7 @@ internal class VRControllerHud : MonoBehaviour
     private static readonly Vector3 RightEuler = new(0f, -90f, -90f);
 
     public static bool LeftTriggerConsumed { get; private set; }
+    public static bool LeftPointing { get; private set; }
 
     public static Transform LeftHud => instance != null && instance.left != null ? instance.left.transform : null;
 
@@ -297,6 +298,8 @@ internal class VRControllerHud : MonoBehaviour
         }
 
         SetHover(hitCell);
+
+        LeftPointing = onCell;
 
         if (onCell)
         {

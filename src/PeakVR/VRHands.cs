@@ -14,6 +14,8 @@ internal static class VRHands
 
     private static LineRenderer interactRay;
     private static Material interactRayMat;
+    private static LineRenderer leftInteractRay;
+    private static Material leftInteractRayMat;
     private static bool menuPointersOn;
 
     public static Transform Left { get; private set; }
@@ -26,7 +28,8 @@ internal static class VRHands
 
         Left = CreateHand(rig, "LeftHand", "PeakVR IG Left Hand", out leftLaser);
         Right = CreateHand(rig, "RightHand", "PeakVR IG Right Hand", out rightLaser);
-        interactRay = CreateInteractRay(Right);
+        interactRay = CreateInteractRay(Right, out interactRayMat);
+        leftInteractRay = CreateInteractRay(Left, out leftInteractRayMat);
     }
 
     public static void SetPointersActive(bool on)
@@ -41,33 +44,46 @@ internal static class VRHands
         rightLaser.enabled = on;
         rightLaser.line.enabled = on;
 
-        if (on && interactRay != null)
+        if (!on)
+            return;
+
+        if (interactRay != null)
             interactRay.enabled = false;
+        if (leftInteractRay != null)
+            leftInteractRay.enabled = false;
     }
 
     public static void SetInteractRay(bool show, Vector3 origin, Vector3 end, Color color)
     {
-        if (interactRay == null)
+        SetInteractRay(true, show, origin, end, color);
+    }
+
+    public static void SetInteractRay(bool right, bool show, Vector3 origin, Vector3 end, Color color)
+    {
+        var line = right ? interactRay : leftInteractRay;
+        var mat = right ? interactRayMat : leftInteractRayMat;
+
+        if (line == null)
             return;
 
         if (!show || menuPointersOn)
         {
-            if (interactRay.enabled)
-                interactRay.enabled = false;
+            if (line.enabled)
+                line.enabled = false;
             return;
         }
 
-        interactRay.enabled = true;
-        interactRay.SetPosition(0, origin);
-        interactRay.SetPosition(1, end);
+        line.enabled = true;
+        line.SetPosition(0, origin);
+        line.SetPosition(1, end);
 
-        if (interactRayMat.HasProperty("_BaseColor"))
-            interactRayMat.SetColor("_BaseColor", color);
+        if (mat.HasProperty("_BaseColor"))
+            mat.SetColor("_BaseColor", color);
         else
-            interactRayMat.color = color;
+            mat.color = color;
     }
 
-    private static LineRenderer CreateInteractRay(Transform hand)
+    private static LineRenderer CreateInteractRay(Transform hand, out Material material)
     {
         var obj = new GameObject("PeakVR Interact Ray") { layer = VRLayers.UI };
         obj.transform.SetParent(hand, false);
@@ -80,8 +96,8 @@ internal static class VRHands
         line.startColor = line.endColor = Color.white;
 
         var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
-        interactRayMat = new Material(shader);
-        line.material = interactRayMat;
+        material = new Material(shader);
+        line.material = material;
         line.enabled = false;
         return line;
     }

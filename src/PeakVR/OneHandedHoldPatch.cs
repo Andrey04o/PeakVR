@@ -120,7 +120,9 @@ internal static class OneHandedHoldPatch
         if (!ShouldApply(__instance))
             return true;
 
-        DestroyHandJoint(__instance, BodypartType.Hand_L);
+        if (VRLeftHand.Carried == null || !IsLocalVR(__instance))
+            DestroyHandJoint(__instance, BodypartType.Hand_L);
+
         DestroyHandJoint(__instance, BodypartType.Hand_R);
         return false;
     }
