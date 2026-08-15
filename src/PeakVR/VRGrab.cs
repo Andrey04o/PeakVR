@@ -20,6 +20,7 @@ internal class VRGrab : MonoBehaviour
     private const float GrabRange = 0.3f;
     private const float MaxGripOffset = 0.35f;
     private const float CaptureTimeout = 3f;
+    private const float OwnershipTimeout = 1.5f;
 
     private static VRGrab instance;
 
@@ -32,6 +33,12 @@ internal class VRGrab : MonoBehaviour
     private static Item gripItem;
     private static Vector3 gripDir;
     private static Quaternion gripRot;
+
+    private static Item liveItem;
+    private static float liveSince;
+    private static Item bypass;
+
+    public static bool SuppressStashDestroy { get; private set; }
 
     private readonly Vector3[] positions = new Vector3[SampleCount];
     private readonly float[] times = new float[SampleCount];
@@ -127,6 +134,8 @@ internal class VRGrab : MonoBehaviour
         if (captured && Time.time - capturedAt > CaptureTimeout)
             captured = false;
 
+        StepLivePickup(character);
+
         if (latched != null && latched != held)
             latched = null;
 
@@ -174,6 +183,81 @@ internal class VRGrab : MonoBehaviour
         interactAllowed = latched == null;
     }
 
+    public static bool TryLivePickup(Character character, Item target)
+    {
+        if (!Enabled || target == null || target.photonView == null || bypass == target)
+            return false;
+
+        if (target is Backpack || target.isSecretlyOtherItemPrefab != null)
+            return false;
+
+        if (target.itemState != ItemState.Ground || character.player == null)
+            return false;
+
+        if (!character.player.HasEmptySlot(target.itemID))
+            return false;
+
+        liveItem = target;
+        liveSince = Time.time;
+
+        if (!target.photonView.IsMine)
+        {
+            target.photonView.RequestOwnership();
+            Log($"live pickup '{target.name}' - requesting ownership");
+        }
+
+        return true;
+    }
+
+    private void StepLivePickup(Character character)
+    {
+        if (liveItem == null)
+        {
+            liveItem = null;
+            return;
+        }
+
+        if (liveItem.photonView.IsMine)
+        {
+            var item = liveItem;
+            liveItem = null;
+            Equip(character, item);
+            return;
+        }
+
+        if (Time.time - liveSince <= OwnershipTimeout)
+            return;
+
+        var fallback = liveItem;
+        liveItem = null;
+        bypass = fallback;
+        Log($"live pickup '{fallback.name}' - ownership timed out, using vanilla pickup");
+        fallback.Interact(character);
+        bypass = null;
+    }
+
+    private static void Equip(Character character, Item item)
+    {
+        var items = character.refs != null ? character.refs.items : null;
+        if (items == null || !character.player.AddItem(item.itemID, item.data, out var slot))
+        {
+            Log($"live pickup '{item.name}' - no slot, using vanilla pickup");
+            bypass = item;
+            item.Interact(character);
+            bypass = null;
+            return;
+        }
+
+        items.currentSelectedSlot = Optionable<byte>.Some(slot.itemSlotID);
+        items.lastSelectedSlot = items.currentSelectedSlot;
+        items.lastEquippedSlotTime = Time.time;
+
+        character.photonView.RPC("EquipSlotRpc", RpcTarget.All, (int)slot.itemSlotID, item.photonView.ViewID);
+        character.refs.afflictions?.UpdateWeight();
+
+        Log($"live pickup '{item.name}' equipped to slot {slot.itemSlotID}");
+    }
+
     public static void Capture(Item target)
     {
         if (!Enabled || target == null)
@@ -196,15 +280,11 @@ internal class VRGrab : MonoBehaviour
         var handPos = bone.transform.position;
         var handRot = bone.transform.rotation;
         var distance = Distance(target, handPos);
-
-        if (distance > GrabRange)
-        {
-            Log($"skip '{target.name}' - {distance:F2}m away (range {GrabRange:F2})");
-            return;
-        }
+        var far = distance > GrabRange;
+        var gripPoint = far ? ClosestPoint(target, handPos) : handPos;
 
         var inv = Quaternion.Inverse(target.transform.rotation);
-        var dir = inv * (handPos - target.transform.position);
+        var dir = inv * (gripPoint - target.transform.position);
         var raw = dir.magnitude;
 
         var limit = Mathf.Max(MaxGripOffset, Radius(target) + GrabRange);
@@ -224,8 +304,9 @@ internal class VRGrab : MonoBehaviour
         var controller = VRHands.Right;
         var lag = controller != null ? Vector3.Distance(controller.position, handPos) : 0f;
 
-        Log($"captured '{target.name}' id={capturedId} surface={distance:F2}m offset={raw:F2}->{dir.magnitude:F2}m "
-            + $"limit={limit:F2}m rot={capturedRot.eulerAngles} boneLag={lag:F2}m");
+        Log($"captured '{target.name}' id={capturedId} {(far ? "distance" : "contact")} surface={distance:F2}m "
+            + $"offset={raw:F2}->{dir.magnitude:F2}m limit={limit:F2}m rot={capturedRot.eulerAngles} "
+            + $"boneLag={lag:F2}m");
     }
 
     private static void Log(string message)
@@ -298,6 +379,31 @@ internal class VRGrab : MonoBehaviour
         return found ? bounds.extents.magnitude : 0f;
     }
 
+    public static Vector3 ClosestPoint(Item item, Vector3 point)
+    {
+        var best = point;
+        var bestSqr = float.MaxValue;
+
+        foreach (var col in item.GetComponentsInChildren<Collider>(true))
+        {
+            if (col == null || !col.enabled || col.isTrigger)
+                continue;
+
+            var candidate = col is MeshCollider mesh && !mesh.convex
+                ? col.bounds.ClosestPoint(point)
+                : col.ClosestPoint(point);
+
+            var sqr = (candidate - point).sqrMagnitude;
+            if (sqr >= bestSqr)
+                continue;
+
+            bestSqr = sqr;
+            best = candidate;
+        }
+
+        return bestSqr == float.MaxValue ? item.transform.position : best;
+    }
+
     private static float Distance(Item item, Vector3 point)
     {
         var best = float.MaxValue;
@@ -330,10 +436,29 @@ internal class VRGrab : MonoBehaviour
         return interaction != null ? interaction.currentHovered : null;
     }
 
+    public static void RestoreRigidHold(Character character, Item item)
+    {
+        var hand = character.GetBodypartRig(BodypartType.Hand_R);
+        if (hand == null || item == null || item.rig == null)
+            return;
+
+        foreach (var existing in hand.gameObject.GetComponents<Joint>())
+            if (existing.connectedBody == item.rig)
+                Object.Destroy(existing);
+
+        VRHandJoint.AttachRigid(hand, item);
+    }
+
     private void Throw(Character character, Item item)
     {
         if (item == null || item.UIData == null || !item.UIData.canDrop)
             return;
+
+        if (VRLeftHand.Carried == item)
+        {
+            ReleaseToLeftHand(character, item);
+            return;
+        }
 
         var items = character.refs != null ? character.refs.items : null;
         if (items == null || !items.currentSelectedSlot.IsSome)
@@ -363,13 +488,72 @@ internal class VRGrab : MonoBehaviour
         if (charge > AnimateChargeAbove)
             Animate(character);
 
+        items.throwChargeLevel = 0f;
+        threwFrame = Time.frameCount;
+
+        if (item.photonView.IsMine)
+        {
+            ThrowLive(character, items, item, velocity, charge);
+            return;
+        }
+
         character.photonView.RPC("DropItemRpc", RpcTarget.All, -(charge + ChargeMarker),
             items.currentSelectedSlot.Value, item.transform.position, velocity,
             item.transform.rotation, slot.data, false);
 
-        items.throwChargeLevel = 0f;
         items.EquipSlot(Optionable<byte>.None);
-        threwFrame = Time.frameCount;
+    }
+
+    private static void ReleaseToLeftHand(Character character, Item item)
+    {
+        var items = character.refs != null ? character.refs.items : null;
+        if (items == null || !items.currentSelectedSlot.IsSome)
+            return;
+
+        var slotId = items.currentSelectedSlot.Value;
+
+        SuppressStashDestroy = true;
+        character.photonView.RPC("EquipSlotRpc", RpcTarget.All, -1, -1);
+        SuppressStashDestroy = false;
+
+        character.player.EmptySlot(Optionable<byte>.Some(slotId));
+        item.SetState(ItemState.Ground);
+
+        if (item.rig != null)
+            item.rig.useGravity = false;
+
+        VRLeftHand.RestoreRigidHold(character, item);
+        character.refs.afflictions?.UpdateWeight();
+
+        Log($"handed '{item.name}' to the left hand");
+    }
+
+    private static void ThrowLive(Character character, CharacterItems items, Item item, Vector3 velocity, float charge)
+    {
+        var slotId = items.currentSelectedSlot.Value;
+
+        SuppressStashDestroy = true;
+        character.photonView.RPC("EquipSlotRpc", RpcTarget.All, -1, -1);
+        SuppressStashDestroy = false;
+
+        character.player.EmptySlot(Optionable<byte>.Some(slotId));
+
+        item.SetState(ItemState.Ground);
+
+        if (item.rig != null)
+        {
+            item.rig.linearVelocity = velocity;
+            item.rig.angularVelocity = Vector3.zero;
+        }
+
+        item.photonView.RPC("RPC_SetThrownData", RpcTarget.All, character.photonView.ViewID, charge);
+        item.GetComponent<ItemPhysicsSyncer>()?.ForceSyncForFrames();
+
+        if (GameUtils.instance != null)
+            GameUtils.instance.IgnoreCollisions(character, item, 0.5f);
+
+        character.refs.afflictions?.UpdateWeight();
+        Log($"live throw '{item.name}' at {velocity.magnitude:F1}m/s charge={charge:F2}");
     }
 
     private static void Animate(Character character)

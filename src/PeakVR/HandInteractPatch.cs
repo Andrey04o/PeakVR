@@ -55,16 +55,23 @@ internal static class HandInteractPatch
 
     private static IInteractible Arbitrate(Character local)
     {
+        var left = Held(local, LeftTarget) ? null : LeftTarget;
+
         var acting = VRLeftHand.ActingHand;
         if (acting.HasValue)
-            return acting.Value ? RightTarget : LeftTarget;
+            return acting.Value ? RightTarget : left;
 
-        if (LeftTarget == null)
+        if (left == null)
             return RightTarget;
         if (RightTarget == null)
-            return LeftTarget;
+            return left;
 
-        return Nearer(local, RightTarget, LeftTarget);
+        return Nearer(local, RightTarget, left);
+    }
+
+    private static bool Held(Character local, IInteractible target)
+    {
+        return target is Item item && local.data != null && item == local.data.currentItem;
     }
 
     private static IInteractible Nearer(Character local, IInteractible right, IInteractible left)
@@ -137,7 +144,7 @@ internal static class HandInteractPatch
         return true;
     }
 
-    private static bool ValidHandTarget(RaycastHit h, Character local, out IInteractible interactible)
+    private static bool ValidHandTarget(RaycastHit h, Character local, bool right, out IInteractible interactible)
     {
         interactible = null;
         if (h.collider == null || local.refs.ragdoll.colliderList.Contains(h.collider))
@@ -147,7 +154,7 @@ internal static class HandInteractPatch
         if (candidate == null || candidate is ClimbHandle || !candidate.IsInteractible(local))
             return false;
 
-        if (candidate is Item item && item == local.data.currentItem)
+        if (right && candidate is Item item && item == local.data.currentItem)
             return false;
 
         interactible = candidate;
@@ -198,7 +205,7 @@ internal static class HandInteractPatch
         for (var i = 0; i < lineCount; i++)
         {
             var h = LineBuffer[i];
-            if (h.distance >= bestDist || !ValidHandTarget(h, local, out var candidate))
+            if (h.distance >= bestDist || !ValidHandTarget(h, local, right, out var candidate))
                 continue;
             best = candidate;
             bestDist = h.distance;
@@ -220,7 +227,7 @@ internal static class HandInteractPatch
         for (var i = 0; i < count; i++)
         {
             var h = SphereBuffer[i];
-            if (!ValidHandTarget(h, local, out var candidate))
+            if (!ValidHandTarget(h, local, right, out var candidate))
                 continue;
             var angle = Vector3.Angle(h.point - origin, dir);
             if (angle >= bestAngle)

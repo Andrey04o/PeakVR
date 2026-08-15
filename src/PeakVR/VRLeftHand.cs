@@ -28,7 +28,7 @@ internal class VRLeftHand : MonoBehaviour
     private Item carried;
     private Item pending;
     private float pendingSince;
-    private FixedJoint joint;
+    private Joint joint;
     private Vector3 gripDir;
     private Quaternion gripRot;
     private bool gripCaptured;
@@ -36,6 +36,22 @@ internal class VRLeftHand : MonoBehaviour
     public static Item Carried => instance != null ? instance.carried : null;
 
     public static bool? ActingHand { get; private set; }
+
+    public static void RestoreRigidHold(Character character, Item item)
+    {
+        if (instance == null || instance.carried != item)
+            return;
+
+        var bone = character.GetBodypartRig(BodypartType.Hand_L);
+        if (bone == null || item.rig == null)
+            return;
+
+        if (instance.joint != null)
+            Destroy(instance.joint);
+
+        instance.joint = VRHandJoint.AttachRigid(bone, item);
+        VRLeftSlot.Fill(character, item);
+    }
 
     public static bool InteractAllowed { get; private set; } = true;
 
@@ -153,10 +169,12 @@ internal class VRLeftHand : MonoBehaviour
         if (HandInteractPatch.LeftTarget is not Item target || target == null)
             return false;
 
-        if (target.itemState != ItemState.Ground || !target.IsInteractible(character))
+        if (target.photonView == null)
             return false;
 
-        if (target == character.data.currentItem || target.photonView == null)
+        var inRightHand = target == character.data.currentItem;
+
+        if (!inRightHand && (target.itemState != ItemState.Ground || !target.IsInteractible(character)))
             return false;
 
         Capture(character, target);
@@ -182,8 +200,12 @@ internal class VRLeftHand : MonoBehaviour
         if (bone == null)
             return;
 
+        var handPos = bone.transform.position;
+        var nearest = VRGrab.ClosestPoint(target, handPos);
+        var gripPoint = Vector3.Distance(nearest, handPos) > GrabRange ? nearest : handPos;
+
         var inv = Quaternion.Inverse(target.transform.rotation);
-        var dir = inv * (bone.transform.position - target.transform.position);
+        var dir = inv * (gripPoint - target.transform.position);
         var limit = Mathf.Max(MaxGripOffset, Radius(target) + GrabRange);
 
         var authored = target.transform.Find("Hand_L") ?? target.transform.Find("Hand_R");
@@ -204,31 +226,33 @@ internal class VRLeftHand : MonoBehaviour
         if (bone == null || item == null || item.rig == null)
             return;
 
-        var wantRot = item.transform.rotation;
-        var wantPos = item.transform.position;
+        var second = VRHandJoint.HeldByOtherHand(item, false);
 
-        if (gripCaptured)
+        if (!second)
         {
-            wantRot = bone.transform.rotation * Quaternion.Inverse(gripRot);
-            wantPos = bone.transform.position - wantRot * gripDir;
+            var wantRot = item.transform.rotation;
+            var wantPos = item.transform.position;
+
+            if (gripCaptured)
+            {
+                wantRot = bone.transform.rotation * Quaternion.Inverse(gripRot);
+                wantPos = bone.transform.position - wantRot * gripDir;
+            }
+
+            if (item.rig.isKinematic)
+            {
+                item.SetKinematicNetworked(false, wantPos, wantRot);
+                VRGrab.LeftLog($"woke kinematic '{item.name}'");
+            }
+
+            item.transform.SetPositionAndRotation(wantPos, wantRot);
+
+            item.rig.linearVelocity = Vector3.zero;
+            item.rig.angularVelocity = Vector3.zero;
+            item.rig.useGravity = false;
         }
 
-        if (item.rig.isKinematic)
-        {
-            item.SetKinematicNetworked(false, wantPos, wantRot);
-            VRGrab.LeftLog($"woke kinematic '{item.name}'");
-        }
-
-        item.transform.SetPositionAndRotation(wantPos, wantRot);
-
-        item.rig.linearVelocity = Vector3.zero;
-        item.rig.angularVelocity = Vector3.zero;
-        item.rig.useGravity = false;
-
-        joint = bone.gameObject.AddComponent<FixedJoint>();
-        joint.connectedBody = item.rig;
-
-        IgnoreBody(character, item, true);
+        joint = VRHandJoint.Attach(bone, item, second);
 
         carried = item;
         VRLeftSlot.Fill(character, item);
@@ -269,7 +293,15 @@ internal class VRLeftHand : MonoBehaviour
         if (item == null)
             return;
 
-        IgnoreBody(character, item, false);
+        if (character != null && character.data != null && character.data.currentItem == item)
+        {
+            VRGrab.RestoreRigidHold(character, item);
+            VRGrab.LeftLog($"handed '{item.name}' to the right hand");
+            return;
+        }
+
+        if (GameUtils.instance != null && character != null)
+            GameUtils.instance.IgnoreCollisions(character, item, 0.5f);
 
         if (item.rig != null)
         {
@@ -280,27 +312,6 @@ internal class VRLeftHand : MonoBehaviour
 
         item.GetComponent<ItemPhysicsSyncer>()?.ForceSyncForFrames();
         VRGrab.LeftLog($"released '{item.name}' at {velocity.magnitude:F1}m/s");
-    }
-
-    private static void IgnoreBody(Character character, Item item, bool ignore)
-    {
-        var ragdoll = character != null && character.refs != null ? character.refs.ragdoll : null;
-        if (ragdoll == null || ragdoll.colliderList == null || item == null)
-            return;
-
-        foreach (var a in item.GetComponentsInChildren<Collider>(true))
-        {
-            if (a == null)
-                continue;
-
-            foreach (var b in ragdoll.colliderList)
-            {
-                if (b == null)
-                    continue;
-
-                Physics.IgnoreCollision(a, b, ignore);
-            }
-        }
     }
 
     private Vector3 ThrowVelocity(Character character)
