@@ -2,8 +2,8 @@
 
 ## 1.4.1
 
-- Fixed: The loading screen colour could stay over the whole view after spawning in
-- Added: "Fullscreen Loading Cover" setting (on by default), so the fullscreen loading colour can be turned off
+- Fixed: The loading screen could stay over the whole view after spawning in
+- Added: "Fullscreen Loading Cover" setting (on by default)
 
 ## 1.4.0
 
