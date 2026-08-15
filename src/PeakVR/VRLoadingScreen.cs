@@ -73,9 +73,19 @@ internal class VRLoadingScreen : MonoBehaviour
         rt.rotation = head.rotation;
     }
 
+    private void OnDisable() => HideCover();
+
+    private void OnDestroy() => HideCover();
+
+    private void HideCover()
+    {
+        if (cover != null)
+            cover.enabled = false;
+    }
+
     private void UpdateCover(Camera cam, float alpha)
     {
-        if (alpha <= 0.001f)
+        if (alpha <= 0.001f || Plugin.Config == null || !Plugin.Config.LoadingCover.Value)
         {
             if (cover != null && cover.enabled)
                 cover.enabled = false;

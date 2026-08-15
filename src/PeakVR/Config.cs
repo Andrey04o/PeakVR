@@ -12,6 +12,7 @@ public class Config
     public ConfigEntry<bool> ReacquireAudioDevice { get; }
     public ConfigEntry<bool> ModForegroundUI { get; }
     public ConfigEntry<bool> ModUIOnLeftHand { get; }
+    public ConfigEntry<bool> LoadingCover { get; }
 
     public ConfigEntry<bool> SmoothTurn { get; }
     public ConfigEntry<float> SnapTurnAngle { get; }
@@ -68,6 +69,11 @@ public class Config
         ModUIOnLeftHand = file.Bind("VR", "sPEAKer UI On Left Hand", true,
             "Move the sPEAKer music HUD (timer, current song, mixtape name and icon) onto the left wrist "
             + "instead of leaving it head-locked. Requires the sPEAKer mod.");
+
+        LoadingCover = file.Bind("VR", "Fullscreen Loading Cover", true,
+            "Fill the whole view with the loading screen's colour while a level loads, instead of showing it "
+            + "as a panel with the world visible around it. Turn this off if you ever end up with a coloured "
+            + "tint over everything after spawning in.");
 
         ReacquireAudioDevice = file.Bind("VR", "Reacquire Audio Device", false,
             "Troubleshooting only. Re-initialises Unity's audio output when the headset session becomes focused so "
