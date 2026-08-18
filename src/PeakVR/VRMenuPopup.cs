@@ -12,9 +12,12 @@ internal class VRMenuPopup : MonoBehaviour
     private const float Distance = 3f;
     private const float Height = 0.4f;
 
+    private const int RefreshInterval = 30;
+
     private static readonly HashSet<Canvas> converted = new();
 
     private Canvas active;
+    private int frame;
 
     private void LateUpdate()
     {
@@ -48,10 +51,19 @@ internal class VRMenuPopup : MonoBehaviour
         {
             Convert(popup, cam);
             active = popup;
+            frame = 0;
+            return;
         }
-        else if (VRPointer.Canvas != popup)
-        {
+
+        if (VRPointer.Canvas != popup)
             PointAt(popup);
+
+        // Pages that fill themselves in after opening (the lobby browser's list, the invite player
+        // list) build graphics we never treated, so they render behind the page background.
+        if (++frame % RefreshInterval == 0)
+        {
+            UIOverlay.SweepForegroundLayer(popup);
+            UIOverlay.MakeAlwaysVisible(popup, true);
         }
     }
 

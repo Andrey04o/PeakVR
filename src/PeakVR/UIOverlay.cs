@@ -37,6 +37,30 @@ internal static class UIOverlay
     public static void MakeAlwaysVisible(Canvas canvas, int baseQueue)
         => Apply(canvas, baseQueue);
 
+    // Elements built after a canvas was first treated (dynamic lobby lists, player lists) keep their
+    // own layer, and Apply's fast path skips the sweep once the canvas root is already on the UI
+    // layer — so they miss the injected foreground pass and end up behind the panel they sit on.
+    // Callers that own a canvas which rebuilds itself re-sweep on an interval.
+    public static void SweepForegroundLayer(Canvas canvas)
+    {
+        if (canvas == null || !ForegroundUI.Active)
+            return;
+
+        VRLayers.HideFromMirror(canvas.gameObject, VRControllerHud.HudLayer, 7);
+    }
+
+    // TMP renders a <font="..."> tag through a TMP_SubMeshUI carrying the FALLBACK font's material,
+    // not the text's own fontMaterial, and GetMaterial skips sub-meshes - so the VR button glyphs
+    // never got the depth override the surrounding text has. Treat the source material once instead.
+    public static void SetZTestAlways(Material mat)
+    {
+        if (mat == null)
+            return;
+
+        mat.SetInt(ZTestUI, Always);
+        mat.SetInt(ZTestTMP, Always);
+    }
+
     // Force a single graphic (e.g. the laser reticle) to draw on top of everything, ignoring depth.
     public static void MakeTopmost(Graphic graphic, int queue)
     {
@@ -89,6 +113,38 @@ internal static class UIOverlay
 
             if (log)
                 Plugin.Log.LogInfo($"[PeakVR][UIOrder] [{i,3}] q={mat.renderQueue} stencil={(InStencilMask(g) ? 1 : 0)} rect={(InRectMask(g) ? 1 : 0)} {g.GetType().Name} :: {Path(g.transform)}");
+        }
+
+        ApplyToFallbackFonts(canvas, baseQueue, applyQueue);
+    }
+
+    // Any character the main font lacks (Cyrillic lobby names, our VR button glyphs) is drawn by a
+    // TMP_SubMeshUI carrying the FALLBACK font's material, which GetMaterial skips - it is not a
+    // Graphic we own, and reading its .material can throw. sharedMaterial is a plain field read.
+    private static void ApplyToFallbackFonts(Canvas canvas, int baseQueue, bool applyQueue)
+    {
+        var subs = canvas.GetComponentsInChildren<TMP_SubMeshUI>(true);
+        for (var i = 0; i < subs.Length; i++)
+        {
+            var sub = subs[i];
+            if (sub == null)
+                continue;
+
+            try
+            {
+                var mat = sub.sharedMaterial;
+                if (mat == null)
+                    continue;
+
+                mat.SetInt(ZTestUI, Always);
+                mat.SetInt(ZTestTMP, Always);
+
+                if (applyQueue)
+                    mat.renderQueue = baseQueue;
+            }
+            catch (System.Exception)
+            {
+            }
         }
     }
 

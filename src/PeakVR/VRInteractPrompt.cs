@@ -9,8 +9,11 @@ internal class VRInteractPrompt : MonoBehaviour
     private const float ForwardOffset = 0.05f;
     private const float UpOffset = 0.07f;
 
+    private const int RefreshInterval = 30;
+
     private Canvas canvas;
     private RectTransform canvasRt;
+    private int frame;
 
     private Transform interactName;
     private Transform interactPrompts;
@@ -37,6 +40,14 @@ internal class VRInteractPrompt : MonoBehaviour
         Adopt(ref progress, progressComp != null ? progressComp.transform : null, new Vector2(0f, 155f));
         Adopt(ref interactName, gui.interactName != null ? gui.interactName.transform : null, new Vector2(0f, 70f));
         Adopt(ref interactPrompts, PromptContainer(gui), new Vector2(0f, -70f));
+
+        // This canvas is built by moving pieces out of the HUD, so it never went through the HUD's own
+        // sweep - and the prompt rows are rebuilt whenever what you are looking at changes.
+        if (++frame % RefreshInterval == 0)
+        {
+            UIOverlay.SweepForegroundLayer(canvas);
+            UIOverlay.MakeAlwaysVisible(canvas, true);
+        }
 
         PlaceCanvas();
     }

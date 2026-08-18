@@ -78,6 +78,7 @@ internal static class PeakAssets
         try
         {
             MaterialReferenceManager.AddFontAsset(QuestFont);
+            UIOverlay.SetZTestAlways(FontMaterial(QuestFont));
             Plugin.Log.LogInfo($"[PeakVR] Quest button font registered ('{QuestFont.name}')");
         }
         catch (System.Exception e)
@@ -85,5 +86,27 @@ internal static class PeakAssets
             Plugin.Log.LogWarning($"[PeakVR] Could not register the Quest button font: {e.Message}");
             QuestFont = null;
         }
+    }
+
+    // TMP_Asset.material is a public FIELD in the TextMeshPro 3.0.6 package we compile against and a
+    // PROPERTY in the one PEAK ships, so touching it directly throws MissingFieldException at runtime.
+    private static Material FontMaterial(TMP_FontAsset font)
+    {
+        if (font == null)
+            return null;
+
+        var type = font.GetType();
+
+        var property = HarmonyLib.AccessTools.Property(type, "material");
+        if (property != null)
+            return property.GetValue(font) as Material;
+
+        var field = HarmonyLib.AccessTools.Field(type, "material")
+            ?? HarmonyLib.AccessTools.Field(type, "m_Material");
+        if (field != null)
+            return field.GetValue(font) as Material;
+
+        Plugin.Log.LogWarning("[PeakVR] No 'material' member on TMP_FontAsset; button glyphs keep default depth testing");
+        return null;
     }
 }

@@ -15,8 +15,10 @@ internal class VRControllerHud : MonoBehaviour
     private const float PointerMaxDistance = 1.5f;
     private const float HoverScale = 1.14f;
     private const float LateSweepDelay = 5f;
+    private const int RefreshInterval = 30;
     private float lateSweepAt;
     private bool lateSweepDone;
+    private int frame;
     private RectTransform promptsRoot;
 
     private const float PromptsY = 165f;
@@ -85,6 +87,20 @@ internal class VRControllerHud : MonoBehaviour
 
         UpdateBackface();
         UpdateSelection();
+
+        // The item tips come and go with what you hold, and TMP builds a fresh sub-object the first
+        // time a VR button glyph appears - neither is covered by the one-off sweep in MoveHud.
+        if (++frame % RefreshInterval == 0)
+        {
+            Refresh(left);
+            Refresh(right);
+        }
+    }
+
+    private static void Refresh(Canvas canvas)
+    {
+        UIOverlay.SweepForegroundLayer(canvas);
+        UIOverlay.MakeAlwaysVisible(canvas, UIOverlay.HandQueue);
     }
 
     private void MoveHud(GUIManager gui)

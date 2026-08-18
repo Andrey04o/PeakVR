@@ -16,9 +16,12 @@ internal class VRMenuManager : MonoBehaviour
     private static readonly FieldInfo PauseMenuField =
         typeof(GUIManager).GetField("pauseMenu", BindingFlags.NonPublic | BindingFlags.Instance);
 
+    private const int LayerSweepInterval = 30;
+
     private Canvas converted;
     private RenderMode savedMode;
     private bool convertedForeground;
+    private int frame;
 
     private void Update()
     {
@@ -48,6 +51,9 @@ internal class VRMenuManager : MonoBehaviour
         if (converted != null)
         {
             UIOverlay.MakeAlwaysVisible(converted, convertedForeground);
+
+            if (++frame % LayerSweepInterval == 0)
+                UIOverlay.SweepForegroundLayer(converted);
 
             var lc = Character.localCharacter;
             if (lc != null && lc.data.fullyPassedOut)
