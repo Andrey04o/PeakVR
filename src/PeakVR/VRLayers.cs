@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace PeakVR;
@@ -5,6 +6,8 @@ namespace PeakVR;
 internal static class VRLayers
 {
     private static int ui = -2;
+
+    private static readonly List<Transform> Nodes = new();
 
     // The UI layer (5). The airport Mirror camera strips this layer (MirrorPatch), so anything moved
     // onto it won't be reflected. The main VR camera renders every layer, so it stays visible in-view.
@@ -25,8 +28,14 @@ internal static class VRLayers
         if (root == null || UI < 0)
             return;
 
-        foreach (var t in root.GetComponentsInChildren<Transform>(true))
+        root.GetComponentsInChildren(true, Nodes);
+
+        for (var n = 0; n < Nodes.Count; n++)
         {
+            var t = Nodes[n];
+            if (t == null)
+                continue;
+
             var layer = t.gameObject.layer;
             var keep = false;
             for (var i = 0; i < preserve.Length; i++)

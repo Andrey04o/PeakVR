@@ -19,6 +19,12 @@ internal static class UIOverlay
 
     private static readonly Dictionary<Graphic, Material> Cache = new();
 
+    // Reused so the periodic refresh (wrist HUD, hand prompt) allocates nothing per pass — the lists
+    // replace per-call component arrays, Preserve replaces the params array HideFromMirror would build.
+    private static readonly List<Graphic> Graphics = new();
+    private static readonly List<TMP_SubMeshUI> SubMeshes = new();
+    private static readonly int[] Preserve = { VRControllerHud.HudLayer, 7 };
+
     // Diagnostics: press F4 in-game to log the render order / clip state of every canvas we touch.
     public static bool Logging;
     private static readonly HashSet<Canvas> Logged = new();
@@ -46,7 +52,7 @@ internal static class UIOverlay
         if (canvas == null || !ForegroundUI.Active)
             return;
 
-        VRLayers.HideFromMirror(canvas.gameObject, VRControllerHud.HudLayer, 7);
+        VRLayers.HideFromMirror(canvas.gameObject, Preserve);
     }
 
     // TMP renders a <font="..."> tag through a TMP_SubMeshUI carrying the FALLBACK font's material,
@@ -87,17 +93,17 @@ internal static class UIOverlay
         // graphics (the stamina fill) still fall back below world glass because they regenerate their
         // material each frame — deferred to the future URP UI-camera-stacking port.
         if (ForegroundUI.Active && canvas.gameObject.layer != VRLayers.UI)
-            VRLayers.HideFromMirror(canvas.gameObject, VRControllerHud.HudLayer, 7);
+            VRLayers.HideFromMirror(canvas.gameObject, Preserve);
 
         var applyQueue = baseQueue != DefaultQueue;
         var log = Logging && Logged.Add(canvas);
         if (log)
             Plugin.Log.LogInfo($"[PeakVR][UIOrder] ===== {canvas.name} base={baseQueue} sorting={canvas.sortingOrder} mode={canvas.renderMode} =====");
 
-        var graphics = canvas.GetComponentsInChildren<Graphic>(true);
-        for (var i = 0; i < graphics.Length; i++)
+        canvas.GetComponentsInChildren(true, Graphics);
+        for (var i = 0; i < Graphics.Count; i++)
         {
-            var g = graphics[i];
+            var g = Graphics[i];
             if (g == null)
                 continue;
 
@@ -123,10 +129,10 @@ internal static class UIOverlay
     // Graphic we own, and reading its .material can throw. sharedMaterial is a plain field read.
     private static void ApplyToFallbackFonts(Canvas canvas, int baseQueue, bool applyQueue)
     {
-        var subs = canvas.GetComponentsInChildren<TMP_SubMeshUI>(true);
-        for (var i = 0; i < subs.Length; i++)
+        canvas.GetComponentsInChildren(true, SubMeshes);
+        for (var i = 0; i < SubMeshes.Count; i++)
         {
-            var sub = subs[i];
+            var sub = SubMeshes[i];
             if (sub == null)
                 continue;
 
