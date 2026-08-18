@@ -25,7 +25,7 @@ internal class VRMenuManager : MonoBehaviour
         var gui = GUIManager.instance;
         var hud = gui != null ? gui.hudCanvas : null;
 
-        var menuCanvas = FindActiveCanvas(out var menuIsPause);
+        var menuCanvas = FindActiveCanvas(out var menuForeground);
         var wheelCanvas = GetWheelCanvas(gui);
 
         var pointerTarget = menuCanvas != null ? menuCanvas : wheelCanvas;
@@ -39,7 +39,7 @@ internal class VRMenuManager : MonoBehaviour
                 converted.renderMode = savedMode;
 
             converted = convertTarget;
-            convertedForeground = convertTarget != null && convertTarget == menuCanvas && menuIsPause;
+            convertedForeground = convertTarget != null && convertTarget == menuCanvas && menuForeground;
 
             if (converted != null)
                 ConvertToWorld(converted);
@@ -69,9 +69,18 @@ internal class VRMenuManager : MonoBehaviour
         }
     }
 
-    private static Canvas FindActiveCanvas(out bool isPauseMenu)
+    private static Canvas FindActiveCanvas(out bool foreground)
     {
-        isPauseMenu = false;
+        foreground = false;
+
+        // A window shown without Open() sits ON TOP of whatever opened it (the pause menu opens the
+        // PEAKInvitation page), so it wins, and it takes the foreground queue to draw over that menu.
+        var shown = CanvasOf(MenuWindowShowPatch.Current());
+        if (shown != null)
+        {
+            foreground = true;
+            return shown;
+        }
 
         if (GUIManager.InPauseMenu && PauseMenuField != null && GUIManager.instance != null)
         {
@@ -81,7 +90,7 @@ internal class VRMenuManager : MonoBehaviour
                 var c = pauseMenu.GetComponentInParent<Canvas>();
                 if (c != null)
                 {
-                    isPauseMenu = true;
+                    foreground = true;
                     return c.rootCanvas;
                 }
             }
@@ -93,17 +102,26 @@ internal class VRMenuManager : MonoBehaviour
             if (w == null || !w.isOpen || w.panel == null)
                 continue;
 
-            var c = w.panel.GetComponentInParent<Canvas>();
-            if (c == null)
-                c = w.panel.GetComponentInChildren<Canvas>(true);
-
+            var c = CanvasOf(w);
             if (c != null)
-                return c.rootCanvas;
+                return c;
 
             Plugin.Log.LogWarning($"[PeakVR] {w.GetType().Name} open but no Canvas found");
         }
 
         return null;
+    }
+
+    private static Canvas CanvasOf(MenuWindow w)
+    {
+        if (w == null || w.panel == null)
+            return null;
+
+        var c = w.panel.GetComponentInParent<Canvas>();
+        if (c == null)
+            c = w.panel.GetComponentInChildren<Canvas>(true);
+
+        return c != null ? c.rootCanvas : null;
     }
 
     private static GameObject GetWheelObject(GUIManager gui)
