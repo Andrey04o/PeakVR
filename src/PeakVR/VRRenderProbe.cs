@@ -10,7 +10,8 @@ internal static class VRRenderProbe
     private const float RayRadius = 2.5f;
     private const int MaxRenderers = 30;
 
-    private static readonly string[] NameFilters = { "spike", "chain", "pole", "swing" };
+    private static readonly string[] NameFilters =
+        { "spike", "chain", "pole", "swing", "ball", "axe", "mace", "pivot" };
 
     public static void Probe(Camera cam)
     {
@@ -68,7 +69,7 @@ internal static class VRRenderProbe
 
     public static void CycleFix()
     {
-        fixStage = (fixStage + 1) % 6;
+        fixStage = (fixStage + 1) % 7;
 
         var targets = new List<Renderer>();
         foreach (var r in Object.FindObjectsByType<Renderer>(FindObjectsSortMode.None))
@@ -118,7 +119,13 @@ internal static class VRRenderProbe
                     r.gameObject.SetActive(false);
                     r.gameObject.SetActive(true);
                     break;
+                case 6:
+                    r.motionVectorGenerationMode = MotionVectorGenerationMode.ForceNoMotion;
+                    break;
             }
+
+            if (fixStage != 6)
+                r.motionVectorGenerationMode = MotionVectorGenerationMode.Object;
         }
 
         var label = fixStage switch
@@ -128,6 +135,7 @@ internal static class VRRenderProbe
             3 => "layer -> Default(0) AND shader -> URP/Lit",
             4 => "renderer disabled+re-enabled, layer untouched",
             5 => "GameObject deactivated+reactivated, layer untouched",
+            6 => "motionVectors -> ForceNoMotion, layer and shader untouched",
             _ => "restored"
         };
 
@@ -187,6 +195,7 @@ internal static class VRRenderProbe
 
         var col = r.GetComponent<Collider>();
         sb.Append($"collider={(col == null ? "none" : col.GetType().Name + (col.isTrigger ? ":trigger" : ":solid"))} ");
+        sb.Append($"rigidbody={(r.GetComponentInParent<Rigidbody>() != null ? "yes" : "no")} ");
         sb.Append($"shadow={r.shadowCastingMode} queue={(r.sharedMaterial != null ? r.sharedMaterial.renderQueue : -1)} ");
         sb.Append($"renderLayer=0x{r.renderingLayerMask:X} staticBatch={r.isPartOfStaticBatch} ");
         sb.Append($"motionVectors={r.motionVectorGenerationMode} static={r.gameObject.isStatic} ");
