@@ -14,6 +14,7 @@ internal static class UIOverlay
 
     private const int DefaultQueue = 3000;
     private const int ForegroundQueue = 3005; // above world transparents (glass/fog)
+    public const int PopupQueue = 3010;       // the topmost menu, above menus left world-space behind it
     public const int HandQueue = 4000;        // above rain/airplane-window glass, for the wrist HUD
     public const int ReticleQueue = 4200;     // above every menu/popup, so the cursor is never hidden
 

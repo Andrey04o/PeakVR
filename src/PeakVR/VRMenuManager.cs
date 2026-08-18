@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -18,9 +19,14 @@ internal class VRMenuManager : MonoBehaviour
 
     private const int LayerSweepInterval = 30;
 
-    private Canvas converted;
-    private RenderMode savedMode;
-    private bool convertedForeground;
+    // Canvases we pulled into world space, kept forever. Putting one back to ScreenSpaceOverlay when
+    // a page opens on top of it makes it invisible in the headset but paints it over the whole DESKTOP
+    // window - which is what the settings page did behind the lobby browser. Same reasoning as
+    // VRMenuPopup, which also leaves reused dialogs world-space once converted.
+    private static readonly HashSet<Canvas> Converted = new();
+
+    private Canvas current;
+    private bool currentForeground;
     private int frame;
 
     private void Update()
@@ -36,28 +42,30 @@ internal class VRMenuManager : MonoBehaviour
             ? menuCanvas
             : (wheelCanvas != null && wheelCanvas != hud ? wheelCanvas : null);
 
-        if (convertTarget != converted)
+        if (convertTarget != current)
         {
-            if (converted != null)
-                converted.renderMode = savedMode;
+            current = convertTarget;
+            currentForeground = convertTarget != null && convertTarget == menuCanvas && menuForeground;
 
-            converted = convertTarget;
-            convertedForeground = convertTarget != null && convertTarget == menuCanvas && menuForeground;
-
-            if (converted != null)
-                ConvertToWorld(converted);
+            if (current != null)
+                ConvertToWorld(current);
         }
 
-        if (converted != null)
+        if (current != null)
         {
-            UIOverlay.MakeAlwaysVisible(converted, convertedForeground);
+            // The topmost menu gets its own queue so it draws over anything still world-space behind
+            // it — they share the same PlaceInFront plane, so depth cannot separate them.
+            if (currentForeground)
+                UIOverlay.MakeAlwaysVisible(current, UIOverlay.PopupQueue);
+            else
+                UIOverlay.MakeAlwaysVisible(current, false);
 
             if (++frame % LayerSweepInterval == 0)
-                UIOverlay.SweepForegroundLayer(converted);
+                UIOverlay.SweepForegroundLayer(current);
 
             var lc = Character.localCharacter;
             if (lc != null && lc.data.fullyPassedOut)
-                PlaceInFront(converted);
+                PlaceInFront(current);
         }
 
         if (pointerTarget != null)
@@ -158,17 +166,19 @@ internal class VRMenuManager : MonoBehaviour
         if (cam == null)
             return;
 
-        savedMode = canvas.renderMode;
+        var first = Converted.Add(canvas);
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
 
+        // Always re-place, even for one we converted earlier — the player has walked since.
         var kiosk = GetKioskFor(canvas);
         if (kiosk != null)
             PlaceAtKiosk(canvas, kiosk);
         else
             PlaceInFront(canvas);
 
-        Plugin.Log.LogInfo($"[PeakVR] Menu -> world space: {canvas.name}");
+        if (first)
+            Plugin.Log.LogInfo($"[PeakVR] Menu -> world space: {canvas.name}");
     }
 
     private static Transform GetKioskFor(Canvas canvas)

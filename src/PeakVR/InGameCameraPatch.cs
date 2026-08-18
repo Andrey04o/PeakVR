@@ -58,6 +58,9 @@ internal static class InGameCameraPatch
         rig.AddComponent<VRControllerHud>();
         rig.AddComponent<VREmoteWheel>();
 
+        PeakTextChatPatch.Resolve();
+        rig.AddComponent<VRChatButton>();
+
         VRHands.Create(rig.transform);
 
         RenderDiagnostics.ApplyLodBias();

@@ -99,16 +99,31 @@ internal class VRModCanvas : MonoBehaviour
     {
         foreach (var c in Object.FindObjectsByType<Canvas>(FindObjectsSortMode.None))
         {
-            if (c == null || !c.isRootCanvas || adopted.Contains(c))
+            if (c == null)
+                continue;
+
+            // Hand-claimed canvases are handled whatever their nesting — PeakTextChat's TextChatCanvas
+            // is a CHILD of the game's own HUD canvas, so it never reaches the root-canvas path below.
+            if (VRModHandUI.Claim(c))
+                continue;
+
+            if (!c.isRootCanvas || adopted.Contains(c))
                 continue;
             if (c.renderMode != RenderMode.ScreenSpaceOverlay && c.renderMode != RenderMode.ScreenSpaceCamera)
                 continue;
-            if (VRCanvasOwner.IsOurs(c) || VRCanvasOwner.IsGame(c))
+            if (VRCanvasOwner.IsOurs(c))
                 continue;
 
-            var owner = VRCanvasOwner.ModOwner(c);
+            var owner = VRCanvasOwner.ModSubtreeOwner(c);
             if (owner == null)
-                continue;
+            {
+                if (VRCanvasOwner.IsGame(c))
+                    continue;
+
+                owner = VRCanvasOwner.ModOwner(c);
+                if (owner == null)
+                    continue;
+            }
 
             Adopt(c, cam, owner);
         }

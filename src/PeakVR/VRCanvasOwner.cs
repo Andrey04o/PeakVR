@@ -48,6 +48,41 @@ internal static class VRCanvasOwner
         return result;
     }
 
+    // IsGame scans from transform.root, which is right for Zorro modals but wrong for a mod that
+    // parents its own canvas under the game's HUD object (PeakTextChat's TextChatCanvas sits under
+    // GUIManager). Scan the canvas's OWN subtree instead: a plugin component with no game component
+    // anywhere under it means the canvas is entirely mod-built, whatever its root happens to be.
+    public static string ModSubtreeOwner(Canvas c)
+    {
+        if (c == null)
+            return null;
+
+        var plugins = PluginAssemblies();
+        if (plugins.Count == 0)
+            return null;
+
+        string owner = null;
+
+        foreach (var behaviour in c.GetComponentsInChildren<MonoBehaviour>(true))
+        {
+            if (behaviour == null)
+                continue;
+
+            var assembly = behaviour.GetType().Assembly;
+            var name = assembly.GetName().Name;
+
+            if (name.StartsWith("Assembly-CSharp", StringComparison.OrdinalIgnoreCase)
+                || name.StartsWith("Zorro", StringComparison.OrdinalIgnoreCase)
+                || name.IndexOf("PEAKLib", StringComparison.OrdinalIgnoreCase) >= 0)
+                return null;
+
+            if (owner == null && plugins.Contains(assembly))
+                owner = name;
+        }
+
+        return owner;
+    }
+
     public static string ModOwner(Canvas c)
     {
         if (c == null)

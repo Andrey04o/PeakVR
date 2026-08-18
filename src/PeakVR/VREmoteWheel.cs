@@ -58,11 +58,15 @@ internal class VREmoteWheel : MonoBehaviour
             return;
         }
 
-        var hovering = Physics.Raycast(VRHands.Right.position, VRHands.Right.forward, out var hit, MaxDistance,
+        var onLayer = Physics.Raycast(VRHands.Right.position, VRHands.Right.forward, out var hit, MaxDistance,
             1 << EmoteLayer, QueryTriggerInteraction.Collide);
 
+        // Identity-checked: the chat button shares this layer, and hitting it must not open the wheel.
+        // The line still snaps to whatever wrist button is hit, so the chat button gets one too.
+        var hovering = onLayer && hit.collider == buttonCollider;
+
         button.localScale = hovering ? Vector3.one * HoverScale : Vector3.one;
-        UpdateLine(hovering, hit);
+        UpdateLine(onLayer, hit);
 
         if (hovering)
         {

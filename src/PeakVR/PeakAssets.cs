@@ -18,6 +18,7 @@ internal static class PeakAssets
     public static Shader SimpleSmoke2 { get; private set; }
 
     public static Sprite EmoteButton { get; private set; }
+    public static Sprite ChatButton { get; private set; }
     public static Sprite Logo { get; private set; }
     public static Sprite AboutButton { get; private set; }
     public static Sprite TPose { get; private set; }
@@ -51,6 +52,7 @@ internal static class PeakAssets
         SimpleSmoke2 = bundle.LoadAsset<Shader>("SimpleSmoke2");
 
         EmoteButton = bundle.LoadAsset<Sprite>("ButtonEmote");
+        ChatButton = bundle.LoadAsset<Sprite>("ButtonChat");
         Logo = bundle.LoadAsset<Sprite>("Logo");
         AboutButton = bundle.LoadAsset<Sprite>("SmallVRButton");
         TPose = bundle.LoadAsset<Sprite>("TPoseWhite");
@@ -60,7 +62,7 @@ internal static class PeakAssets
         LoadQuestFont();
 
         Plugin.Log.LogInfo($"[PeakVR] Bundle loaded (reticle={Reticle != null}, controller={Controller != null}, vignette={Vignette != null}, mirror={MirrorView != null})");
-        Plugin.Log.LogInfo($"[PeakVR] Sprites (emote={EmoteButton != null}, logo={Logo != null}, about={AboutButton != null}, tpose={TPose != null})");
+        Plugin.Log.LogInfo($"[PeakVR] Sprites (emote={EmoteButton != null}, chat={ChatButton != null}, logo={Logo != null}, about={AboutButton != null}, tpose={TPose != null})");
         Plugin.Log.LogInfo($"[PeakVR] Binoculars rig prefab: {(BinocularsRig != null ? "loaded" : "not in bundle, using built-in offsets")}");
     }
 

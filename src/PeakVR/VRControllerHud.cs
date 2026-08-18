@@ -94,6 +94,7 @@ internal class VRControllerHud : MonoBehaviour
         {
             Refresh(left);
             Refresh(right);
+            StaminaBarRectPatch.Restore();
         }
     }
 

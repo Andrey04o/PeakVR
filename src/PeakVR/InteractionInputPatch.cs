@@ -93,7 +93,7 @@ internal static class InteractionInputPatch
         if (!playerMovementActive)
             return;
 
-        if (!VREmoteWheel.RightTriggerConsumed)
+        if (!VREmoteWheel.RightTriggerConsumed && !VRChatButton.RightTriggerConsumed)
             Inject(VRControls.RightTrigger, ref __instance.usePrimaryWasPressed, ref __instance.usePrimaryIsPressed,
                 ref __instance.usePrimaryWasReleased);
         if (!VRControllerHud.LeftTriggerConsumed)
