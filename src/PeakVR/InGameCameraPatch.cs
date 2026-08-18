@@ -66,6 +66,7 @@ internal static class InGameCameraPatch
         VRFoveation.Apply();
         RenderDiagnostics.ScheduleScan();
         VRFoliage.ScheduleScan();
+        VRHazardLayer.ScheduleScan();
 
         if (Plugin.DebugButtons || Plugin.Config.EnableVerboseLogging.Value)
         {

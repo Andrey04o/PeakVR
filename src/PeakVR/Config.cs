@@ -13,6 +13,7 @@ public class Config
     public ConfigEntry<bool> ModForegroundUI { get; }
     public ConfigEntry<bool> ModUIOnLeftHand { get; }
     public ConfigEntry<bool> LoadingCover { get; }
+    public ConfigEntry<bool> FixHazardRendering { get; }
 
     public ConfigEntry<bool> SmoothTurn { get; }
     public ConfigEntry<float> SnapTurnAngle { get; }
@@ -156,6 +157,11 @@ public class Config
                 "game's own graphics settings.",
                 new AcceptableValueList<string>("Enable", "Disable")));
         SharpenImage.SettingChanged += (_, _) => PeakVR.VRRender.ApplySharpening();
+
+        FixHazardRendering = file.Bind("VR Graphics", "Fix Hazard Rendering", true,
+            "Some hazard props - the arms the spiked balls swing on - are invisible in VR because of the "
+            + "layer they sit on. This moves the purely visual parts of them onto the default layer so they "
+            + "draw. Only objects with no collider are touched, so nothing about damage or collision changes.");
 
         ForceDisableHBAO = file.Bind("VR Graphics", "Force Disable HBAO", true,
             new ConfigDescription(

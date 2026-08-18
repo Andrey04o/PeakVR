@@ -236,6 +236,18 @@ public partial class Plugin : BaseUnityPlugin
         if (kb.f4Key.wasPressedThisFrame)
             UIOverlay.SetLogging(!UIOverlay.Logging);
 
+        if (kb.digit5Key.wasPressedThisFrame && MainCamera.instance != null)
+            VRRenderProbe.Probe(MainCamera.instance.cam);
+
+        if (kb.digit6Key.wasPressedThisFrame)
+            VRRenderProbe.CycleFix();
+
+        if (kb.f7Key.wasPressedThisFrame)
+            UrpDiagnostics.ToggleEdgeDetection();
+
+        if (kb.f8Key.wasPressedThisFrame && MainCamera.instance != null)
+            VRLayerProbe.Toggle(MainCamera.instance.cam);
+
         if (kb.f9Key.wasPressedThisFrame)
         {
             var m = VRStereoCulling.Margin - 0.1f;

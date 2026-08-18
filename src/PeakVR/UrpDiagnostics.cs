@@ -482,6 +482,15 @@ internal static class UrpDiagnostics
             $"renderScale={(testMode <= 2 ? "orig" : "1.0")}");
     }
 
+    private static bool edgeDetection = true;
+
+    public static void ToggleEdgeDetection()
+    {
+        edgeDetection = !edgeDetection;
+        SetFeatureActive("EdgeDetection", edgeDetection);
+        Plugin.Log.LogInfo($"[PeakVR][URP] EdgeDetectionRenderer {(edgeDetection ? "ENABLED" : "DISABLED")}");
+    }
+
     public static void SetFeatureActive(string nameContains, bool active)
     {
         var asset = GraphicsSettings.currentRenderPipeline;

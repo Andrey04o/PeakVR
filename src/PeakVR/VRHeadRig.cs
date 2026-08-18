@@ -92,6 +92,7 @@ internal class VRHeadRig : MonoBehaviour
 
         RenderDiagnostics.Tick(cam);
         VRFoliage.Tick(cam);
+        VRHazardLayer.Tick();
         VRControllerVisibility.Tick();
         HandleTurn();
 
