@@ -393,6 +393,23 @@ internal static class OpenXR
             xrManagerSettings.StartSubsystems();
         }
 
+        // SPIKE support for VRModeSwitch: tear the session down without killing the process.
+        public static bool ShutdownXR()
+        {
+            if (xrManagerSettings == null)
+                return false;
+
+            xrManagerSettings.StopSubsystems();
+            xrManagerSettings.DeinitializeLoader();
+            return true;
+        }
+
+        // Runs the same enumeration as a cold start, so the runtime override and fallbacks still apply.
+        public static bool RestartXR()
+        {
+            return InitializeXR();
+        }
+
         public static bool InitializeXR()
         {
             InitializeScripts();

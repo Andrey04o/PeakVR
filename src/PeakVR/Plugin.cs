@@ -30,6 +30,9 @@ public partial class Plugin : BaseUnityPlugin
     internal static ManualLogSource Log { get; private set; } = null!;
     public new static LCVR.Config Config { get; private set; }
     public static bool VrEnabled { get; private set; } = true;
+
+    // SPIKE: only VRModeSwitch uses this, to see what a live XR stop/start does.
+    internal static void SetVrEnabled(bool value) => VrEnabled = value;
     public static bool DebugButtons { get; private set; }
     private void Awake()
     {
@@ -241,6 +244,9 @@ public partial class Plugin : BaseUnityPlugin
 
         if (kb.digit6Key.wasPressedThisFrame)
             VRRenderProbe.CycleFix();
+
+        if (kb.digit7Key.wasPressedThisFrame)
+            VRModeSwitch.Toggle();
 
         if (kb.f7Key.wasPressedThisFrame)
             UrpDiagnostics.ToggleEdgeDetection();

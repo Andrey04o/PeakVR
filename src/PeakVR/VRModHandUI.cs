@@ -6,13 +6,15 @@ namespace PeakVR;
 internal static class VRModHandUI
 {
     private const float Scale = 0.0006f;
-    private static readonly Vector3 HudOffset = new(0f, 45f, 0f);
+    private static readonly Vector3 HudOffset = new(0f, 25f, 0f);
     private static readonly Vector3 HandPos = new(0f, 0.03f, -0.06f);
     private static readonly Vector3 HandEuler = new(0f, 90f, 90f);
 
     private const string ChatCanvas = "TextChatCanvas";
-    // The chat sits above the sPEAKer strip, or takes its place when sPEAKer is absent or switched
-    // off. HudOffset is in wrist-canvas units and so is anchoredPosition, so they compare directly.
+    // The chat clears the wrist strip by ChatBase, and moves up by ChatGap again when the sPEAKer
+    // strip is there to sit above it. HudOffset is in wrist-canvas units and so is anchoredPosition,
+    // so the two compare directly.
+    private const float ChatBase = 70f;
     private const float ChatGap = 50f;
 
     private static readonly HashSet<string> HandCanvases = new()
@@ -24,7 +26,14 @@ internal static class VRModHandUI
     private static Canvas canvas;
     private static readonly List<RectTransform> Pending = new();
     private static readonly List<RectTransform> ChatPanels = new();
+    private static readonly List<Moved> MovedElements = new();
     private static float chatY = float.NaN;
+
+    private struct Moved
+    {
+        public RectTransform Child;
+        public Transform Origin;
+    }
 
     public static bool Claim(Canvas source)
     {
@@ -43,7 +52,10 @@ internal static class VRModHandUI
             return false;
 
         foreach (var child in Pending)
+        {
+            MovedElements.Add(new Moved { Child = child, Origin = source.transform });
             child.SetParent(canvas.transform, false);
+        }
 
         UIOverlay.MakeAlwaysVisible(canvas, UIOverlay.HandQueue);
         VRLayers.HideFromMirror(canvas.gameObject, VRControllerHud.HudLayer, 7);
@@ -85,6 +97,34 @@ internal static class VRModHandUI
         return true;
     }
 
+    // Turning the setting off used to do nothing until a restart, because it was only consulted before
+    // claiming. Put the elements back where they came from instead - SetParent with worldPositionStays
+    // false preserved their anchors on the way in, so it round-trips exactly.
+    private static void ReleaseIfDisabled()
+    {
+        if (MovedElements.Count == 0 || Plugin.Config == null || Plugin.Config.ModUIOnLeftHand.Value)
+            return;
+
+        var restored = 0;
+
+        foreach (var moved in MovedElements)
+        {
+            if (moved.Child == null || moved.Origin == null)
+                continue;
+
+            moved.Child.SetParent(moved.Origin, false);
+            restored++;
+        }
+
+        MovedElements.Clear();
+
+        if (canvas != null)
+            Object.Destroy(canvas.gameObject);
+        canvas = null;
+
+        Plugin.Log.LogInfo($"[PeakVR] Returned {restored} element(s) to their own canvas (left-hand mod UI turned off)");
+    }
+
     // Re-evaluated every frame, not just on claim: the scan order between the chat canvas and
     // sPEAKer's is arbitrary, so the chat can be placed before we know whether sPEAKer is there.
     private static void ApplyChatHeight()
@@ -92,7 +132,7 @@ internal static class VRModHandUI
         if (ChatPanels.Count == 0)
             return;
 
-        var y = canvas != null ? HudOffset.y + ChatGap : HudOffset.y;
+        var y = HudOffset.y + ChatBase + (canvas != null ? ChatGap : 0f);
         if (Mathf.Approximately(y, chatY))
             return;
 
@@ -130,6 +170,7 @@ internal static class VRModHandUI
 
     public static void Follow()
     {
+        ReleaseIfDisabled();
         ApplyChatHeight();
 
         if (canvas == null)
