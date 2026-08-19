@@ -96,18 +96,13 @@ internal class VRMenuManager : MonoBehaviour
             return shown;
         }
 
+        Canvas pauseCanvas = null;
+
         if (GUIManager.InPauseMenu && PauseMenuField != null && GUIManager.instance != null)
         {
             var pauseMenu = PauseMenuField.GetValue(GUIManager.instance) as GameObject;
             if (pauseMenu != null && pauseMenu.activeInHierarchy)
-            {
-                var c = pauseMenu.GetComponentInParent<Canvas>();
-                if (c != null)
-                {
-                    foreground = true;
-                    return c.rootCanvas;
-                }
-            }
+                pauseCanvas = pauseMenu.GetComponentInParent<Canvas>()?.rootCanvas;
         }
 
         for (int i = MenuWindow.AllActiveWindows.Count - 1; i >= 0; i--)
@@ -117,10 +112,18 @@ internal class VRMenuManager : MonoBehaviour
                 continue;
 
             var c = CanvasOf(w);
-            if (c != null)
-                return c;
 
-            Plugin.Log.LogWarning($"[PeakVR] {w.GetType().Name} open but no Canvas found");
+            if (c == null || c == pauseCanvas)
+                continue;
+
+            foreground = pauseCanvas != null;
+            return c;
+        }
+
+        if (pauseCanvas != null)
+        {
+            foreground = true;
+            return pauseCanvas;
         }
 
         return null;

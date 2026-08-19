@@ -61,6 +61,8 @@ internal static class VRCalibration
     private static PeakCustomPage BuildPage()
     {
         var page = MenuAPI.CreatePageWithBackground("VR Calibration");
+        VRMenuFx.AttachFade(page.gameObject);
+        DrawOnTop(page);
         page.SelectOnOpen = false;
         page.CloseOnUICancel = true;
         page.CloseOnPause = true;
@@ -100,6 +102,16 @@ internal static class VRCalibration
         runner.Status = status;
 
         return page;
+    }
+
+    private static void DrawOnTop(PeakCustomPage page)
+    {
+        var canvas = page.GetComponent<Canvas>();
+        if (canvas == null)
+            return;
+
+        canvas.overrideSorting = true;
+        canvas.sortingOrder = 900;
     }
 
     private static PeakText Label(PeakCustomPage page, string text, float y, float size, Color color)

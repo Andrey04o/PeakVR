@@ -32,6 +32,14 @@ internal static class VRAboutPanel
     private static PeakCustomPage BuildPage()
     {
         var page = MenuAPI.CreatePageWithBackground("About PeakVR");
+        VRMenuFx.AttachFade(page.gameObject);
+
+        var canvas = page.GetComponent<Canvas>();
+        if (canvas != null)
+        {
+            canvas.overrideSorting = true;
+            canvas.sortingOrder = 900;
+        }
         page.SelectOnOpen = false;
         page.CloseOnUICancel = true;
         page.CloseOnPause = true;

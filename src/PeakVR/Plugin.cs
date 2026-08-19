@@ -62,11 +62,14 @@ public partial class Plugin : BaseUnityPlugin
         // See https://lethal.wiki/dev/fundamentals/logging
         
         var args = Environment.GetCommandLineArgs();
-        var disableVr = args.Contains("--disable-vr", StringComparer.OrdinalIgnoreCase);
+        var disableVr = args.Contains("--disable-vr", StringComparer.OrdinalIgnoreCase)
+            || !Config.StartInVR.Value;
         DebugButtons = args.Contains("-vr-debugbuttons", StringComparer.OrdinalIgnoreCase);
 
         VRNetworking.CreateReceiver();
         VRModCanvas.Create();
+        VRMenuScroll.Create();
+        VRLogBuffer.Start();
 
         PeakAssets.Load();
 
@@ -76,6 +79,7 @@ public partial class Plugin : BaseUnityPlugin
         {
             VrEnabled = false;
             ApplyRemoteOnlyPatches();
+            RegisterSettingsPage();
             Log.LogWarning("[PeakVR] VR disabled by the '--disable-vr' command line flag — running in flat (non-VR) mode; only remote-VR-render patches applied.");
             Log.LogInfo($"Plugin {Name} is loaded (VR disabled)!");
             return;
@@ -90,6 +94,7 @@ public partial class Plugin : BaseUnityPlugin
         {
             VrEnabled = false;
             ApplyRemoteOnlyPatches();
+            RegisterSettingsPage();
             Log.LogWarning("[PeakVR] VR failed to initialize (no headset or OpenXR runtime?) — running in flat (non-VR) mode; only remote-VR-render patches applied.");
             Log.LogInfo($"Plugin {Name} is loaded (VR unavailable)!");
             return;
@@ -121,6 +126,8 @@ public partial class Plugin : BaseUnityPlugin
         {
             Log.LogWarning($"[PeakVR] Calibration menu unavailable (PEAKLib.UI missing?): {e.Message}");
         }
+
+        RegisterSettingsPage();
         // BepInEx also gives us a config file for easy configuration.
         // See https://lethal.wiki/dev/intermediate/custom-configs
 
@@ -138,6 +145,9 @@ public partial class Plugin : BaseUnityPlugin
     {
         if (DebugButtons && Keyboard.current != null)
             HandleDebugKeys();
+
+        // Before the VrEnabled gate below, or there would be no way back into VR from flat.
+        HandleModeHotkey();
 
         VRFrameTiming.Tick();
 
@@ -188,6 +198,21 @@ public partial class Plugin : BaseUnityPlugin
         {
             Log.LogWarning($"[PeakVR] AnyKey bind failed: {e.Message}");
         }
+    }
+
+    private static void HandleModeHotkey()
+    {
+        if (Config == null || !Config.ModeHotkeyEnabled.Value || Keyboard.current == null)
+            return;
+
+        // The config is a KeyCode (so Mod Settings can rebind it) but input comes from the new Input
+        // System, and the two enums only agree by name.
+        if (!Enum.TryParse<UnityEngine.InputSystem.Key>(Config.ModeHotkey.Value.ToString(), out var key))
+            return;
+
+        var control = Keyboard.current[key];
+        if (control != null && control.wasPressedThisFrame)
+            VRModeSwitch.Toggle();
     }
 
     private static void HandleDebugKeys()
@@ -309,6 +334,19 @@ public partial class Plugin : BaseUnityPlugin
             path = t.name + "/" + path;
         }
         return path;
+    }
+
+    // Registered in flat mode too
+    private static void RegisterSettingsPage()
+    {
+        try
+        {
+            VRSettingsPage.Register();
+        }
+        catch (Exception e)
+        {
+            Log.LogWarning($"[PeakVR] VR settings menu unavailable (PEAKLib.UI missing?): {e.Message}");
+        }
     }
 
     private static void ApplyRemoteOnlyPatches()

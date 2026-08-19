@@ -7,6 +7,9 @@ public class Config
     public string AssemblyPath { get; }
     public ConfigFile File { get; }
 
+    public ConfigEntry<bool> StartInVR { get; }
+    public ConfigEntry<bool> ModeHotkeyEnabled { get; }
+    public ConfigEntry<UnityEngine.KeyCode> ModeHotkey { get; }
     public ConfigEntry<string> OpenXRRuntime { get; }
     public ConfigEntry<bool> EnableVerboseLogging { get; }
     public ConfigEntry<bool> ReacquireAudioDevice { get; }
@@ -54,6 +57,18 @@ public class Config
     {
         AssemblyPath = assemblyPath;
         File = file;
+
+        StartInVR = file.Bind("VR", "Start In VR", true,
+            "Start the game in VR. Turn off to launch flat with the mod still loaded. You can also "
+            + "switch mode while the game is running from the VR Settings page.");
+
+        ModeHotkeyEnabled = file.Bind("VR", "Mode Switch Hotkey", true,
+            "Allow a keyboard key to switch between VR and flat mode while the game is running.");
+
+        // A real KeyCode entry, so Mod Settings renders its rebind widget the way it does for other
+        // mods' keybinds. Our own page shows the common function keys as a dropdown.
+        ModeHotkey = file.Bind("VR", "Mode Switch Key", UnityEngine.KeyCode.F11,
+            "The key that switches between VR and flat mode.");
 
         OpenXRRuntime = file.Bind("VR", "OpenXR Runtime", "System Default",
             new ConfigDescription(

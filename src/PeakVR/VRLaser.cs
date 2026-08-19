@@ -61,6 +61,8 @@ internal class VRLaser : MonoBehaviour
         var hasHit = RaycastTopmost(eventData, out var hit);
         var hitGo = hasHit ? hit.gameObject : null;
 
+        VRPointer.Target = hitGo;
+
         eventData.pointerCurrentRaycast = hit;
         eventData.position = hasHit ? hit.screenPosition : pressScreenPos;
 

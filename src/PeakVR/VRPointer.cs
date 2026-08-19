@@ -9,6 +9,9 @@ internal static class VRPointer
     public static Canvas Canvas;
     public static TrackedDeviceGraphicRaycaster Raycaster;
 
+    // Written every frame by VRLaser.
+    public static GameObject Target;
+
     public static TrackedDeviceGraphicRaycaster Attach(Canvas canvas)
     {
         if (canvas == null)
