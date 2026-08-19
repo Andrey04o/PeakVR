@@ -96,6 +96,8 @@ internal static class VRFoliage
             || shader.IndexOf("Grass", System.StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
+    public static void RestoreForFlat() => Restore();
+
     private static void Restore()
     {
         culling = false;

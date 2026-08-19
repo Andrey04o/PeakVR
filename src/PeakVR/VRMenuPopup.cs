@@ -14,9 +14,9 @@ internal class VRMenuPopup : MonoBehaviour
 
     private const int RefreshInterval = 30;
 
-    private static readonly HashSet<Canvas> converted = new();
+    private static readonly Dictionary<Canvas, RenderMode> converted = new();
 
-    private Canvas active;
+    private static Canvas active;
     private int frame;
 
     private void LateUpdate()
@@ -99,17 +99,17 @@ internal class VRMenuPopup : MonoBehaviour
 
         // A genuine dialog is either a fresh screen-space overlay, or one we already
         // converted to world space (dialogs like ConfirmPage are reused and stay world-space).
-        return c.renderMode == RenderMode.ScreenSpaceOverlay || converted.Contains(c);
+        return c.renderMode == RenderMode.ScreenSpaceOverlay || converted.ContainsKey(c);
     }
 
     private static void Convert(Canvas c, Camera cam)
     {
         if (c.renderMode != RenderMode.WorldSpace)
         {
+            converted[c] = c.renderMode;
             c.renderMode = RenderMode.WorldSpace;
             c.worldCamera = cam;
             UIOverlay.MakeAlwaysVisible(c, true);
-            converted.Add(c);
         }
 
         var rt = (RectTransform)c.transform;
@@ -153,5 +153,28 @@ internal class VRMenuPopup : MonoBehaviour
     {
         VRPointer.Canvas = MenuCanvasPatch.MenuCanvas;
         VRPointer.Raycaster = MenuCanvasPatch.MenuRaycaster;
+    }
+
+    public static void RestoreAll()
+    {
+        var restored = 0;
+
+        foreach (var pair in converted)
+        {
+            var c = pair.Key;
+            if (c == null)
+                continue;
+
+            c.renderMode = pair.Value;
+            c.worldCamera = null;
+            VRPointer.Detach(c);
+            restored++;
+        }
+
+        converted.Clear();
+        active = null;
+
+        if (restored > 0)
+            Plugin.Log.LogInfo($"[PeakVR] {restored} dialog canvas(es) returned to the screen");
     }
 }

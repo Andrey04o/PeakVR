@@ -29,6 +29,23 @@ internal static class VRHands
         interactRay = CreateInteractRay(Right);
     }
 
+    // The hands are children of the rig, so the GameObjects go with it — this only drops the statics so
+    // a later switch back into VR rebuilds them instead of seeing "already created".
+    public static void Destroy()
+    {
+        if (Left != null)
+            Object.Destroy(Left.parent != null ? Left.parent.gameObject : Left.gameObject);
+        if (Right != null)
+            Object.Destroy(Right.parent != null ? Right.parent.gameObject : Right.gameObject);
+
+        Left = null;
+        Right = null;
+        leftLaser = null;
+        rightLaser = null;
+        interactRay = null;
+        menuPointersOn = false;
+    }
+
     public static void SetPointersActive(bool on)
     {
         menuPointersOn = on;

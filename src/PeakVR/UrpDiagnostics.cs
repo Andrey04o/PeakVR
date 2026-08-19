@@ -365,6 +365,14 @@ internal static class UrpDiagnostics
         SetDepthPriming(!DepthPriming);
     }
 
+    // Forced depth priming is a VR-only perf trade (it is what makes the Hazard-layer renderers vanish),
+    // so flat mode gets the game's own priming back.
+    public static void RestoreDepthPriming()
+    {
+        if (DepthPriming)
+            SetDepthPriming(false);
+    }
+
     private static void SetDepthPriming(bool enabled)
     {
         var asset = GraphicsSettings.currentRenderPipeline;

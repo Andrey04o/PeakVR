@@ -26,6 +26,17 @@ internal class VRLoadingScreen : MonoBehaviour
 
     private LoadingScreen loadingScreen;
     private bool converted;
+    private RenderMode originalMode;
+
+    private void Restore()
+    {
+        converted = false;
+        loadingScreen.canvas.renderMode = originalMode;
+        loadingScreen.canvas.worldCamera = null;
+
+        if (cover != null)
+            cover.gameObject.SetActive(false);
+    }
 
     private Canvas cover;
     private Image coverFill;
@@ -39,8 +50,15 @@ internal class VRLoadingScreen : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (!Plugin.VrEnabled || loadingScreen == null || loadingScreen.canvas == null)
+        if (loadingScreen == null || loadingScreen.canvas == null)
             return;
+
+        if (!Plugin.VrEnabled)
+        {
+            if (converted)
+                Restore();
+            return;
+        }
 
         var cam = Camera.main;
         if (cam == null && MainCamera.instance != null)
@@ -60,6 +78,7 @@ internal class VRLoadingScreen : MonoBehaviour
 
         if (!converted)
         {
+            originalMode = loadingScreen.canvas.renderMode;
             loadingScreen.canvas.renderMode = RenderMode.WorldSpace;
             loadingScreen.canvas.worldCamera = cam;
             UIOverlay.MakeAlwaysVisible(loadingScreen.canvas, true);

@@ -15,8 +15,21 @@ internal static class MenuCanvasPatch
     internal static Canvas MenuCanvas;
     internal static TrackedDeviceGraphicRaycaster MenuRaycaster;
 
+    private static RenderMode originalMode;
+    private static Vector3 originalScale;
+    private static Vector3 originalPosition;
+    private static Quaternion originalRotation;
+
     [HarmonyPostfix]
     private static void Postfix(MainMenu __instance)
+    {
+        if (!Plugin.VrEnabled)
+            return;
+
+        Build(__instance);
+    }
+
+    public static void Build(MainMenu __instance)
     {
         var canvas = __instance.GetComponentInChildren<Canvas>(true);
         if (canvas == null)
@@ -26,6 +39,16 @@ internal static class MenuCanvasPatch
         }
 
         var cam = MainCamera.instance != null ? MainCamera.instance.cam : Camera.main;
+        if (cam == null)
+            return;
+
+        if (canvas != MenuCanvas)
+        {
+            originalMode = canvas.renderMode;
+            originalScale = canvas.transform.localScale;
+            originalPosition = canvas.transform.position;
+            originalRotation = canvas.transform.rotation;
+        }
 
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
@@ -54,5 +77,29 @@ internal static class MenuCanvasPatch
         rt.rotation = Quaternion.LookRotation(fwd, Vector3.up);
 
         Plugin.Log.LogInfo($"[PeakVR] Menu canvas -> world space at {rt.position} (scale {Scale})");
+    }
+
+    public static void Restore()
+    {
+        if (MenuCanvas == null)
+        {
+            MenuCanvas = null;
+            MenuRaycaster = null;
+            return;
+        }
+
+        MenuCanvas.renderMode = originalMode;
+        MenuCanvas.worldCamera = null;
+
+        var rt = MenuCanvas.transform;
+        rt.localScale = originalScale;
+        rt.SetPositionAndRotation(originalPosition, originalRotation);
+
+        VRPointer.Detach(MenuCanvas);
+
+        Plugin.Log.LogInfo("[PeakVR] Menu canvas returned to the screen");
+
+        MenuCanvas = null;
+        MenuRaycaster = null;
     }
 }

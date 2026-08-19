@@ -22,6 +22,9 @@ internal static class InteractionInputPatch
     [HarmonyPostfix]
     private static void Postfix(CharacterInput __instance, bool playerMovementActive)
     {
+        if (!Plugin.VrEnabled)
+            return;
+
         var local = Character.localCharacter;
         if (local == null || local.input != __instance || VRControls.RightGrip == null)
             return;

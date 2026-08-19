@@ -38,6 +38,15 @@ internal class VRHeadRig : MonoBehaviour
     public static Vector2 RoomInput;
     public static bool Crouching;
     public static Quaternion ViewTilt = Quaternion.identity;
+
+    public static void ResetState()
+    {
+        RoomMoving = false;
+        RoomInput = Vector2.zero;
+        Crouching = false;
+        ViewTilt = Quaternion.identity;
+    }
+
     private Quaternion viewTilt = Quaternion.identity;
     private const float TiltSmoothSpeed = 12f;
     private float tiltDbgTimer;

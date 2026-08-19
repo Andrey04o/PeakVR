@@ -145,7 +145,7 @@ internal static class VRArmIKPatch
     private static bool ShouldDrive(CharacterAnimations anim, out Character c)
     {
         c = Character.localCharacter;
-        if (c == null || VRHands.Left == null || VRHands.Right == null)
+        if (!Plugin.VrEnabled || c == null || VRHands.Left == null || VRHands.Right == null)
             return false;
         if (c.data.fullyPassedOut)
             return false;

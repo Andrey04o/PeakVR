@@ -14,6 +14,12 @@ internal static class VRControllerVisibility
     private static readonly List<Renderer> renderers = new();
     private static bool? applied;
 
+    public static void Clear()
+    {
+        renderers.Clear();
+        applied = null;
+    }
+
     public static void Register(GameObject model)
     {
         if (model == null)

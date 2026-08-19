@@ -23,7 +23,7 @@ internal class VRMenuManager : MonoBehaviour
     // a page opens on top of it makes it invisible in the headset but paints it over the whole DESKTOP
     // window - which is what the settings page did behind the lobby browser. Same reasoning as
     // VRMenuPopup, which also leaves reused dialogs world-space once converted.
-    private static readonly HashSet<Canvas> Converted = new();
+    private static readonly Dictionary<Canvas, RenderMode> Converted = new();
 
     private Canvas current;
     private bool currentForeground;
@@ -31,6 +31,9 @@ internal class VRMenuManager : MonoBehaviour
 
     private void Update()
     {
+        if (!Plugin.VrEnabled)
+            return;
+
         var gui = GUIManager.instance;
         var hud = gui != null ? gui.hudCanvas : null;
 
@@ -81,6 +84,29 @@ internal class VRMenuManager : MonoBehaviour
             VRPointer.Raycaster = null;
             VRHands.SetPointersActive(false);
         }
+    }
+
+    private void OnDestroy()
+    {
+        var restored = 0;
+
+        foreach (var pair in Converted)
+        {
+            var canvas = pair.Key;
+            if (canvas == null)
+                continue;
+
+            canvas.renderMode = pair.Value;
+            canvas.worldCamera = null;
+            VRPointer.Detach(canvas);
+            restored++;
+        }
+
+        Converted.Clear();
+        current = null;
+
+        if (restored > 0)
+            Plugin.Log.LogInfo($"[PeakVR] {restored} in-game menu canvas(es) returned to the screen");
     }
 
     private static Canvas FindActiveCanvas(out bool foreground)
@@ -169,7 +195,10 @@ internal class VRMenuManager : MonoBehaviour
         if (cam == null)
             return;
 
-        var first = Converted.Add(canvas);
+        var first = !Converted.ContainsKey(canvas);
+        if (first)
+            Converted[canvas] = canvas.renderMode;
+
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
 

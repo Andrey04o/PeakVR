@@ -11,16 +11,44 @@ internal static class VRRender
     private static bool aoDisabled;
 
     private static int originalMsaa = -1;
+    private static float originalFarPlane = -1f;
 
     public static void ApplySharpening()
     {
         if (!Plugin.VrEnabled)
             return;
 
+        ApplySharpening(Plugin.Config == null || Plugin.Config.SharpenImage.Value == "Enable");
+    }
+
+    // Sharpening forces MSAA off and post-AA to None, which a flat player would see as a jagged image —
+    // so leaving VR puts the pipeline back on the game's own defaults, the same branch as "disabled".
+    public static void RestoreForFlat()
+    {
+        ApplySharpening(false);
+
+        if (originalFarPlane > 0f && MainCamera.instance != null && MainCamera.instance.cam != null)
+            MainCamera.instance.cam.farClipPlane = originalFarPlane;
+        originalFarPlane = -1f;
+
+        if (aoDisabled)
+        {
+            aoDisabled = false;
+            try
+            {
+                UrpDiagnostics.SetFeatureActive("HBAO", true);
+            }
+            catch (Exception e)
+            {
+                Plugin.Log.LogWarning($"[PeakVR] Could not restore HBAO: {e.Message}");
+            }
+        }
+    }
+
+    private static void ApplySharpening(bool enable)
+    {
         try
         {
-            bool enable = Plugin.Config == null || Plugin.Config.SharpenImage.Value == "Enable";
-
             UnityEngine.Rendering.RenderPipelineAsset asset = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline;
             PropertyInfo upProp = asset?.GetType().GetProperty("upscalingFilter");
             PropertyInfo msProp = asset?.GetType().GetProperty("msaaSampleCount");
@@ -106,6 +134,9 @@ internal static class VRRender
         var distance = Plugin.Config.FarPlane.Value;
         if (distance <= main.cam.nearClipPlane)
             return;
+
+        if (originalFarPlane < 0f)
+            originalFarPlane = main.cam.farClipPlane;
 
         main.cam.farClipPlane = distance;
     }

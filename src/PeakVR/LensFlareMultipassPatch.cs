@@ -25,7 +25,7 @@ internal static class LensFlareMultipassPatch
     {
         __state = -1;
 
-        if (MultipassIdField == null || xr == null || !xr.enabled || xr.singlePassEnabled)
+        if (!Plugin.VrEnabled || MultipassIdField == null || xr == null || !xr.enabled || xr.singlePassEnabled)
             return;
 
         var id = xr.multipassId;

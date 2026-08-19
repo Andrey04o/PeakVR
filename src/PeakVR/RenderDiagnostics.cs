@@ -36,13 +36,35 @@ internal static class RenderDiagnostics
     private const float ScanInterval = 3f;
     private const int SpreadFrames = 4;
 
+    private static float originalLodBias = -1f;
+    private static int originalMaxLod = -1;
+
     public static void ApplyLodBias()
     {
         float target = Plugin.Config != null ? Plugin.Config.LodBias.Value : DefaultLodBias;
         float prev = QualitySettings.lodBias;
+
+        if (originalLodBias < 0f)
+        {
+            originalLodBias = prev;
+            originalMaxLod = QualitySettings.maximumLODLevel;
+        }
+
         QualitySettings.lodBias = target;
         QualitySettings.maximumLODLevel = 0;
         Plugin.Log.LogInfo($"[PeakVR] lodBias {prev} -> {QualitySettings.lodBias}");
+    }
+
+    public static void RestoreLodBias()
+    {
+        if (originalLodBias < 0f)
+            return;
+
+        QualitySettings.lodBias = originalLodBias;
+        QualitySettings.maximumLODLevel = originalMaxLod;
+        originalLodBias = -1f;
+
+        Plugin.Log.LogInfo($"[PeakVR] lodBias restored to {QualitySettings.lodBias}");
     }
 
     public static void ScheduleScan()
@@ -211,6 +233,26 @@ internal static class RenderDiagnostics
 
         if (added > 0)
             Plugin.Log.LogInfo($"[PeakVR] LOD0-only sweep: +{added} groups flattened (total {suppressed.Count})");
+    }
+
+    // The per-eye LOD workarounds force levels, disable groups and hide renderers — none of which the
+    // flat game should be left with, since nothing ticks them once the rig is gone.
+    public static void RestoreForFlat()
+    {
+        RestoreLods();
+
+        foreach (var b in bigLods)
+        {
+            if (b.group == null)
+                continue;
+
+            b.group.enabled = true;
+            b.group.ForceLOD(-1);
+        }
+
+        bigLods.Clear();
+        tracked.Clear();
+        RestoreLodBias();
     }
 
     private static void RestoreLods()

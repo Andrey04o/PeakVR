@@ -25,7 +25,7 @@ internal static class HandInteractPatch
     [HarmonyPostfix]
     private static void Postfix(Interaction __instance, ref IInteractible interactableResult)
     {
-        if (VRHands.Right == null)
+        if (!Plugin.VrEnabled || VRHands.Right == null)
             return;
 
         var local = Character.localCharacter;

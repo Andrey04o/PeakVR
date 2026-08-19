@@ -37,7 +37,7 @@ internal static class VRHazardLayer
         Apply();
     }
 
-    private static void Restore()
+    public static void Restore()
     {
         if (Original.Count == 0)
             return;

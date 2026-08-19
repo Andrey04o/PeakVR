@@ -75,49 +75,29 @@ public partial class Plugin : BaseUnityPlugin
 
         gameObject.AddComponent<VRRemoteBinoculars>();
 
-        if (disableVr)
+        // Preloaded in flat mode too: without the XR assemblies in the process there is no way back
+        // into VR later, and the mode switch is the whole point of starting flat gracefully.
+        if (!PreloadRuntimeDependencies())
         {
-            VrEnabled = false;
-            ApplyRemoteOnlyPatches();
-            RegisterSettingsPage();
-            Log.LogWarning("[PeakVR] VR disabled by the '--disable-vr' command line flag — running in flat (non-VR) mode; only remote-VR-render patches applied.");
-            Log.LogInfo($"Plugin {Name} is loaded (VR disabled)!");
-            return;
-        }
-
-        if (!PreloadRuntimeDependencies()) {
             Logger.LogError("Disabling mod because required runtime dependencies could not be loaded!");
             return;
         }
 
-        if (!InitializeVR())
-        {
-            VrEnabled = false;
-            ApplyRemoteOnlyPatches();
-            RegisterSettingsPage();
-            Log.LogWarning("[PeakVR] VR failed to initialize (no headset or OpenXR runtime?) — running in flat (non-VR) mode; only remote-VR-render patches applied.");
-            Log.LogInfo($"Plugin {Name} is loaded (VR unavailable)!");
-            return;
-        }
-
-        // Disable the XR visibility mesh now, before the studio-logo / splash scene renders, so its
-        // post-processing also falls back to pass 0 (the camera patches run too late for the splash).
-        VRRender.DisableXRVisibilityMesh();
-
-        // Before XRMirror.Setup(): this reinitializes URP's GPU Resident Drawer, which tears down the
-        // XR system and freezes the desktop mirror if it is already installed.
-        UrpDiagnostics.ApplySmallMeshCulling();
-        UrpDiagnostics.ApplyDepthPriming();
-        UrpDiagnostics.ApplyGpuOcclusionCulling();
-        ForegroundUI.Apply();
-
-        PeakAssets.Load();
-        XRMirror.Setup();
-        VRControls.Init();
-
+        // Every patch is applied in both modes and gated internally on VrEnabled, so switching mode is
+        // just a flag flip plus a rig rebuild — no patching or unpatching at runtime.
         new Harmony(Id).PatchAll(typeof(Plugin).Assembly);
 
-        VRArmIKPatch.LoadArmScaleFromConfig();
+        if (disableVr)
+        {
+            VrEnabled = false;
+            Log.LogWarning("[PeakVR] Starting in flat (non-VR) mode ('--disable-vr' or the 'Start In VR' setting). Switch to VR from the VR Settings page or the mode hotkey.");
+        }
+        else if (!VRSession.StartAtBoot())
+        {
+            VrEnabled = false;
+            Log.LogWarning("[PeakVR] VR failed to initialize (no headset or OpenXR runtime?) — running in flat (non-VR) mode. Wake the headset and switch to VR from the VR Settings page or the mode hotkey.");
+        }
+
         try
         {
             VRCalibration.Register();
@@ -128,15 +108,8 @@ public partial class Plugin : BaseUnityPlugin
         }
 
         RegisterSettingsPage();
-        // BepInEx also gives us a config file for easy configuration.
-        // See https://lethal.wiki/dev/intermediate/custom-configs
 
-        // We can apply our hooks here.
-        // See https://lethal.wiki/dev/fundamentals/patching-code
-
-        // Log our awake here so we can see it in LogOutput.log file
-        Log.LogInfo($"Plugin {Name} is loaded!");
-        //Peak.UI.KickButton kickButton;
+        Log.LogInfo($"Plugin {Name} is loaded ({(VrEnabled ? "VR" : "flat")} mode)!");
     }
 
     private int mirrorFrame;
@@ -349,16 +322,6 @@ public partial class Plugin : BaseUnityPlugin
         }
     }
 
-    private static void ApplyRemoteOnlyPatches()
-    {
-        var harmony = new Harmony(Id);
-        harmony.CreateClassProcessor(typeof(RemoteIKPatch)).Patch();
-        harmony.CreateClassProcessor(typeof(OneHandedHoldPatch)).Patch();
-        harmony.CreateClassProcessor(typeof(AboutButtonPatch)).Patch();
-        harmony.CreateClassProcessor(typeof(HeadRotationCopyPatch)).Patch();
-        harmony.CreateClassProcessor(typeof(HeadTiltPatch)).Patch();
-    }
-
     private bool PreloadRuntimeDependencies()
     {
         try
@@ -399,26 +362,4 @@ public partial class Plugin : BaseUnityPlugin
         }
     }
 
-    private static bool InitializeVR()
-    {
-        LCVR.Logger.LogInfo("Loading VR...");
-
-        if (!LCVR.OpenXR.Loader.InitializeXR())
-        {
-            LCVR.Logger.LogError("Failed to start in VR Mode! Only Non-VR features are available!");
-            LCVR.Logger.LogWarning("You may ignore the previous error if you are intending to play without VR");
-
-            //Flags |= Flags.StartupFailed;
-
-            return false;
-        }
-
-        if (LCVR.OpenXR.GetActiveRuntimeName(out var name) &&
-            LCVR.OpenXR.GetActiveRuntimeVersion(out var major, out var minor, out var patch))
-            LCVR.Logger.LogInfo($"OpenXR runtime being used: {name} ({major}.{minor}.{patch})");
-        else
-            LCVR.Logger.LogError("Could not get OpenXR runtime info?");
-
-        return true;
-    }
 }

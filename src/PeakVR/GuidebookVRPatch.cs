@@ -12,6 +12,9 @@ internal static class GuidebookVRPatch
     [HarmonyPrefix]
     private static bool Prefix(Guidebook __instance)
     {
+        if (!Plugin.VrEnabled)
+            return true;
+
         var hand = VRHands.Right;
         if (hand == null || !__instance.isOpen || __instance.bookTransform == null
             || __instance.holderCharacter == null || !__instance.holderCharacter.IsLocal

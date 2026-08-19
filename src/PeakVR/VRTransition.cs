@@ -12,8 +12,7 @@ internal static class VRTransitionPatch
     [HarmonyPostfix]
     private static void Postfix(Transitions __instance)
     {
-        if (Plugin.VrEnabled)
-            __instance.gameObject.AddComponent<VRTransition>();
+        __instance.gameObject.AddComponent<VRTransition>();
     }
 }
 
@@ -56,7 +55,7 @@ internal class VRTransition : MonoBehaviour
             return;
 
         var local = Character.localCharacter;
-        var spectating = local != null && local.data != null && local.data.fullyPassedOut;
+        var spectating = Plugin.VrEnabled && local != null && local.data != null && local.data.fullyPassedOut;
 
         if (!spectating)
         {

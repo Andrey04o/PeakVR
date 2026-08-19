@@ -12,7 +12,7 @@ internal static class ItemAim
     {
         var fallback = MainCamera.instance != null ? MainCamera.instance.transform : null;
 
-        if (!Enabled)
+        if (!Enabled || !Plugin.VrEnabled)
             return fallback;
 
         var character = Character.localCharacter;

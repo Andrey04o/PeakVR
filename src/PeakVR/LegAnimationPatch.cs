@@ -15,7 +15,7 @@ internal static class LegAnimationPatch
     [HarmonyPostfix]
     private static void Postfix(CharacterAnimations __instance)
     {
-        if (!VRHeadRig.RoomMoving)
+        if (!Plugin.VrEnabled || !VRHeadRig.RoomMoving)
             return;
 
         var c = Character.localCharacter;

@@ -8,9 +8,14 @@ internal static class FogQuadPatch
 {
     private const float Margin = 1.6f;
 
+    private static readonly VRRestore Reparented = new();
+
     [HarmonyPrefix]
     private static bool Prefix(CameraQuad __instance)
     {
+        if (!Plugin.VrEnabled)
+            return true;
+
         var cam = MainCamera.instance != null ? MainCamera.instance.cam : null;
         if (cam == null)
             return false;
@@ -25,7 +30,10 @@ internal static class FogQuadPatch
         var h = 2f * d / proj.m11 * Margin;
 
         if (t.parent != cam.transform)
+        {
+            Reparented.Record(t);
             t.SetParent(cam.transform, false);
+        }
 
         t.localPosition = new Vector3(0f, 0f, d);
         t.localRotation = Quaternion.identity;
@@ -33,4 +41,8 @@ internal static class FogQuadPatch
 
         return false;
     }
+
+    // The quads are parented onto the VR camera; the vanilla LateUpdate sizes them from the viewport
+    // instead, so they have to go back to their own parents or they inherit the camera's transform.
+    public static void Restore() => Reparented.RestoreAll();
 }

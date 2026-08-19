@@ -11,8 +11,10 @@ internal class VRModCanvas : MonoBehaviour
     private const int ScanInterval = 30;
 
     private static GameObject host;
+    private static VRModCanvas instance;
 
     private readonly List<Canvas> adopted = new();
+    private readonly Dictionary<Canvas, RenderMode> originalMode = new();
     private int frame;
 
     public static void Create()
@@ -22,8 +24,31 @@ internal class VRModCanvas : MonoBehaviour
 
         host = new GameObject("PeakVR ModCanvas");
         Object.DontDestroyOnLoad(host);
-        host.AddComponent<VRModCanvas>();
+        instance = host.AddComponent<VRModCanvas>();
         Plugin.Log.LogInfo("[PeakVR] Mod canvas adopter created");
+    }
+
+    public static void ReleaseAll() => instance?.Release();
+
+    private void Release()
+    {
+        var restored = 0;
+
+        foreach (var c in adopted)
+        {
+            if (c == null)
+                continue;
+
+            c.renderMode = originalMode.TryGetValue(c, out var mode) ? mode : RenderMode.ScreenSpaceOverlay;
+            c.worldCamera = null;
+            restored++;
+        }
+
+        adopted.Clear();
+        originalMode.Clear();
+
+        if (restored > 0)
+            Plugin.Log.LogInfo($"[PeakVR] {restored} mod canvas(es) returned to the screen");
     }
 
     private void OnEnable() => Application.onBeforeRender += OnBeforeRender;
@@ -131,6 +156,7 @@ internal class VRModCanvas : MonoBehaviour
 
     private void Adopt(Canvas c, Camera cam, string owner)
     {
+        originalMode[c] = c.renderMode;
         c.renderMode = RenderMode.WorldSpace;
         c.worldCamera = cam;
 

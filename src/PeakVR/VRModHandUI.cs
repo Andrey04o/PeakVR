@@ -27,6 +27,7 @@ internal static class VRModHandUI
     private static readonly List<RectTransform> Pending = new();
     private static readonly List<RectTransform> ChatPanels = new();
     private static readonly List<Moved> MovedElements = new();
+    private static readonly List<Moved> ChatOrigins = new();
     private static float chatY = float.NaN;
 
     private struct Moved
@@ -79,6 +80,7 @@ internal static class VRModHandUI
 
         foreach (var child in Pending)
         {
+            ChatOrigins.Add(new Moved { Child = child, Origin = source.transform });
             child.SetParent(wrist.transform, false);
             child.anchorMin = child.anchorMax = child.pivot = new Vector2(0.5f, 0.5f);
             child.localScale = Vector3.one;
@@ -105,9 +107,31 @@ internal static class VRModHandUI
         if (MovedElements.Count == 0 || Plugin.Config == null || Plugin.Config.ModUIOnLeftHand.Value)
             return;
 
+        var restored = Release(MovedElements);
+        DestroyCanvas();
+        Plugin.Log.LogInfo($"[PeakVR] Returned {restored} element(s) to their own canvas (left-hand mod UI turned off)");
+    }
+
+    // The chat panels sit inside the wrist HUD canvas, which the rig owns — so leaving flat mode has to
+    // send them home BEFORE that canvas is destroyed, or PeakTextChat is left holding dead references.
+    public static void ReleaseAll()
+    {
+        var restored = Release(MovedElements) + Release(ChatOrigins);
+        DestroyCanvas();
+
+        ChatPanels.Clear();
+        chatY = float.NaN;
+        PeakTextChatPatch.Claimed = false;
+
+        if (restored > 0)
+            Plugin.Log.LogInfo($"[PeakVR] Returned {restored} element(s) to their own canvas");
+    }
+
+    private static int Release(List<Moved> moves)
+    {
         var restored = 0;
 
-        foreach (var moved in MovedElements)
+        foreach (var moved in moves)
         {
             if (moved.Child == null || moved.Origin == null)
                 continue;
@@ -116,13 +140,15 @@ internal static class VRModHandUI
             restored++;
         }
 
-        MovedElements.Clear();
+        moves.Clear();
+        return restored;
+    }
 
+    private static void DestroyCanvas()
+    {
         if (canvas != null)
             Object.Destroy(canvas.gameObject);
         canvas = null;
-
-        Plugin.Log.LogInfo($"[PeakVR] Returned {restored} element(s) to their own canvas (left-hand mod UI turned off)");
     }
 
     // Re-evaluated every frame, not just on claim: the scan order between the chat canvas and

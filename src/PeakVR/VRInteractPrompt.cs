@@ -3,7 +3,7 @@ using UnityEngine;
 namespace PeakVR;
 
 [DefaultExecutionOrder(1200)]
-internal class VRInteractPrompt : MonoBehaviour
+internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
 {
     private const float Scale = 0.0013f;
     private const float ForwardOffset = 0.05f;
@@ -20,9 +20,12 @@ internal class VRInteractPrompt : MonoBehaviour
     private Transform progress;
     private UI_UseItemProgress progressComp;
 
+    private readonly VRRestore restore = new();
+    private bool reticleHidden;
+
     private void LateUpdate()
     {
-        if (VRHands.Right == null)
+        if (!Plugin.VrEnabled || VRHands.Right == null)
             return;
 
         var gui = GUIManager.instance;
@@ -30,7 +33,10 @@ internal class VRInteractPrompt : MonoBehaviour
             return;
 
         if (gui.reticleDefault != null && gui.reticleDefault.activeSelf)
+        {
+            reticleHidden = true;
             gui.reticleDefault.SetActive(false);
+        }
 
         EnsureCanvas();
 
@@ -75,6 +81,7 @@ internal class VRInteractPrompt : MonoBehaviour
 
         if (target.parent != canvasRt)
         {
+            restore.Record(target);
             target.SetParent(canvasRt, false);
             if (target is RectTransform rt)
             {
@@ -84,6 +91,28 @@ internal class VRInteractPrompt : MonoBehaviour
         }
 
         held = target;
+    }
+
+    public void RestoreForFlat()
+    {
+        var count = restore.RestoreAll();
+
+        var gui = GUIManager.instance;
+        if (reticleHidden && gui != null && gui.reticleDefault != null)
+            gui.reticleDefault.SetActive(true);
+        reticleHidden = false;
+
+        interactName = null;
+        interactPrompts = null;
+        progress = null;
+
+        if (canvas != null)
+            Destroy(canvas.gameObject);
+        canvas = null;
+        canvasRt = null;
+
+        if (count > 0)
+            Plugin.Log.LogInfo($"[PeakVR] Interaction prompts returned to the screen ({count})");
     }
 
     private static Transform PromptContainer(GUIManager gui)

@@ -111,6 +111,13 @@ internal static class ForegroundUI
         Plugin.Log.LogInfo("[PeakVR][ForegroundUI] disabled");
     }
 
+    // Apply() is gated on VrEnabled, which is already false by the time a switch to flat gets here.
+    public static void Shutdown()
+    {
+        if (Active)
+            Disable();
+    }
+
     public static void ApplyDepthMode()
     {
         if (pass != null)

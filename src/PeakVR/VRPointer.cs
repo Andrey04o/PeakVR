@@ -25,6 +25,20 @@ internal static class VRPointer
         return raycaster;
     }
 
+    public static void Detach(Canvas canvas)
+    {
+        if (canvas == null)
+            return;
+
+        var raycaster = canvas.GetComponent<TrackedDeviceGraphicRaycaster>();
+        if (raycaster != null)
+            Object.Destroy(raycaster);
+
+        foreach (var screen in canvas.GetComponents<GraphicRaycaster>())
+            if (screen != null)
+                screen.enabled = true;
+    }
+
     public static void DisableScreenRaycaster(Canvas canvas)
     {
         if (canvas == null)

@@ -7,7 +7,7 @@ using Zorro.Core;
 namespace PeakVR;
 
 [DefaultExecutionOrder(1250)]
-internal class VRControllerHud : MonoBehaviour
+internal class VRControllerHud : MonoBehaviour, IVRRestorable
 {
     private const float Scale = 0.0007f;
     private const float ItemSpacing = 90f;
@@ -42,6 +42,10 @@ internal class VRControllerHud : MonoBehaviour
 
     private void Awake() => instance = this;
     private bool moved;
+
+    private readonly VRRestore restore = new();
+    private readonly List<GameObject> hidden = new();
+    private readonly Dictionary<TextMeshProUGUI, TextAlignmentOptions> promptAlignment = new();
 
     private readonly List<CellTarget> targets = new();
     private LineRenderer pointer;
@@ -197,6 +201,7 @@ internal class VRControllerHud : MonoBehaviour
                 continue;
 
             var pt = prompt.transform;
+            restore.Record(pt);
             pt.SetParent(rt, false);
             pt.localScale = Vector3.one;
             pt.localRotation = Quaternion.identity;
@@ -204,6 +209,7 @@ internal class VRControllerHud : MonoBehaviour
             if (pt is RectTransform prt)
                 prt.anchorMin = prt.anchorMax = prt.pivot = new Vector2(0.5f, 0.5f);
 
+            promptAlignment.Add(prompt, prompt.alignment);
             prompt.alignment = TextAlignmentOptions.Right;
             count++;
         }
@@ -224,6 +230,8 @@ internal class VRControllerHud : MonoBehaviour
             if (promptsRoot != null && prompt.transform.IsChildOf(promptsRoot))
                 continue;
 
+            if (prompt.gameObject.activeSelf)
+                hidden.Add(prompt.gameObject);
             prompt.gameObject.SetActive(false);
         }
 
@@ -234,8 +242,47 @@ internal class VRControllerHud : MonoBehaviour
             if (promptsRoot != null && icon.transform.IsChildOf(promptsRoot))
                 continue;
 
+            if (icon.gameObject.activeSelf)
+                hidden.Add(icon.gameObject);
             icon.gameObject.SetActive(false);
         }
+    }
+
+    public void RestoreForFlat()
+    {
+        if (!moved)
+            return;
+
+        moved = false;
+        ClearTargets();
+        SetHover(null);
+
+        foreach (var prompt in promptAlignment)
+            if (prompt.Key != null)
+                prompt.Key.alignment = prompt.Value;
+        promptAlignment.Clear();
+
+        var count = restore.RestoreAll();
+
+        foreach (var go in hidden)
+            if (go != null)
+                go.SetActive(true);
+        hidden.Clear();
+
+        if (promptsRoot != null)
+            Destroy(promptsRoot.gameObject);
+        promptsRoot = null;
+
+        if (left != null)
+            Destroy(left.gameObject);
+        if (right != null)
+            Destroy(right.gameObject);
+
+        left = null;
+        right = null;
+        LeftHudCanvas = null;
+
+        Plugin.Log.LogInfo($"[PeakVR] HUD returned to the screen ({count} element(s))");
     }
 
     private void UpdateBackface()
@@ -467,8 +514,9 @@ internal class VRControllerHud : MonoBehaviour
         return null;
     }
 
-    private static void Center(Transform t, Canvas canvas, Vector2 pos)
+    private void Center(Transform t, Canvas canvas, Vector2 pos)
     {
+        restore.Record(t);
         t.SetParent(canvas.transform, false);
         if (t is RectTransform rt)
         {

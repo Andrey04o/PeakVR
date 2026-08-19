@@ -9,7 +9,7 @@ internal static class MovementInputPatch
     [HarmonyPostfix]
     private static void Postfix(CharacterInput __instance, bool playerMovementActive)
     {
-        if (!playerMovementActive || VRControls.MoveStick == null)
+        if (!Plugin.VrEnabled || !playerMovementActive || VRControls.MoveStick == null)
             return;
 
         var local = Character.localCharacter;
