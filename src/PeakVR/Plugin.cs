@@ -67,6 +67,8 @@ public partial class Plugin : BaseUnityPlugin
 
         new Harmony(Id).PatchAll(typeof(Plugin).Assembly);
 
+        VRSessionWatch.Install();
+
         UrpDiagnostics.ApplySmallMeshCulling();
         UrpDiagnostics.ApplyGpuOcclusionCulling();
 
@@ -105,6 +107,7 @@ public partial class Plugin : BaseUnityPlugin
         HandleModeHotkey();
 
         VRFrameTiming.Tick();
+        VRSessionWatch.Tick();
 
         if (!VrEnabled)
             return;

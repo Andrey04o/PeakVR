@@ -36,9 +36,23 @@ internal class XRSessionMonitor : OpenXRFeature
         VRAudio.ReacquireOutputDevice();
     }
 
-    public override void OnSessionExiting(ulong xrSession) => Log("OnSessionExiting");
-    public override void OnSessionLossPending(ulong xrSession) => Log("OnSessionLossPending");
-    public override void OnInstanceLossPending(ulong xrInstance) => Log("OnInstanceLossPending");
+    public override void OnSessionExiting(ulong xrSession)
+    {
+        Log("OnSessionExiting");
+        VRSessionWatch.ReportLoss("the OpenXR session is exiting");
+    }
+
+    public override void OnSessionLossPending(ulong xrSession)
+    {
+        Log("OnSessionLossPending");
+        VRSessionWatch.ReportLoss("the OpenXR session was lost (headset off, disconnected or out of battery?)");
+    }
+
+    public override void OnInstanceLossPending(ulong xrInstance)
+    {
+        Log("OnInstanceLossPending");
+        VRSessionWatch.ReportLoss("the OpenXR runtime went away");
+    }
     public override void OnSessionCreate(ulong xrSession) => Log("OnSessionCreate");
     public override void OnSessionBegin(ulong xrSession) => Log("OnSessionBegin");
     public override void OnSessionEnd(ulong xrSession) => Log("OnSessionEnd");

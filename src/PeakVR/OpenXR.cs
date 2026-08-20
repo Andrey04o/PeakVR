@@ -399,6 +399,9 @@ internal static class OpenXR
             if (xrManagerSettings == null)
                 return false;
 
+            if (!xrManagerSettings.isInitializationComplete)
+                return true;
+
             xrManagerSettings.StopSubsystems();
             xrManagerSettings.DeinitializeLoader();
             return true;
