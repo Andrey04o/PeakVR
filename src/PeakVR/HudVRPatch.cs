@@ -13,8 +13,6 @@ internal static class HudVRPatch
     }
 }
 
-// Attached in both modes and driven by VrEnabled, so a mid-session switch either way is picked up on
-// the next frame without the component having to be added or removed.
 internal class VRHud : MonoBehaviour
 {
     private const float Distance = 1.5f;
@@ -24,11 +22,8 @@ internal class VRHud : MonoBehaviour
     private int frame;
 
     private Canvas hud;
-    private RenderMode originalMode;
-    private Transform originalParent;
-    private Vector3 originalScale;
-    private Vector3 originalPosition;
-    private Quaternion originalRotation;
+    private VRCanvasState originalState;
+    private readonly VRRestore restore = new();
 
     private void Update()
     {
@@ -60,11 +55,9 @@ internal class VRHud : MonoBehaviour
         hud = canvas;
 
         var rt = (RectTransform)canvas.transform;
-        originalMode = canvas.renderMode;
-        originalParent = rt.parent;
-        originalScale = rt.localScale;
-        originalPosition = rt.localPosition;
-        originalRotation = rt.localRotation;
+        originalState = VRCanvasState.Capture(canvas);
+
+        restore.Record(rt);
 
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
@@ -86,14 +79,8 @@ internal class VRHud : MonoBehaviour
         if (hud == null)
             return;
 
-        var rt = (RectTransform)hud.transform;
-        rt.SetParent(originalParent, false);
-        rt.localScale = originalScale;
-        rt.localPosition = originalPosition;
-        rt.localRotation = originalRotation;
-
-        hud.renderMode = originalMode;
-        hud.worldCamera = null;
+        restore.RestoreAll();
+        originalState.Apply(hud);
         hud = null;
 
         Plugin.Log.LogInfo("[PeakVR] HUD returned to the screen");

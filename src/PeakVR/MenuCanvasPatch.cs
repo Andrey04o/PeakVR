@@ -15,7 +15,7 @@ internal static class MenuCanvasPatch
     internal static Canvas MenuCanvas;
     internal static TrackedDeviceGraphicRaycaster MenuRaycaster;
 
-    private static RenderMode originalMode;
+    private static VRCanvasState originalState;
     private static Vector3 originalScale;
     private static Vector3 originalPosition;
     private static Quaternion originalRotation;
@@ -44,7 +44,7 @@ internal static class MenuCanvasPatch
 
         if (canvas != MenuCanvas)
         {
-            originalMode = canvas.renderMode;
+            originalState = VRCanvasState.Capture(canvas);
             originalScale = canvas.transform.localScale;
             originalPosition = canvas.transform.position;
             originalRotation = canvas.transform.rotation;
@@ -88,8 +88,7 @@ internal static class MenuCanvasPatch
             return;
         }
 
-        MenuCanvas.renderMode = originalMode;
-        MenuCanvas.worldCamera = null;
+        originalState.Apply(MenuCanvas);
 
         var rt = MenuCanvas.transform;
         rt.localScale = originalScale;

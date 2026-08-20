@@ -19,14 +19,15 @@ internal static class UIOverlay
     public const int ReticleQueue = 4200;     // above every menu/popup, so the cursor is never hidden
 
     private static readonly Dictionary<Graphic, Material> Cache = new();
+    private static readonly Dictionary<Graphic, Material> Original = new();
 
-    // Reused so the periodic refresh (wrist HUD, hand prompt) allocates nothing per pass — the lists
-    // replace per-call component arrays, Preserve replaces the params array HideFromMirror would build.
+    private static readonly System.Reflection.FieldInfo MaterialField =
+        HarmonyLib.AccessTools.Field(typeof(Graphic), "m_Material");
+
     private static readonly List<Graphic> Graphics = new();
     private static readonly List<TMP_SubMeshUI> SubMeshes = new();
     private static readonly int[] Preserve = { VRControllerHud.HudLayer, 7 };
 
-    // Diagnostics: press F4 in-game to log the render order / clip state of every canvas we touch.
     public static bool Logging;
     private static readonly HashSet<Canvas> Logged = new();
 
@@ -44,10 +45,6 @@ internal static class UIOverlay
     public static void MakeAlwaysVisible(Canvas canvas, int baseQueue)
         => Apply(canvas, baseQueue);
 
-    // Elements built after a canvas was first treated (dynamic lobby lists, player lists) keep their
-    // own layer, and Apply's fast path skips the sweep once the canvas root is already on the UI
-    // layer — so they miss the injected foreground pass and end up behind the panel they sit on.
-    // Callers that own a canvas which rebuilds itself re-sweep on an interval.
     public static void SweepForegroundLayer(Canvas canvas)
     {
         if (canvas == null || !ForegroundUI.Active)
@@ -56,9 +53,6 @@ internal static class UIOverlay
         VRLayers.HideFromMirror(canvas.gameObject, Preserve);
     }
 
-    // TMP renders a <font="..."> tag through a TMP_SubMeshUI carrying the FALLBACK font's material,
-    // not the text's own fontMaterial, and GetMaterial skips sub-meshes - so the VR button glyphs
-    // never got the depth override the surrounding text has. Treat the source material once instead.
     public static void SetZTestAlways(Material mat)
     {
         if (mat == null)
@@ -68,7 +62,6 @@ internal static class UIOverlay
         mat.SetInt(ZTestTMP, Always);
     }
 
-    // Force a single graphic (e.g. the laser reticle) to draw on top of everything, ignoring depth.
     public static void MakeTopmost(Graphic graphic, int queue)
     {
         if (graphic == null)
@@ -88,11 +81,6 @@ internal static class UIOverlay
         if (canvas == null)
             return;
 
-        // Only bump the queue for foreground layers (menus, loading, wrist HUD). Default-queue
-        // callers (HUD, passport window) get ZTest only. A flat same-queue bump is safe for stencil
-        // masks (mask still draws before its children in hierarchy order). NOTE: dynamic masked
-        // graphics (the stamina fill) still fall back below world glass because they regenerate their
-        // material each frame — deferred to the future URP UI-camera-stacking port.
         if (ForegroundUI.Active && canvas.gameObject.layer != VRLayers.UI)
             VRLayers.HideFromMirror(canvas.gameObject, Preserve);
 
@@ -125,9 +113,6 @@ internal static class UIOverlay
         ApplyToFallbackFonts(canvas, baseQueue, applyQueue);
     }
 
-    // Any character the main font lacks (Cyrillic lobby names, our VR button glyphs) is drawn by a
-    // TMP_SubMeshUI carrying the FALLBACK font's material, which GetMaterial skips - it is not a
-    // Graphic we own, and reading its .material can throw. sharedMaterial is a plain field read.
     private static void ApplyToFallbackFonts(Canvas canvas, int baseQueue, bool applyQueue)
     {
         canvas.GetComponentsInChildren(true, SubMeshes);
@@ -147,12 +132,50 @@ internal static class UIOverlay
                 mat.SetInt(ZTestTMP, Always);
 
                 if (applyQueue)
+                {
                     mat.renderQueue = baseQueue;
+                    Queued.Add(mat);
+                }
             }
             catch (System.Exception)
             {
             }
         }
+    }
+
+    private static readonly HashSet<Material> Queued = new();
+
+    public static void RestoreForFlat()
+    {
+        foreach (var pair in Cache)
+        {
+            var graphic = pair.Key;
+            var mat = pair.Value;
+
+            if (graphic is not TMP_Text && graphic != null)
+            {
+                Original.TryGetValue(graphic, out var original);
+                MaterialField?.SetValue(graphic, original);
+                graphic.SetMaterialDirty();
+
+                if (mat != null)
+                    Object.Destroy(mat);
+                continue;
+            }
+
+            if (mat != null)
+                mat.renderQueue = -1;
+        }
+
+        foreach (var mat in Queued)
+            if (mat != null)
+                mat.renderQueue = -1;
+
+        Plugin.Log.LogInfo($"[PeakVR] UI render queues restored ({Cache.Count} graphic(s), {Queued.Count} font material(s))");
+
+        Cache.Clear();
+        Original.Clear();
+        Queued.Clear();
     }
 
     private static Material GetMaterial(Graphic g)
@@ -179,6 +202,7 @@ internal static class UIOverlay
                 if (src == null)
                     return null;
 
+                Original[g] = MaterialField?.GetValue(g) as Material;
                 mat = new Material(src);
                 g.material = mat;
             }

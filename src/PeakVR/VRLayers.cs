@@ -9,8 +9,6 @@ internal static class VRLayers
 
     private static readonly List<Transform> Nodes = new();
 
-    // The UI layer (5). The airport Mirror camera strips this layer (MirrorPatch), so anything moved
-    // onto it won't be reflected. The main VR camera renders every layer, so it stays visible in-view.
     public static int UI
     {
         get
@@ -21,8 +19,6 @@ internal static class VRLayers
         }
     }
 
-    // Move a whole subtree onto the UI layer (mirror-excluded). Nodes on a preserved layer are left
-    // alone so raycast collider layers (e.g. the wrist HUD cells / emote button) keep working.
     public static void HideFromMirror(GameObject root, params int[] preserve)
     {
         if (root == null || UI < 0)
@@ -41,8 +37,32 @@ internal static class VRLayers
             for (var i = 0; i < preserve.Length; i++)
                 if (layer == preserve[i]) { keep = true; break; }
 
-            if (!keep)
-                t.gameObject.layer = UI;
+            if (keep || layer == UI)
+                continue;
+
+            Moved.TryAdd(t.gameObject, layer);
+            t.gameObject.layer = UI;
         }
     }
+
+    public static void RestoreAll()
+    {
+        var restored = 0;
+
+        foreach (var pair in Moved)
+        {
+            if (pair.Key == null)
+                continue;
+
+            pair.Key.layer = pair.Value;
+            restored++;
+        }
+
+        Moved.Clear();
+
+        if (restored > 0)
+            Plugin.Log.LogInfo($"[PeakVR] {restored} object(s) moved back off the UI layer");
+    }
+
+    private static readonly Dictionary<GameObject, int> Moved = new();
 }

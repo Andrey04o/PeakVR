@@ -11,6 +11,8 @@ internal static class VRRender
     private static bool aoDisabled;
 
     private static int originalMsaa = -1;
+    private static int originalAA = -1;
+    private static object originalUpscaling;
     private static float originalFarPlane = -1f;
 
     public static void ApplySharpening()
@@ -21,11 +23,35 @@ internal static class VRRender
         ApplySharpening(Plugin.Config == null || Plugin.Config.SharpenImage.Value == "Enable");
     }
 
-    // Sharpening forces MSAA off and post-AA to None, which a flat player would see as a jagged image —
-    // so leaving VR puts the pipeline back on the game's own defaults, the same branch as "disabled".
     public static void RestoreForFlat()
     {
-        ApplySharpening(false);
+        try
+        {
+            var asset = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline;
+
+            if (originalUpscaling != null)
+                asset?.GetType().GetProperty("upscalingFilter")?.SetValue(asset, originalUpscaling);
+
+            if (originalMsaa >= 0)
+                asset?.GetType().GetProperty("msaaSampleCount")?.SetValue(asset, originalMsaa);
+
+            var cam = MainCamera.instance != null ? MainCamera.instance.cam : Camera.main;
+            var addData = cam != null ? cam.GetComponent("UniversalAdditionalCameraData") : null;
+            var aaProp = addData?.GetType().GetProperty("antialiasing");
+
+            if (originalAA >= 0 && aaProp != null && aaProp.CanWrite)
+                aaProp.SetValue(addData, Enum.ToObject(aaProp.PropertyType, originalAA));
+
+            Plugin.Log.LogInfo($"[PeakVR] Image pipeline restored (msaa={originalMsaa} upscaling={originalUpscaling} aa={originalAA})");
+        }
+        catch (Exception e)
+        {
+            Plugin.Log.LogWarning($"[PeakVR] Could not restore the image pipeline: {e.Message}");
+        }
+
+        originalUpscaling = null;
+        originalMsaa = -1;
+        originalAA = -1;
 
         if (originalFarPlane > 0f && MainCamera.instance != null && MainCamera.instance.cam != null)
             MainCamera.instance.cam.farClipPlane = originalFarPlane;
@@ -60,6 +86,10 @@ internal static class VRRender
 
             if (msProp != null && originalMsaa < 0)
                 originalMsaa = (int)msProp.GetValue(asset);
+            if (upProp != null && originalUpscaling == null)
+                originalUpscaling = upProp.GetValue(asset);
+            if (aaProp != null && originalAA < 0)
+                originalAA = Convert.ToInt32(aaProp.GetValue(addData));
 
             bool changed = false;
 
@@ -93,7 +123,6 @@ internal static class VRRender
                 }
             }
 
-            // Camera post-AA: None(0) when sharpening, TemporalAA(3) when disabled (the game default).
             if (aaProp != null && aaProp.CanWrite)
             {
                 int target = enable ? 0 : 3;
@@ -113,10 +142,6 @@ internal static class VRRender
         }
     }
 
-    // HBAO (Horizon-Based Ambient Occlusion, a screen-space AO renderer feature) renders wrong per-eye
-    // under PEAK's URP 17.3 XR path (Unity 6000.3), giving inconsistent surface lighting between the
-    // eyes. Disabled by default via the "Force Disable HBAO" config; users can turn it back on.
-    // Called at scene setup; ApplyHBAO does the actual work and is also the live-toggle handler.
     public static void DisableBrokenAO()
     {
         ApplyHBAO();
@@ -162,13 +187,6 @@ internal static class VRRender
         }
     }
 
-    // PEAK's build strips URP's XR post-processing passes (UberPostXR / FinalPostXR = pass index 1).
-    // When the OpenXR runtime provides a visibility/occlusion mesh, URP renders UberPost/FinalPost
-    // through that mesh with pass 1 (PostProcessPassRenderGraph, xr.hasValidVisibleMesh branch) — which
-    // is missing in the build, giving "invalid pass index 1" and a flickering/black headset (Unity
-    // 6000.3 / URP 17.3). Disabling the visibility mesh makes URP fall back to a full-screen blit with
-    // pass 0, so post-processing works. Reflection keeps this version-agnostic (no-op on URP versions
-    // without the toggle).
     public static void DisableXRVisibilityMesh()
     {
         try
@@ -178,9 +196,6 @@ internal static class VRRender
             {
                 bool changed = false;
 
-                // The VISIBLE mesh: URP 17.3 routes post-processing (RG_UberPost) through it — a GPU
-                // regression on Unity 6.3 — and PEAK's build lacks that pass, so it also gives the
-                // "invalid pass index 1" black/flickering headset. false = full-screen blit (pass 0).
                 var visMesh = settings.GetProperty("useVisibilityMesh", BindingFlags.Public | BindingFlags.Static);
                 if (visMesh != null && visMesh.CanWrite && (bool)visMesh.GetValue(null))
                 {
@@ -188,9 +203,6 @@ internal static class VRRender
                     changed = true;
                 }
 
-                // The OCCLUSION mesh (the OpenXR visibility mask rendered early to skip lens-hidden
-                // pixels): on standalone/streamed OpenXR the 6.3 mesh path costs more than it saves
-                // (~0.2 ms GPU regression), so scale it to 0 to skip it entirely.
                 var occScale = settings.GetProperty("occlusionMeshScale", BindingFlags.Public | BindingFlags.Static);
                 if (occScale != null && occScale.CanWrite && (float)occScale.GetValue(null) != 0f)
                 {

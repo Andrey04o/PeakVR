@@ -13,15 +13,6 @@ using UnityEngine.XR.Interaction.Toolkit.Inputs.Composites;
 using UnityEngine.XR.Interaction.Toolkit.Inputs.Interactions;
 namespace PeakVR;
 
-// Here are some basic resources on code style and naming conventions to help
-// you in your first CSharp plugin!
-// https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions
-// https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/identifier-names
-// https://learn.microsoft.com/en-us/dotnet/standard/design-guidelines/names-of-namespaces
-
-// This BepInAutoPlugin attribute comes from the Hamunii.BepInEx.AutoPlugin
-// NuGet package, and it will generate the BepInPlugin attribute for you!
-// For more info, see https://github.com/Hamunii/BepInEx.AutoPlugin
 [BepInAutoPlugin]
 [BepInDependency("com.github.PEAKModding.PEAKLib.ModConfig", BepInDependency.DependencyFlags.SoftDependency)]
 [BepInDependency("com.github.PEAKModding.PEAKLib.UI", BepInDependency.DependencyFlags.SoftDependency)]
@@ -31,7 +22,6 @@ public partial class Plugin : BaseUnityPlugin
     public new static LCVR.Config Config { get; private set; }
     public static bool VrEnabled { get; private set; } = true;
 
-    // SPIKE: only VRModeSwitch uses this, to see what a live XR stop/start does.
     internal static void SetVrEnabled(bool value) => VrEnabled = value;
     public static bool DebugButtons { get; private set; }
     private void Awake()
@@ -39,9 +29,6 @@ public partial class Plugin : BaseUnityPlugin
         CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
         UnityEngine.Application.runInBackground = true;
 
-        // Registers the Input System's default plugins (incl. XR device layouts) — required for pose
-        // tracking. Its accessibility has shifted across Input System versions (public/private, and
-        // sometimes absent), so call it via reflection only if present.
         typeof(InputSystem).GetMethod("PerformDefaultPluginInitialization",
             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)?.Invoke(null, null);
 
@@ -58,9 +45,6 @@ public partial class Plugin : BaseUnityPlugin
         //Config.DeserializeFromES3();
         //Config.File.SettingChanged += (_, _) => Config.SerializeToES3();
 
-        // BepInEx gives us a logger which we can use to log information.
-        // See https://lethal.wiki/dev/fundamentals/logging
-        
         var args = Environment.GetCommandLineArgs();
         var disableVr = args.Contains("--disable-vr", StringComparer.OrdinalIgnoreCase)
             || !Config.StartInVR.Value;
@@ -75,17 +59,16 @@ public partial class Plugin : BaseUnityPlugin
 
         gameObject.AddComponent<VRRemoteBinoculars>();
 
-        // Preloaded in flat mode too: without the XR assemblies in the process there is no way back
-        // into VR later, and the mode switch is the whole point of starting flat gracefully.
         if (!PreloadRuntimeDependencies())
         {
             Logger.LogError("Disabling mod because required runtime dependencies could not be loaded!");
             return;
         }
 
-        // Every patch is applied in both modes and gated internally on VrEnabled, so switching mode is
-        // just a flag flip plus a rig rebuild — no patching or unpatching at runtime.
         new Harmony(Id).PatchAll(typeof(Plugin).Assembly);
+
+        UrpDiagnostics.ApplySmallMeshCulling();
+        UrpDiagnostics.ApplyGpuOcclusionCulling();
 
         if (disableVr)
         {
@@ -119,7 +102,6 @@ public partial class Plugin : BaseUnityPlugin
         if (DebugButtons && Keyboard.current != null)
             HandleDebugKeys();
 
-        // Before the VrEnabled gate below, or there would be no way back into VR from flat.
         HandleModeHotkey();
 
         VRFrameTiming.Tick();
@@ -130,8 +112,11 @@ public partial class Plugin : BaseUnityPlugin
         TryBindAnyKey();
 
         mirrorFrame++;
-        if (mirrorFrame % 300 == 0)
+        if (mirrorFrame % 60 == 0)
+        {
             XRMirror.Assert();
+            XRMirror.AssertBlitMode();
+        }
     }
 
     private bool anyKeyBound;
@@ -178,8 +163,6 @@ public partial class Plugin : BaseUnityPlugin
         if (Config == null || !Config.ModeHotkeyEnabled.Value || Keyboard.current == null)
             return;
 
-        // The config is a KeyCode (so Mod Settings can rebind it) but input comes from the new Input
-        // System, and the two enums only agree by name.
         if (!Enum.TryParse<UnityEngine.InputSystem.Key>(Config.ModeHotkey.Value.ToString(), out var key))
             return;
 
@@ -309,7 +292,6 @@ public partial class Plugin : BaseUnityPlugin
         return path;
     }
 
-    // Registered in flat mode too
     private static void RegisterSettingsPage()
     {
         try
@@ -345,7 +327,6 @@ public partial class Plugin : BaseUnityPlugin
         {
             var filename = Path.GetFileName(file);
 
-            // Ignore known unmanaged libraries
             if (filename is "UnityOpenXR.dll" or "openxr_loader.dll")
                 continue;
 

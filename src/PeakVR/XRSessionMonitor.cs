@@ -2,12 +2,6 @@ using UnityEngine.XR.OpenXR.Features;
 
 namespace PeakVR;
 
-// Diagnostics for the OpenXR session lifecycle. On VDXR the ending sequence sends the session
-// straight to EXITING; Unity then tears the session down and DEADLOCKS in the runtime's native
-// teardown, so NO managed recovery can run past it (Unity's own OpenXRRestarter also hangs there,
-// and a second ShutdownAndRestart just errors "Only one shutdown or restart can be executed at a
-// time"). The only possible code fix is preventing the EXITING event from reaching Unity via a
-// native xrPollEvent hook (HookGetInstanceProcAddr) — not attempted here. This monitor only logs.
 internal class XRSessionMonitor : OpenXRFeature
 {
     private static void Log(string msg)
@@ -50,7 +44,12 @@ internal class XRSessionMonitor : OpenXRFeature
     public override void OnSessionEnd(ulong xrSession) => Log("OnSessionEnd");
     public override void OnSessionDestroy(ulong xrSession) => Log("OnSessionDestroy");
     public override void OnSubsystemStop() => Log("OnSubsystemStop");
-    public override void OnSubsystemStart() => Log("OnSubsystemStart");
+    public override void OnSubsystemStart()
+    {
+        Log("OnSubsystemStart");
+        XRMirror.Assert();
+        XRMirror.AssertBlitMode();
+    }
     public override void OnSubsystemDestroy() => Log("OnSubsystemDestroy");
     public override void OnInstanceDestroy(ulong xrInstance) => Log("OnInstanceDestroy");
 }

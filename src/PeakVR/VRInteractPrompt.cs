@@ -43,12 +43,18 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
         if (progressComp == null)
             progressComp = Object.FindObjectOfType<UI_UseItemProgress>(true);
 
-        Adopt(ref progress, progressComp != null ? progressComp.transform : null, new Vector2(0f, 155f));
-        Adopt(ref interactName, gui.interactName != null ? gui.interactName.transform : null, new Vector2(0f, 70f));
-        Adopt(ref interactPrompts, PromptContainer(gui), new Vector2(0f, -70f));
+        var progressT = progressComp != null ? progressComp.transform : null;
+        var nameT = gui.interactName != null ? gui.interactName.transform : null;
+        var promptsT = PromptContainer(gui);
 
-        // This canvas is built by moving pieces out of the HUD, so it never went through the HUD's own
-        // sweep - and the prompt rows are rebuilt whenever what you are looking at changes.
+        restore.Record(progressT);
+        restore.Record(nameT);
+        restore.Record(promptsT);
+
+        Adopt(ref progress, progressT, new Vector2(0f, 155f));
+        Adopt(ref interactName, nameT, new Vector2(0f, 70f));
+        Adopt(ref interactPrompts, promptsT, new Vector2(0f, -70f));
+
         if (++frame % RefreshInterval == 0)
         {
             UIOverlay.SweepForegroundLayer(canvas);
@@ -81,7 +87,6 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
 
         if (target.parent != canvasRt)
         {
-            restore.Record(target);
             target.SetParent(canvasRt, false);
             if (target is RectTransform rt)
             {

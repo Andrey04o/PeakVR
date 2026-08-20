@@ -8,9 +8,6 @@ using UnityEngine.Rendering;
 
 namespace PeakVR;
 
-// One-shot dump of the active URP configuration (e.g. ambient occlusion / lighting features).
-// Reflection-based so it survives URP version changes (PEAK runs URP 17.3 on Unity 6000.3; the
-// build references 17.0.4). Logged once at level load and re-triggerable with a debug key.
 internal static class UrpDiagnostics
 {
     private const BindingFlags Any = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance;
@@ -105,8 +102,6 @@ internal static class UrpDiagnostics
         }
     }
 
-    // URP 17's GPU Resident Drawer does its own per-view LOD/occlusion/small-mesh culling, separate
-    // from Camera.useOcclusionCulling. Per-view means per-eye under MultiPass.
     private static readonly string[] GrdKeywords = { "gpuresident", "occlusionculling", "smallmesh", "instanceocclusion" };
 
     private static void DumpGpuResidentDrawer()
@@ -165,12 +160,8 @@ internal static class UrpDiagnostics
         catch (Exception e) { return $"<{e.GetType().Name}>"; }
     }
 
-    // Debug toggle: force every GPU-Resident-Drawer knob we can find to its "off" value (mode 0,
-    // occlusion culling false, small-mesh percentage 0) and back again.
     public static bool GrdDisabled;
 
-    // Original values, captured the first time we disable so restore puts back what PEAK shipped
-    // rather than a guessed default.
     private static readonly Dictionary<string, object> grdOriginals = new();
 
     public static void ToggleGpuResidentDrawer()
@@ -185,8 +176,6 @@ internal static class UrpDiagnostics
         GrdDisabled = !GrdDisabled;
         var changed = 0;
 
-        // Prefer the properties: URP's setters call GPUResidentDrawer.ReinitializeIfNeeded(), which is
-        // what actually restarts the drawer. Writing the m_ backing fields alone does nothing.
         foreach (var p in asset.GetType().GetProperties(Any))
         {
             if (!Matches(p.Name) || !p.CanRead || !p.CanWrite)
@@ -215,18 +204,8 @@ internal static class UrpDiagnostics
         Plugin.Log.LogInfo($"[PeakVR][GRD] {(GrdDisabled ? "DISABLED" : "restored")} ({changed} properties)");
     }
 
-    // URP's GPU Resident Drawer culls meshes below smallMeshScreenPercentage of the screen, and does it
-    // per view — so under MultiPass an object can survive the cull in one eye and be dropped in the
-    // other. Zeroing the threshold stops that cull while leaving InstancedDrawing (and its batching)
-    // intact, which measured as free: 37 fps either way.
-    //
-    // Applied once at startup BEFORE XRMirror.Setup(), because the drawer's reinitialize tears down
-    // URP's XR system and freezes an already-installed desktop mirror.
     public static void ApplySmallMeshCulling()
     {
-        if (!Plugin.VrEnabled)
-            return;
-
         var asset = GraphicsSettings.currentRenderPipeline;
         if (asset == null)
         {
@@ -259,7 +238,7 @@ internal static class UrpDiagnostics
 
     public static void ApplyGpuOcclusionCulling()
     {
-        if (!Plugin.VrEnabled || Plugin.Config == null)
+        if (Plugin.Config == null)
             return;
 
         var asset = GraphicsSettings.currentRenderPipeline;
@@ -284,7 +263,6 @@ internal static class UrpDiagnostics
             $"(drawer mode {Member(asset, "gpuResidentDrawerMode")})");
     }
 
-    // Debug key: flip the config entry so the toggle and the setting can't drift apart.
     public static void ToggleSmallMeshCulling()
     {
         if (Plugin.Config == null)
@@ -306,8 +284,6 @@ internal static class UrpDiagnostics
         return null;
     }
 
-    // GPUResidentDrawer is internal, so find it by scanning loaded assemblies rather than by
-    // assembly-qualified name (which is why the earlier Type.GetType lookup failed).
     private static void ReinitializeDrawer()
     {
         try
@@ -365,8 +341,6 @@ internal static class UrpDiagnostics
         SetDepthPriming(!DepthPriming);
     }
 
-    // Forced depth priming is a VR-only perf trade (it is what makes the Hazard-layer renderers vanish),
-    // so flat mode gets the game's own priming back.
     public static void RestoreDepthPriming()
     {
         if (DepthPriming)
@@ -471,12 +445,6 @@ internal static class UrpDiagnostics
     private static int testMode;
     private static float baseRenderScale = -1f;
 
-    // Step through isolating the URP 17.3 lighting suspects (bound to a debug key) to narrow which
-    // effect renders differently under the XR path.
-    //   0 = everything on (baseline)
-    //   1 = HBAO (ambient occlusion) off
-    //   2 = + EdgeDetection off
-    //   3 = + renderScale 1.0 (neutralises the STP temporal upscaler)
     public static void CycleTestMode()
     {
         testMode = (testMode + 1) % 4;

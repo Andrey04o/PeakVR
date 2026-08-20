@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace PeakVR;
 
@@ -10,6 +11,7 @@ internal class VRRestore
         public Transform Target;
         public Transform Parent;
         public int SiblingIndex;
+        public Transform PrevSibling;
         public Vector3 LocalPosition;
         public Quaternion LocalRotation;
         public Vector3 LocalScale;
@@ -22,6 +24,7 @@ internal class VRRestore
     }
 
     private readonly List<Entry> entries = new();
+    private readonly HashSet<RectTransform> rebuild = new();
 
     public int Count => entries.Count;
 
@@ -39,6 +42,7 @@ internal class VRRestore
             Target = target,
             Parent = target.parent,
             SiblingIndex = target.GetSiblingIndex(),
+            PrevSibling = PreviousSibling(target),
             LocalPosition = target.localPosition,
             LocalRotation = target.localRotation,
             LocalScale = target.localScale,
@@ -60,6 +64,7 @@ internal class VRRestore
     public int RestoreAll()
     {
         var restored = 0;
+        entries.Sort(Compare);
 
         foreach (var entry in entries)
         {
@@ -69,7 +74,11 @@ internal class VRRestore
             if (entry.Parent != null)
             {
                 entry.Target.SetParent(entry.Parent, false);
-                entry.Target.SetSiblingIndex(entry.SiblingIndex);
+
+                if (entry.PrevSibling != null && entry.PrevSibling.parent == entry.Parent)
+                    entry.Target.SetSiblingIndex(entry.PrevSibling.GetSiblingIndex() + 1);
+                else
+                    entry.Target.SetSiblingIndex(entry.SiblingIndex);
             }
 
             if (entry.IsRect && entry.Target is RectTransform rt)
@@ -85,10 +94,43 @@ internal class VRRestore
             entry.Target.localRotation = entry.LocalRotation;
             entry.Target.localScale = entry.LocalScale;
             restored++;
+
+            if (entry.Parent is RectTransform parent)
+                rebuild.Add(parent);
         }
 
+        foreach (var parent in rebuild)
+        {
+            if (parent == null)
+                continue;
+
+            LayoutRebuilder.MarkLayoutForRebuild(parent);
+
+            var animator = parent.GetComponentInParent<Animator>();
+            if (animator != null && animator.isActiveAndEnabled)
+                animator.Rebind();
+        }
+
+        rebuild.Clear();
         entries.Clear();
         return restored;
+    }
+
+    private static Transform PreviousSibling(Transform target)
+    {
+        var parent = target.parent;
+        var index = target.GetSiblingIndex();
+        return parent != null && index > 0 ? parent.GetChild(index - 1) : null;
+    }
+
+    private static int Compare(Entry a, Entry b)
+    {
+        var parentA = a.Parent != null ? a.Parent.GetInstanceID() : 0;
+        var parentB = b.Parent != null ? b.Parent.GetInstanceID() : 0;
+
+        return parentA != parentB
+            ? parentA.CompareTo(parentB)
+            : a.SiblingIndex.CompareTo(b.SiblingIndex);
     }
 
     public void Clear() => entries.Clear();

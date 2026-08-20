@@ -9,7 +9,6 @@ internal static class VRPointer
     public static Canvas Canvas;
     public static TrackedDeviceGraphicRaycaster Raycaster;
 
-    // Written every frame by VRLaser.
     public static GameObject Target;
 
     public static TrackedDeviceGraphicRaycaster Attach(Canvas canvas)
@@ -33,6 +32,10 @@ internal static class VRPointer
         var raycaster = canvas.GetComponent<TrackedDeviceGraphicRaycaster>();
         if (raycaster != null)
             Object.Destroy(raycaster);
+
+        foreach (Transform child in canvas.transform)
+            if (child.name.StartsWith("PeakVR"))
+                Object.Destroy(child.gameObject);
 
         foreach (var screen in canvas.GetComponents<GraphicRaycaster>())
             if (screen != null)

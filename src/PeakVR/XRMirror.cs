@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using UnityEngine;
+using UnityEngine.XR;
 
 namespace PeakVR;
 
@@ -12,6 +14,9 @@ internal static class XRMirror
 
     private static FieldInfo materialField;
     private static Material material;
+    private static Shader shader;
+    private static bool reclaimed;
+    private static int lastBlitMode = int.MinValue;
 
     public static void Setup()
     {
@@ -21,21 +26,50 @@ internal static class XRMirror
         Assert();
     }
 
+    public static void AssertBlitMode()
+    {
+        var displays = new List<XRDisplaySubsystem>();
+        SubsystemManager.GetInstances(displays);
+
+        foreach (var display in displays)
+        {
+            if (display == null || !display.running)
+                continue;
+
+            var before = display.GetPreferredMirrorBlitMode();
+            if (before != XRMirrorViewBlitMode.LeftEye)
+                display.SetPreferredMirrorBlitMode(XRMirrorViewBlitMode.LeftEye);
+
+            if (before == lastBlitMode)
+                continue;
+
+            lastBlitMode = before;
+
+            Plugin.Log.LogInfo($"[PeakVR][Mirror] blitMode {before} -> {display.GetPreferredMirrorBlitMode()} " +
+                $"material={(materialField?.GetValue(null) is Material m && m != null ? m.shader.name : "<null>")} " +
+                $"eyeTex={XRSettings.eyeTextureWidth}x{XRSettings.eyeTextureHeight} " +
+                $"gameView={XRSettings.gameViewRenderMode} active={XRSettings.isDeviceActive}");
+        }
+    }
+
     public static void Assert()
     {
         if (materialField == null)
             return;
 
-        if (materialField.GetValue(null) is Material existing && existing != null)
-        {
-            material = existing;
+        if (material == null && !Resolve())
             return;
-        }
 
-        if (material == null)
+        if (ReferenceEquals(materialField.GetValue(null), material))
             return;
 
         materialField.SetValue(null, material);
+
+        if (reclaimed)
+            return;
+
+        reclaimed = true;
+        Plugin.Log.LogInfo("[PeakVR] Desktop mirror material re-installed");
     }
 
     private static bool Resolve()
@@ -43,11 +77,10 @@ internal static class XRMirror
         if (materialField != null && material != null)
             return true;
 
-        var shader = Shader.Find(NativeShaderName);
-        if (shader == null || !shader.isSupported)
-            shader = PeakAssets.MirrorView;
-
         if (shader == null)
+            shader = PeakAssets.MirrorView != null ? PeakAssets.MirrorView : Shader.Find(NativeShaderName);
+
+        if (shader == null || !shader.isSupported)
         {
             Plugin.Log.LogWarning("[PeakVR] No XR mirror shader available; desktop view stays black");
             return false;
@@ -71,7 +104,8 @@ internal static class XRMirror
         }
 
         material = new Material(shader) { hideFlags = HideFlags.HideAndDontSave };
-        Plugin.Log.LogInfo("[PeakVR] Desktop mirror material ready");
+        reclaimed = false;
+        Plugin.Log.LogInfo($"[PeakVR] Desktop mirror material ready ({shader.name})");
         return true;
     }
 }

@@ -4,15 +4,10 @@ using UnityEngine.EventSystems;
 
 namespace PeakVR;
 
-// Soft dependency on PeakTextChat (https://github.com/borealityy/PeakTextChat). Two things it does
-// are wrong for VR: it stretches the stamina bar group 1000 units upward to reserve room for the
-// chat, and it re-positions the chat box from that group every frame - and the group lives on the
-// left wrist here. Both are undone only while VR is on; in flat the mod behaves normally.
 internal static class PeakTextChatPatch
 {
     private const string DisplayType = "PeakTextChat.TextChatDisplay";
 
-    // Set once VRModHandUI has moved the chat box onto the left wrist, so the mod stops moving it.
     public static bool Claimed;
 
     public static bool Available => display != null;
@@ -20,11 +15,9 @@ internal static class PeakTextChatPatch
     private static System.Type display;
     private static bool resolved;
 
-    // NOT callable from Plugin.Awake: BepInEx loads PeakVR long before PeakTextChat, so the type does
-    // not exist yet and TypeByName logs "Could not find type". Called once per level instead.
     public static void Resolve()
     {
-        if (resolved || !Plugin.VrEnabled)
+        if (resolved)
             return;
 
         resolved = true;
@@ -47,9 +40,6 @@ internal static class PeakTextChatPatch
 
     private static bool SkipPosition() => !Claimed;
 
-    // The mod opens chat on a keyboard key. Reach the same state from the wrist button instead:
-    // select its input field and activate it. Everything is reflected because the field, the flag
-    // and TMP_InputField itself are all private / version-sensitive.
     public static void OpenChat()
     {
         if (display == null)
@@ -85,15 +75,12 @@ internal static class PeakTextChatPatch
     }
 }
 
-// PeakTextChat's own StaminaBar.Start postfix does `parent.offsetMax.y = 1000f` to reserve space
-// above the bar. On the wrist canvas that just pushes our stamina bar down. Capture the real value
-// before any postfix runs and put it back after them - only the y, so nothing else about the rect
-// (which VRControllerHud has already re-anchored) is disturbed.
 [HarmonyPatch(typeof(StaminaBar), "Start")]
 internal static class StaminaBarRectPatch
 {
     private static RectTransform group;
     private static float originalTop;
+    private static float moddedTop;
     private static bool captured;
 
     [HarmonyPrefix]
@@ -101,27 +88,35 @@ internal static class StaminaBarRectPatch
     {
         captured = false;
 
-        if (!Plugin.VrEnabled || __instance.transform.parent is not RectTransform rt)
+        if (__instance.transform.parent is not RectTransform rt)
             return;
 
         group = rt;
         originalTop = rt.offsetMax.y;
+        moddedTop = originalTop;
         captured = true;
     }
 
     [HarmonyPostfix]
     [HarmonyPriority(Priority.Last)]
-    private static void Postfix() => Restore();
+    private static void Postfix()
+    {
+        if (captured && group != null)
+            moddedTop = group.offsetMax.y;
 
-    public static void Restore()
+        Apply();
+    }
+
+    public static void Apply()
     {
         if (!captured || group == null)
             return;
 
+        var target = Plugin.VrEnabled ? originalTop : moddedTop;
         var offset = group.offsetMax;
-        if (Mathf.Approximately(offset.y, originalTop))
+        if (Mathf.Approximately(offset.y, target))
             return;
 
-        group.offsetMax = new Vector2(offset.x, originalTop);
+        group.offsetMax = new Vector2(offset.x, target);
     }
 }

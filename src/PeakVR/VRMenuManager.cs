@@ -19,11 +19,7 @@ internal class VRMenuManager : MonoBehaviour
 
     private const int LayerSweepInterval = 30;
 
-    // Canvases we pulled into world space, kept forever. Putting one back to ScreenSpaceOverlay when
-    // a page opens on top of it makes it invisible in the headset but paints it over the whole DESKTOP
-    // window - which is what the settings page did behind the lobby browser. Same reasoning as
-    // VRMenuPopup, which also leaves reused dialogs world-space once converted.
-    private static readonly Dictionary<Canvas, RenderMode> Converted = new();
+    private static readonly Dictionary<Canvas, VRCanvasState> Converted = new();
 
     private Canvas current;
     private bool currentForeground;
@@ -56,8 +52,6 @@ internal class VRMenuManager : MonoBehaviour
 
         if (current != null)
         {
-            // The topmost menu gets its own queue so it draws over anything still world-space behind
-            // it — they share the same PlaceInFront plane, so depth cannot separate them.
             if (currentForeground)
                 UIOverlay.MakeAlwaysVisible(current, UIOverlay.PopupQueue);
             else
@@ -86,7 +80,9 @@ internal class VRMenuManager : MonoBehaviour
         }
     }
 
-    private void OnDestroy()
+    private void OnDestroy() => RestoreAll();
+
+    public static void RestoreAll()
     {
         var restored = 0;
 
@@ -96,14 +92,12 @@ internal class VRMenuManager : MonoBehaviour
             if (canvas == null)
                 continue;
 
-            canvas.renderMode = pair.Value;
-            canvas.worldCamera = null;
+            pair.Value.Apply(canvas);
             VRPointer.Detach(canvas);
             restored++;
         }
 
         Converted.Clear();
-        current = null;
 
         if (restored > 0)
             Plugin.Log.LogInfo($"[PeakVR] {restored} in-game menu canvas(es) returned to the screen");
@@ -113,8 +107,6 @@ internal class VRMenuManager : MonoBehaviour
     {
         foreground = false;
 
-        // A window shown without Open() sits ON TOP of whatever opened it (the pause menu opens the
-        // PEAKInvitation page), so it wins, and it takes the foreground queue to draw over that menu.
         var shown = CanvasOf(MenuWindowShowPatch.Current());
         if (shown != null)
         {
@@ -197,12 +189,11 @@ internal class VRMenuManager : MonoBehaviour
 
         var first = !Converted.ContainsKey(canvas);
         if (first)
-            Converted[canvas] = canvas.renderMode;
+            Converted[canvas] = VRCanvasState.Capture(canvas);
 
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
 
-        // Always re-place, even for one we converted earlier — the player has walked since.
         var kiosk = GetKioskFor(canvas);
         if (kiosk != null)
             PlaceAtKiosk(canvas, kiosk);
@@ -232,8 +223,6 @@ internal class VRMenuManager : MonoBehaviour
         var rt = (RectTransform)canvas.transform;
         rt.localScale = Vector3.one * Scale;
 
-        // The kiosk's screen faces along its RIGHT axis (its forward points straight up), so use that
-        // horizontal axis — the panel stands upright, aligned to the kiosk, on the approach side.
         var dir = kiosk.right;
         dir.y = 0f;
         dir = dir.sqrMagnitude < 0.001f ? kiosk.right : dir.normalized;

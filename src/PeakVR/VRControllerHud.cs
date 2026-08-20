@@ -80,8 +80,6 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
         if (!moved || gui.staminaCanvasGroup.transform.parent != left.transform)
             MoveHud(gui);
 
-        // The game repaints the HUD (and re-enables the slot prompts) shortly after a level loads, so
-        // the sweep in MoveHud can land too early. One more pass once things have settled.
         if (!lateSweepDone && Time.time >= lateSweepAt)
         {
             lateSweepDone = true;
@@ -92,13 +90,11 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
         UpdateBackface();
         UpdateSelection();
 
-        // The item tips come and go with what you hold, and TMP builds a fresh sub-object the first
-        // time a VR button glyph appears - neither is covered by the one-off sweep in MoveHud.
         if (++frame % RefreshInterval == 0)
         {
             Refresh(left);
             Refresh(right);
-            StaminaBarRectPatch.Restore();
+            StaminaBarRectPatch.Apply();
         }
     }
 
@@ -108,10 +104,36 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
         UIOverlay.MakeAlwaysVisible(canvas, UIOverlay.HandQueue);
     }
 
+    private void RecordOriginals(GUIManager gui)
+    {
+        restore.Record(gui.staminaCanvasGroup.transform);
+
+        for (var i = 0; i < gui.items.Length; i++)
+            if (gui.items[i] != null)
+                restore.Record(gui.items[i].transform);
+
+        if (gui.backpack != null)
+            restore.Record(gui.backpack.transform);
+
+        if (gui.temporaryItem != null)
+            restore.Record(gui.temporaryItem.transform);
+
+        foreach (var prompt in Prompts(gui))
+            if (prompt != null)
+                restore.Record(prompt.transform);
+    }
+
+    private static TextMeshProUGUI[] Prompts(GUIManager gui) => new[]
+    {
+        gui.itemPromptMain, gui.itemPromptSecondary, gui.itemPromptScroll,
+        gui.itemPromptDrop, gui.itemPromptThrow
+    };
+
     private void MoveHud(GUIManager gui)
     {
         EnsureCanvases();
         ClearTargets();
+        RecordOriginals(gui);
 
         Center(gui.staminaCanvasGroup.transform, left, Vector2.zero);
 
@@ -137,8 +159,6 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
             RegisterCell(gui.temporaryItem.transform, 250);
         }
 
-        // Hide the cells' own inline prompts BEFORE moving the item tips in, so the tips (which are
-        // InLineInputPrompts too, and now render VR button glyphs) aren't caught by the same sweep.
         HideInputPrompts(left);
         HideInputPrompts(right);
 
@@ -147,8 +167,6 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
         UIOverlay.MakeAlwaysVisible(left, UIOverlay.HandQueue);
         UIOverlay.MakeAlwaysVisible(right, UIOverlay.HandQueue);
 
-        // Keep the wrist HUD out of the airport mirror; preserve the raycast collider layers
-        // (HudLayer cells, emote-button layer 7) so pointing at them still works.
         VRLayers.HideFromMirror(left.gameObject, HudLayer, 7);
         VRLayers.HideFromMirror(right.gameObject, HudLayer, 7);
 
@@ -159,10 +177,6 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
         Plugin.Log.LogInfo("[PeakVR] HUD moved onto controllers");
     }
 
-    // The item control-tips ("[USEPRIMARY] Eat" etc.) live at the bottom of the screen-space HUD,
-    // which is invisible in VR. Stack them under the item cells on the right wrist canvas instead —
-    // they show VR button glyphs now (see VRInputPrompts). The game keeps toggling each one's
-    // activeSelf per item capability in GUIManager.UpdateItemPrompts, so the layout group reflows.
     private void MovePrompts(GUIManager gui)
     {
         TextMeshProUGUI[] prompts =
@@ -182,14 +196,9 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
         rt.localRotation = Quaternion.identity;
 
         var layout = go.AddComponent<VerticalLayoutGroup>();
-        // Grow upward from just above the item cells, so the gap stays constant as prompts appear.
         layout.childAlignment = TextAnchor.LowerRight;
-        // Control the width too, so every row shares the container's edge for the right alignment to
-        // line up against — the prompts keep their much wider screen-HUD rects otherwise.
         layout.childControlWidth = true;
         layout.childForceExpandWidth = true;
-        // Let the layout size each row to its text, otherwise every prompt keeps its original
-        // full-width HUD height and the lines sit far apart.
         layout.childControlHeight = true;
         layout.childForceExpandHeight = false;
         layout.spacing = PromptSpacing;
@@ -222,9 +231,6 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
         if (canvas == null)
             return;
 
-        // The moved item cells carry inline keyboard/gamepad button prompts — hide them in VR. The
-        // item tips we deliberately moved onto this canvas are InLineInputPrompts too, so skip
-        // anything inside their container or the sweep would erase them.
         foreach (var prompt in canvas.GetComponentsInChildren<InLineInputPrompts>(true))
         {
             if (promptsRoot != null && prompt.transform.IsChildOf(promptsRoot))
@@ -235,8 +241,6 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
             prompt.gameObject.SetActive(false);
         }
 
-        // The per-slot button icons (InputIcon) are separate components — slots are picked by
-        // pointing at the wrist in VR, so the icons are noise.
         foreach (var icon in canvas.GetComponentsInChildren<InputIcon>(true))
         {
             if (promptsRoot != null && icon.transform.IsChildOf(promptsRoot))

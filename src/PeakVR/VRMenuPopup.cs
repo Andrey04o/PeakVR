@@ -14,7 +14,7 @@ internal class VRMenuPopup : MonoBehaviour
 
     private const int RefreshInterval = 30;
 
-    private static readonly Dictionary<Canvas, RenderMode> converted = new();
+    private static readonly Dictionary<Canvas, VRCanvasState> converted = new();
 
     private static Canvas active;
     private int frame;
@@ -58,8 +58,6 @@ internal class VRMenuPopup : MonoBehaviour
         if (VRPointer.Canvas != popup)
             PointAt(popup);
 
-        // Pages that fill themselves in after opening (the lobby browser's list, the invite player
-        // list) build graphics we never treated, so they render behind the page background.
         if (++frame % RefreshInterval == 0)
         {
             UIOverlay.SweepForegroundLayer(popup);
@@ -90,15 +88,9 @@ internal class VRMenuPopup : MonoBehaviour
         if (!VRCanvasOwner.IsGame(c))
             return false;
 
-        // A Zorro Modal (DontDestroyOnLoad singleton) sits ACTIVE-but-closed on the menu after
-        // returning from a level; its canvas is a CHILD of the Modal root, so check the parent.
-        // Only treat it as a popup while actually open (blocksRaycasts), else it steals the
-        // pointer and the menu behind it goes dead.
         if (c.GetComponentInParent<Zorro.UI.Modal.Modal>() != null)
             return Zorro.UI.Modal.Modal.IsOpen;
 
-        // A genuine dialog is either a fresh screen-space overlay, or one we already
-        // converted to world space (dialogs like ConfirmPage are reused and stay world-space).
         return c.renderMode == RenderMode.ScreenSpaceOverlay || converted.ContainsKey(c);
     }
 
@@ -106,7 +98,7 @@ internal class VRMenuPopup : MonoBehaviour
     {
         if (c.renderMode != RenderMode.WorldSpace)
         {
-            converted[c] = c.renderMode;
+            converted[c] = VRCanvasState.Capture(c);
             c.renderMode = RenderMode.WorldSpace;
             c.worldCamera = cam;
             UIOverlay.MakeAlwaysVisible(c, true);
@@ -165,8 +157,7 @@ internal class VRMenuPopup : MonoBehaviour
             if (c == null)
                 continue;
 
-            c.renderMode = pair.Value;
-            c.worldCamera = null;
+            pair.Value.Apply(c);
             VRPointer.Detach(c);
             restored++;
         }

@@ -26,13 +26,12 @@ internal class VRLoadingScreen : MonoBehaviour
 
     private LoadingScreen loadingScreen;
     private bool converted;
-    private RenderMode originalMode;
+    private VRCanvasState originalState;
 
     private void Restore()
     {
         converted = false;
-        loadingScreen.canvas.renderMode = originalMode;
-        loadingScreen.canvas.worldCamera = null;
+        originalState.Apply(loadingScreen.canvas);
 
         if (cover != null)
             cover.gameObject.SetActive(false);
@@ -78,7 +77,7 @@ internal class VRLoadingScreen : MonoBehaviour
 
         if (!converted)
         {
-            originalMode = loadingScreen.canvas.renderMode;
+            originalState = VRCanvasState.Capture(loadingScreen.canvas);
             loadingScreen.canvas.renderMode = RenderMode.WorldSpace;
             loadingScreen.canvas.worldCamera = cam;
             UIOverlay.MakeAlwaysVisible(loadingScreen.canvas, true);
