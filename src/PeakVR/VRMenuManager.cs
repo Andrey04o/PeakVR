@@ -76,7 +76,7 @@ internal class VRMenuManager : MonoBehaviour
         {
             VRPointer.Canvas = null;
             VRPointer.Raycaster = null;
-            VRHands.SetPointersActive(false);
+            VRHands.SetPointersActive(VRKeyboard.IsOpen);
         }
     }
 

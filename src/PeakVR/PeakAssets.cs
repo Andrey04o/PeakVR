@@ -29,6 +29,8 @@ internal static class PeakAssets
     // Authored placement for the binoculars: a prefab with a "Scope" child (quad offset/rotation/size relative to the item) and a "Grip" child (item offset/rotation relative to the controller).
     public static GameObject BinocularsRig { get; private set; }
 
+    public static GameObject Keyboard { get; private set; }
+
     public static void Load()
     {
         if (bundle != null)
@@ -58,6 +60,7 @@ internal static class PeakAssets
         TPose = bundle.LoadAsset<Sprite>("TPoseWhite");
 
         BinocularsRig = bundle.LoadAsset<GameObject>("BinocularsRig");
+        Keyboard = bundle.LoadAsset<GameObject>("VRKeyboard");
 
         LoadQuestFont();
 

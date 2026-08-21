@@ -18,6 +18,17 @@ public class Config
     public ConfigEntry<bool> LoadingCover { get; }
     public ConfigEntry<bool> FixHazardRendering { get; }
 
+    public ConfigEntry<float> KeyRepeatDelay { get; }
+    public ConfigEntry<float> KeyRepeatRate { get; }
+
+    private readonly System.Collections.Generic.Dictionary<string, ConfigEntry<bool>> keyboardLayouts = new();
+
+    public bool KeyboardLayoutEnabled(string name) =>
+        keyboardLayouts.TryGetValue(name, out var entry) && entry.Value;
+
+    public ConfigEntry<bool> KeyboardLayoutEntry(string name) =>
+        keyboardLayouts.TryGetValue(name, out var entry) ? entry : null;
+
     public ConfigEntry<bool> SmoothTurn { get; }
     public ConfigEntry<float> SnapTurnAngle { get; }
     public ConfigEntry<float> SmoothTurnSpeed { get; }
@@ -85,6 +96,20 @@ public class Config
         ModUIOnLeftHand = file.Bind("VR", "sPEAKer UI On Left Hand", true,
             "Move the sPEAKer music HUD (timer, current song, mixtape name and icon) onto the left wrist "
             + "instead of leaving it head-locked. Requires the sPEAKer mod.");
+
+        KeyRepeatDelay = file.Bind("VR", "Key Repeat Delay", 0.4f,
+            new ConfigDescription("How long to hold a key on the VR keyboard before it starts repeating, in seconds.",
+                new AcceptableValueRange<float>(0.1f, 1.5f)));
+
+        KeyRepeatRate = file.Bind("VR", "Key Repeat Rate", 12f,
+            new ConfigDescription("How many characters a held key types per second. Set to 0 to turn key repeat off.",
+                new AcceptableValueRange<float>(0f, 30f)));
+
+        foreach (var layout in PeakVR.VRKeyboardLayout.All)
+            keyboardLayouts[layout.Name] = file.Bind("VR",
+                PeakVR.VRKeyboardLanguages.SettingKey(layout),
+                layout.Name == "US",
+                $"Offer the {layout.Display} layout on the VR keyboard. The Lang key cycles through every layout you enable here.");
 
         LoadingCover = file.Bind("VR", "Fullscreen Loading Cover", true,
             "Fill the whole view with the loading screen's colour while a level loads, instead of showing it "

@@ -132,6 +132,7 @@ internal static class VRSession
             MenuCanvasPatch.Build(menu);
 
         StaminaBarRectPatch.Apply();
+        MirrorPatch.Apply();
         VRFoveation.Apply();
         RenderDiagnostics.ScheduleScan();
         VRFoliage.ScheduleScan();
@@ -140,8 +141,10 @@ internal static class VRSession
 
     private static void TeardownRig()
     {
+        VRKeyboard.Close();
         VRModHandUI.ReleaseAll();
         StaminaBarRectPatch.Apply();
+        MirrorPatch.Apply();
         FogQuadPatch.Restore();
         InGameCameraPatch.Teardown();
         MainCameraPatch.Teardown();

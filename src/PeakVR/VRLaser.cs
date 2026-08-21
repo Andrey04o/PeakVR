@@ -14,6 +14,7 @@ internal class VRLaser : MonoBehaviour
 
     private const float MaxDistance = 8f;
     private const float ReticlePixels = 36f;
+    private const float CoplanarEpsilon = 0.05f;
 
     private GameObject hovered;
     private GameObject pressTarget;
@@ -37,19 +38,14 @@ internal class VRLaser : MonoBehaviour
 
     private void Update()
     {
-        var canvas = VRPointer.Canvas;
+        var canvas = VRPointer.Active;
         if (canvas == null)
             return;
 
-        EnsureReticle(canvas);
         GatherRaycasters(canvas);
 
         var origin = transform.position;
         var dir = transform.forward;
-
-        var onPanel = TryGetPanelHit(canvas, origin, dir, out var hitPoint);
-        line.SetPosition(1, onPanel ? transform.InverseTransformPoint(hitPoint) : Vector3.forward * 5f);
-        UpdateReticle(canvas, onPanel, hitPoint);
 
         var eventData = new TrackedDeviceEventData(EventSystem.current)
         {
@@ -60,6 +56,22 @@ internal class VRLaser : MonoBehaviour
 
         var hasHit = RaycastTopmost(eventData, out var hit);
         var hitGo = hasHit ? hit.gameObject : null;
+
+        var hitCanvas = hitGo != null ? hitGo.GetComponentInParent<Canvas>() : null;
+        if (hitCanvas != null && hitCanvas.rootCanvas != null)
+            hitCanvas = hitCanvas.rootCanvas;
+
+        var reticleTarget = hitCanvas != null ? hitCanvas : canvas;
+        EnsureReticle(reticleTarget);
+
+        var onPanel = hasHit;
+        var hitPoint = hasHit ? hit.worldPosition : default;
+
+        if (!onPanel)
+            onPanel = TryGetPanelHit(canvas, origin, dir, out hitPoint);
+
+        line.SetPosition(1, onPanel ? transform.InverseTransformPoint(hitPoint) : Vector3.forward * 5f);
+        UpdateReticle(reticleTarget, onPanel, hitPoint);
 
         VRPointer.Target = hitGo;
 
@@ -80,6 +92,9 @@ internal class VRLaser : MonoBehaviour
 
         if (pressed && !wasPressed)
         {
+            VRPointer.PressTarget = hitGo;
+            VRPointer.PressFrame = Time.frameCount;
+
             pressScreenPos = eventData.position;
             pressRaycast = hit;
 
@@ -146,25 +161,45 @@ internal class VRLaser : MonoBehaviour
 
     private bool RaycastTopmost(TrackedDeviceEventData eventData, out RaycastResult hit)
     {
+        var found = false;
+        hit = default;
+
         foreach (var rc in raycasters)
         {
             results.Clear();
             rc.Raycast(eventData, results);
-            if (results.Count > 0)
+
+            if (results.Count == 0)
+                continue;
+
+            var candidate = results[0];
+
+            if (!found || candidate.distance < hit.distance - CoplanarEpsilon)
             {
-                hit = results[0];
-                return true;
+                hit = candidate;
+                found = true;
             }
         }
 
-        hit = default;
-        return false;
+        return found;
     }
 
     private void GatherRaycasters(Canvas canvas)
     {
         raycasters.Clear();
 
+        GatherFrom(canvas);
+
+        if (VRPointer.Extra != null && VRPointer.Extra != canvas)
+            GatherFrom(VRPointer.Extra);
+
+        raycasters.Sort((a, b) =>
+            ((Canvas)b.GetComponent(typeof(Canvas))).sortingOrder
+            .CompareTo(((Canvas)a.GetComponent(typeof(Canvas))).sortingOrder));
+    }
+
+    private void GatherFrom(Canvas canvas)
+    {
         var root = canvas.rootCanvas != null ? canvas.rootCanvas : canvas;
 
         foreach (var c in root.GetComponentsInChildren<Canvas>(false))
@@ -183,10 +218,6 @@ internal class VRLaser : MonoBehaviour
 
             raycasters.Add(tdgr);
         }
-
-        raycasters.Sort((a, b) =>
-            ((Canvas)b.GetComponent(typeof(Canvas))).sortingOrder
-            .CompareTo(((Canvas)a.GetComponent(typeof(Canvas))).sortingOrder));
     }
 
     private void EnsureReticle(Canvas canvas)
@@ -227,6 +258,8 @@ internal class VRLaser : MonoBehaviour
         reticle.rectTransform.localPosition = new Vector3(local.x, local.y, 0f);
         reticle.rectTransform.SetAsLastSibling();
         reticle.gameObject.SetActive(true);
+
+        UIOverlay.MakeTopmost(reticle, UIOverlay.ReticleQueue);
     }
 
     private bool TryGetPanelHit(Canvas canvas, Vector3 origin, Vector3 dir, out Vector3 hitPoint)

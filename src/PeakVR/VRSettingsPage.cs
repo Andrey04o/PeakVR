@@ -65,6 +65,11 @@ internal static class VRSettingsPage
             Row.Setting("HUD Pointer Line"),
             Row.Setting("Aim At Object Center"),
 
+            Row.Heading("Keyboard"),
+            Row.Languages(),
+            Row.Setting("Key Repeat Delay"),
+            Row.Setting("Key Repeat Rate"),
+
             Row.Heading("Tools"),
             Row.Setting("Verbose Logging"),
             Row.Setting("Reacquire Audio Device"),
@@ -152,12 +157,14 @@ internal static class VRSettingsPage
         public Func<string> Label;
         public Action Click;
         public bool IsLog;
+        public bool IsLanguages;
 
         public static Row Heading(string text) => new() { HeadingText = text };
         public static Row Setting(string key) => new() { Key = key };
         public static Row Info(Func<string> text) => new() { Text = text };
         public static Row Action(Func<string> label, Action click) => new() { Label = label, Click = click };
         public static Row Log() => new() { IsLog = true };
+        public static Row Languages() => new() { IsLanguages = true };
     }
 
     private static readonly List<Setting> Settings = new();
@@ -526,6 +533,12 @@ internal static class VRSettingsPage
             return null;
         }
 
+        if (row.IsLanguages)
+        {
+            LanguageRow(content);
+            return null;
+        }
+
         return Entries().TryGetValue(row.Key, out var entry) ? SettingRow(content, entry) : null;
     }
 
@@ -602,6 +615,95 @@ internal static class VRSettingsPage
         VRLogPanel.Build(NewRow(content, "Log", 290f));
     }
 
+    private static void LanguageRow(RectTransform content)
+    {
+        const float cell = 132f;
+        const float gap = 16f;
+
+        var layouts = VRKeyboardLayout.All;
+        var rt = NewRow(content, "Languages", cell + gap * 2f);
+
+        var font = Templates.SettingsCellPrefab != null
+            ? Templates.SettingsCellPrefab.GetComponentInChildren<TextMeshProUGUI>(true)?.font
+            : null;
+
+        for (var i = 0; i < layouts.Length; i++)
+        {
+            var layout = layouts[i];
+
+            var button = new GameObject($"Lang_{layout.Name}", typeof(RectTransform));
+            var buttonRect = (RectTransform)button.transform;
+            buttonRect.SetParent(rt, false);
+            buttonRect.anchorMin = buttonRect.anchorMax = new Vector2(0f, 0.5f);
+            buttonRect.pivot = new Vector2(0f, 0.5f);
+            buttonRect.sizeDelta = new Vector2(cell, cell);
+            buttonRect.anchoredPosition = new Vector2(20f + i * (cell + gap), 0f);
+
+            var image = button.AddComponent<Image>();
+            image.raycastTarget = true;
+
+            var text = Text(buttonRect, font, layout.Name, 40f,
+                new Vector2(0f, 26f), new Vector2(cell, 52f));
+
+            var box = new GameObject("Box", typeof(RectTransform));
+            var boxRect = (RectTransform)box.transform;
+            boxRect.SetParent(buttonRect, false);
+            boxRect.anchorMin = boxRect.anchorMax = boxRect.pivot = new Vector2(0.5f, 0.5f);
+            boxRect.sizeDelta = new Vector2(34f, 34f);
+            boxRect.anchoredPosition = new Vector2(0f, -34f);
+
+            var boxImage = box.AddComponent<Image>();
+            boxImage.raycastTarget = false;
+
+            var tick = new GameObject("Tick", typeof(RectTransform));
+            var tickRect = (RectTransform)tick.transform;
+            tickRect.SetParent(boxRect, false);
+            tickRect.anchorMin = tickRect.anchorMax = tickRect.pivot = new Vector2(0.5f, 0.5f);
+            tickRect.sizeDelta = new Vector2(34f, 34f);
+            tickRect.anchoredPosition = Vector2.zero;
+
+            Stroke(tickRect, new Vector2(-6f, -2f), new Vector2(14f, 5f), 45f);
+            Stroke(tickRect, new Vector2(3f, 2f), new Vector2(22f, 5f), -45f);
+
+            button.AddComponent<VRLanguageToggle>().Setup(layout.Name, image, text, boxImage, tick);
+        }
+    }
+
+    private static void Stroke(RectTransform parent, Vector2 position, Vector2 size, float angle)
+    {
+        var go = new GameObject("Stroke", typeof(RectTransform));
+        var rt = (RectTransform)go.transform;
+        rt.SetParent(parent, false);
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = size;
+        rt.anchoredPosition = position;
+        rt.localRotation = Quaternion.Euler(0f, 0f, angle);
+
+        var image = go.AddComponent<Image>();
+        image.color = VRLanguageToggle.Accent;
+        image.raycastTarget = false;
+    }
+
+    private static TextMeshProUGUI Text(RectTransform parent, TMP_FontAsset font, string value,
+        float size, Vector2 position, Vector2 area)
+    {
+        var go = new GameObject("Label", typeof(RectTransform));
+        var rt = (RectTransform)go.transform;
+        rt.SetParent(parent, false);
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = area;
+        rt.anchoredPosition = position;
+
+        var text = go.AddComponent<TextMeshProUGUI>();
+        if (font != null)
+            text.font = font;
+        text.text = value;
+        text.fontSize = size;
+        text.alignment = TextAlignmentOptions.Center;
+        text.raycastTarget = false;
+        return text;
+    }
+
     private static void ActionRow(RectTransform content, Row row, MonoBehaviour host)
     {
         var rt = NewRow(content, "Action", 86f);
@@ -658,6 +760,9 @@ internal static class VRSettingsPage
             foreach (var row in group.Rows)
                 if (row.Key != null)
                     listed.Add(row.Key);
+
+        foreach (var layout in VRKeyboardLayout.All)
+            listed.Add(VRKeyboardLanguages.SettingKey(layout));
 
         foreach (var pair in Entries())
             if (!listed.Contains(pair.Key))

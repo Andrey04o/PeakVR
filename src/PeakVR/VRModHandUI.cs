@@ -26,6 +26,7 @@ internal static class VRModHandUI
     private static readonly VRRestore HandRestore = new();
     private static readonly VRRestore ChatRestore = new();
     private static float chatY = float.NaN;
+    private static bool chatLent;
 
     public static bool Claim(Canvas source)
     {
@@ -106,6 +107,7 @@ internal static class VRModHandUI
 
         ChatPanels.Clear();
         chatY = float.NaN;
+        chatLent = false;
         PeakTextChatPatch.Claimed = false;
 
         if (restored > 0)
@@ -119,9 +121,77 @@ internal static class VRModHandUI
         canvas = null;
     }
 
+    public static bool HasChat => ChatPanels.Count > 0;
+
+    public static bool OwnsChatField(Transform target)
+    {
+        if (target == null)
+            return false;
+
+        foreach (var panel in ChatPanels)
+            if (panel != null && target.IsChildOf(panel))
+                return true;
+
+        return false;
+    }
+
+    public static bool LendChat(Transform parent, Vector2 anchoredPosition, float scale)
+    {
+        if (ChatPanels.Count == 0 || parent == null)
+            return false;
+
+        chatLent = true;
+        chatY = float.NaN;
+
+        for (var i = ChatPanels.Count - 1; i >= 0; i--)
+        {
+            var panel = ChatPanels[i];
+            if (panel == null)
+            {
+                ChatPanels.RemoveAt(i);
+                continue;
+            }
+
+            panel.SetParent(parent, false);
+            panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(0.5f, 0.5f);
+            panel.localScale = Vector3.one * scale;
+            panel.localRotation = Quaternion.identity;
+            panel.anchoredPosition = anchoredPosition;
+            panel.localPosition = new Vector3(panel.localPosition.x, panel.localPosition.y, 0f);
+        }
+
+        return ChatPanels.Count > 0;
+    }
+
+    public static void ReturnChat()
+    {
+        if (!chatLent)
+            return;
+
+        chatLent = false;
+        chatY = float.NaN;
+
+        var wrist = VRControllerHud.LeftHudCanvas;
+        if (wrist == null)
+            return;
+
+        foreach (var panel in ChatPanels)
+        {
+            if (panel == null)
+                continue;
+
+            panel.SetParent(wrist.transform, false);
+            panel.anchorMin = panel.anchorMax = panel.pivot = new Vector2(0.5f, 0.5f);
+            panel.localScale = Vector3.one;
+            panel.localRotation = Quaternion.identity;
+        }
+
+        ApplyChatHeight();
+    }
+
     private static void ApplyChatHeight()
     {
-        if (ChatPanels.Count == 0)
+        if (ChatPanels.Count == 0 || chatLent)
             return;
 
         var y = HudOffset.y + ChatBase + (canvas != null ? ChatGap : 0f);

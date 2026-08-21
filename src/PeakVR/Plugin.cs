@@ -53,6 +53,7 @@ public partial class Plugin : BaseUnityPlugin
         VRNetworking.CreateReceiver();
         VRModCanvas.Create();
         VRMenuScroll.Create();
+        VRKeyboard.Create();
         VRLogBuffer.Start();
 
         PeakAssets.Load();

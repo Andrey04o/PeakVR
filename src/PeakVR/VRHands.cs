@@ -50,6 +50,9 @@ internal static class VRHands
     {
         menuPointersOn = on;
 
+        if (on)
+            TintLasers();
+
         if (leftLaser == null || rightLaser == null)
             return;
 
@@ -191,12 +194,21 @@ internal static class VRHands
 
         var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
         laserMat = new Material(shader);
-
-        if (laserMat.HasProperty("_BaseColor"))
-            laserMat.SetColor("_BaseColor", Color.cyan);
-        else
-            laserMat.color = Color.cyan;
+        TintLasers();
 
         return laserMat;
+    }
+
+    public static void TintLasers()
+    {
+        if (laserMat == null)
+            return;
+
+        var color = Character.localCharacter != null ? VRLine.CharacterColor() : Color.cyan;
+
+        if (laserMat.HasProperty("_BaseColor"))
+            laserMat.SetColor("_BaseColor", color);
+        else
+            laserMat.color = color;
     }
 }

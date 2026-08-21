@@ -69,9 +69,30 @@ internal static class PeakTextChatPatch
         if (EventSystem.current == null)
             new GameObject("PeakVR EventSystem").AddComponent<EventSystem>();
 
+        VRKeyboard.AllowOpen();
+
         EventSystem.current.SetSelectedGameObject(field.gameObject, null);
         AccessTools.Method(field.GetType(), "ActivateInputField")?.Invoke(field, null);
         AccessTools.Field(display, "isBlockingInput")?.SetValue(instance, true);
+    }
+
+    public static void KeepBlocking() => SetBlocking(true);
+
+    public static void StopBlocking() => SetBlocking(false);
+
+    private static void SetBlocking(bool blocking)
+    {
+        if (display == null)
+            return;
+
+        var instance = AccessTools.Field(display, "instance")?.GetValue(null);
+        if (instance == null)
+            return;
+
+        AccessTools.Field(display, "isBlockingInput")?.SetValue(instance, blocking);
+
+        if (!blocking)
+            AccessTools.Field(display, "imguiTyping")?.SetValue(instance, false);
     }
 }
 

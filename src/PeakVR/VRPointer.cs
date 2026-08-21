@@ -9,7 +9,14 @@ internal static class VRPointer
     public static Canvas Canvas;
     public static TrackedDeviceGraphicRaycaster Raycaster;
 
+    public static Canvas Extra;
+
+    public static Canvas Active => Canvas != null ? Canvas : Extra;
+
     public static GameObject Target;
+
+    public static GameObject PressTarget;
+    public static int PressFrame = -1;
 
     public static TrackedDeviceGraphicRaycaster Attach(Canvas canvas)
     {

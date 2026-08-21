@@ -48,6 +48,14 @@ internal static class InteractionInputPatch
                 __instance.scrollBackwardIsPressed = true;
         }
 
+        if (VRKeyboard.IsOpen)
+        {
+            __instance.jumpWasPressed = false;
+            __instance.jumpIsPressed = false;
+            __instance.pauseWasPressed = false;
+            return;
+        }
+
         Inject(VRControls.RightGrip, ref __instance.interactWasPressed, ref __instance.interactIsPressed,
             ref __instance.interactWasReleased);
 
