@@ -65,6 +65,8 @@ internal static class VRSession
         Switching = true;
         try
         {
+            VRNetworking.SendVrOff();
+
             Plugin.SetVrEnabled(false);
 
             TeardownRig();
@@ -81,6 +83,8 @@ internal static class VRSession
                 Plugin.Log.LogWarning("[PeakVR][Mode] no XR manager to stop");
 
             UrpDiagnostics.RestoreDepthPriming();
+            UrpDiagnostics.RestoreSmallMeshCulling();
+            UrpDiagnostics.RestoreGpuOcclusionCulling();
 
             Plugin.Log.LogWarning("[PeakVR][Mode] flat mode is active");
         }
@@ -99,6 +103,8 @@ internal static class VRSession
         VRRender.DisableXRVisibilityMesh();
 
         UrpDiagnostics.ApplyDepthPriming();
+        UrpDiagnostics.ApplySmallMeshCulling();
+        UrpDiagnostics.ApplyGpuOcclusionCulling();
 
         ForegroundUI.Apply();
         XRMirror.Setup();
@@ -153,6 +159,7 @@ internal static class VRSession
         VRMenuManager.RestoreAll();
         VRModCanvas.ReleaseAll();
         VRHands.Destroy();
+        VRHeadRoll.Reset();
         VRLayers.RestoreAll();
         VRControllerVisibility.Clear();
         VRHeadRig.ResetState();

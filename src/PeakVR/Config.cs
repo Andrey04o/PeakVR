@@ -12,6 +12,7 @@ public class Config
     public ConfigEntry<UnityEngine.KeyCode> ModeHotkey { get; }
     public ConfigEntry<string> OpenXRRuntime { get; }
     public ConfigEntry<bool> EnableVerboseLogging { get; }
+    public ConfigEntry<bool> ShowHandTargets { get; }
     public ConfigEntry<bool> ReacquireAudioDevice { get; }
     public ConfigEntry<bool> ModForegroundUI { get; }
     public ConfigEntry<bool> ModUIOnLeftHand { get; }
@@ -40,6 +41,8 @@ public class Config
     public ConfigEntry<bool> CopyHeadRotation { get; }
 
     public ConfigEntry<bool> HideControllers { get; }
+    public ConfigEntry<float> MoveDeadzone { get; }
+    public ConfigEntry<float> TurnDeadzone { get; }
     public ConfigEntry<PeakVR.LineVisibility> InteractionLine { get; }
     public ConfigEntry<PeakVR.LineVisibility> HudLine { get; }
     public ConfigEntry<bool> AimAtObjectCenter { get; }
@@ -88,6 +91,11 @@ public class Config
 
         EnableVerboseLogging = file.Bind("VR", "Verbose Logging", false,
             "Enables verbose debug logging during OpenXR initialization.");
+
+        ShowHandTargets = file.Bind("VR", "Show Hand Targets", false,
+            "Troubleshooting only. Draws spheres where the arm IK is being aimed: red = the hand target, "
+            + "green = where the hand bone actually ended up, blue = the elbow hint. Shown for yourself and "
+            + "for every VR player in the lobby, so you can see whether a mismatch is in the aim or the pose.");
 
         ModForegroundUI = file.Bind("VR", "Other Mods UI In VR", true,
             "Pull flat screen-space UI created by other mods into VR as a head-locked foreground panel. "
@@ -184,11 +192,24 @@ public class Config
                 new AcceptableValueRange<float>(-90f, 90f)));
         ControllerOffsetZ.SettingChanged += (_, _) => PeakVR.VRHands.ApplyRotationOffset();
 
+        MoveDeadzone = file.Bind("VR", "Move Stick Deadzone", 0.15f,
+            new ConfigDescription(
+                "How far the left stick has to be pushed before it counts as input. Raise it if a worn " +
+                "stick drifts and walks you around on its own; lower it for finer control. Past the " +
+                "deadzone the full speed range is still available.",
+                new AcceptableValueRange<float>(0f, 0.6f)));
+
+        TurnDeadzone = file.Bind("VR", "Turn Stick Deadzone", 0.15f,
+            new ConfigDescription(
+                "How far the right stick has to be pushed before it counts as input. Raise it if a worn " +
+                "stick drifts and turns the view, scrolls the inventory or moves menu sliders on its own.",
+                new AcceptableValueRange<float>(0f, 0.6f)));
+
         LodBias = file.Bind("VR Graphics", "LOD Bias", 2.5f,
             new ConfigDescription("Level-of-detail bias in VR. Higher keeps distant objects detailed; " +
                 "lower boosts performance. Applies immediately.",
                 new AcceptableValueRange<float>(0.5f, 5f)));
-        LodBias.SettingChanged += (_, _) => UnityEngine.QualitySettings.lodBias = LodBias.Value;
+        LodBias.SettingChanged += (_, _) => PeakVR.RenderDiagnostics.ApplyLodBias();
 
         SharpenImage = file.Bind("VR Graphics", "Make Image Sharper", "Enable",
             new ConfigDescription(

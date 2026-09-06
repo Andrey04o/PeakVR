@@ -7,6 +7,8 @@ internal class VRHeadRoll : MonoBehaviour
 {
     public static float LocalRoll;
 
+    public static void Reset() => LocalRoll = 0f;
+
     private Camera cam;
     private Quaternion hmdLocalRot = Quaternion.identity;
 

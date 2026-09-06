@@ -41,6 +41,9 @@ internal static class RenderDiagnostics
 
     public static void ApplyLodBias()
     {
+        if (!Plugin.VrEnabled)
+            return;
+
         float target = Plugin.Config != null ? Plugin.Config.LodBias.Value : DefaultLodBias;
         float prev = QualitySettings.lodBias;
 

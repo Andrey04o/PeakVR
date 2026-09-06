@@ -22,8 +22,10 @@ internal static class MovementInputPatch
             return;
         }
 
-        var move = VRControls.MoveStick.ReadValue<Vector2>() + VRHeadRig.RoomInput;
-        if (move.sqrMagnitude > 0.02f)
+        var stick = VRControls.Move();
+        var move = stick + VRHeadRig.RoomInput;
+
+        if (stick != Vector2.zero || move.sqrMagnitude > 0.02f)
             __instance.movementInput = Vector2.ClampMagnitude(move, 1f);
     }
 }

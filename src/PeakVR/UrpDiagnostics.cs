@@ -204,7 +204,12 @@ internal static class UrpDiagnostics
         Plugin.Log.LogInfo($"[PeakVR][GRD] {(GrdDisabled ? "DISABLED" : "restored")} ({changed} properties)");
     }
 
-    public static void ApplySmallMeshCulling()
+    public static void ApplySmallMeshCulling() => SetSmallMeshCulling(
+        Plugin.VrEnabled && (Plugin.Config == null || Plugin.Config.FixPerEyeCulling.Value));
+
+    public static void RestoreSmallMeshCulling() => SetSmallMeshCulling(false);
+
+    private static void SetSmallMeshCulling(bool fix)
     {
         var asset = GraphicsSettings.currentRenderPipeline;
         if (asset == null)
@@ -223,7 +228,6 @@ internal static class UrpDiagnostics
         if (!grdOriginals.ContainsKey(prop.Name))
             grdOriginals[prop.Name] = prop.GetValue(asset);
 
-        var fix = Plugin.Config == null || Plugin.Config.FixPerEyeCulling.Value;
         var target = fix ? 0f : grdOriginals[prop.Name];
 
         if (Equals(prop.GetValue(asset), target))
@@ -236,11 +240,13 @@ internal static class UrpDiagnostics
             $"(drawer mode {Member(asset, "gpuResidentDrawerMode")})");
     }
 
-    public static void ApplyGpuOcclusionCulling()
-    {
-        if (Plugin.Config == null)
-            return;
+    public static void ApplyGpuOcclusionCulling() => SetGpuOcclusionCulling(
+        Plugin.VrEnabled && Plugin.Config != null && Plugin.Config.GpuOcclusionCulling.Value);
 
+    public static void RestoreGpuOcclusionCulling() => SetGpuOcclusionCulling(false);
+
+    private static void SetGpuOcclusionCulling(bool enable)
+    {
         var asset = GraphicsSettings.currentRenderPipeline;
         if (asset == null)
             return;
@@ -252,7 +258,10 @@ internal static class UrpDiagnostics
             return;
         }
 
-        var target = Plugin.Config.GpuOcclusionCulling.Value;
+        if (!grdOriginals.ContainsKey(prop.Name))
+            grdOriginals[prop.Name] = prop.GetValue(asset);
+
+        object target = enable ? true : grdOriginals[prop.Name];
         if (Equals(prop.GetValue(asset), target))
             return;
 
@@ -465,6 +474,36 @@ internal static class UrpDiagnostics
         edgeDetection = !edgeDetection;
         SetFeatureActive("EdgeDetection", edgeDetection);
         Plugin.Log.LogInfo($"[PeakVR][URP] EdgeDetectionRenderer {(edgeDetection ? "ENABLED" : "DISABLED")}");
+    }
+
+    public static bool IsFeatureActive(string nameContains)
+    {
+        var asset = GraphicsSettings.currentRenderPipeline;
+        if (asset == null || asset.GetType().GetField("m_RendererDataList", Any)?.GetValue(asset) is not Array list)
+            return false;
+
+        foreach (var data in list)
+        {
+            if (data == null ||
+                data.GetType().GetProperty("rendererFeatures", Any)?.GetValue(data) is not IEnumerable feats)
+                continue;
+
+            foreach (var f in feats)
+            {
+                if (f == null)
+                    continue;
+
+                var fname = (f as UnityEngine.Object)?.name ?? f.GetType().Name;
+                if (fname.IndexOf(nameContains, StringComparison.OrdinalIgnoreCase) < 0 &&
+                    f.GetType().Name.IndexOf(nameContains, StringComparison.OrdinalIgnoreCase) < 0)
+                    continue;
+
+                if (f.GetType().GetProperty("isActive", Any)?.GetValue(f) is bool active)
+                    return active;
+            }
+        }
+
+        return false;
     }
 
     public static void SetFeatureActive(string nameContains, bool active)

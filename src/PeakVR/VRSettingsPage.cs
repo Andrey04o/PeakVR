@@ -30,6 +30,7 @@ internal static class VRSettingsPage
     private const float SubsectionInset = 180f;
     private const float TabLabelSize = 26f;
 
+    private const float AboutGap = 92f;
     private const float ContentLeft = 428f;
     private const float ContentRight = 110f;
     private const float ContentTop = 70f;
@@ -52,6 +53,8 @@ internal static class VRSettingsPage
 
             Row.Heading("Controller"),
             Row.Setting("Hide Controllers"),
+            Row.Setting("Move Stick Deadzone"),
+            Row.Setting("Turn Stick Deadzone"),
             Row.Setting("Controller Rotation Offset X"),
             Row.Setting("Controller Rotation Offset Y"),
             Row.Setting("Controller Rotation Offset Z"),
@@ -72,6 +75,7 @@ internal static class VRSettingsPage
 
             Row.Heading("Tools"),
             Row.Setting("Verbose Logging"),
+            Row.Setting("Show Hand Targets"),
             Row.Setting("Reacquire Audio Device"),
         }),
 
@@ -225,6 +229,20 @@ internal static class VRSettingsPage
             .SetWidth(120f);
 
         page.SetBackButton(back.Button);
+
+        var about = MenuAPI.CreateMenuButton("About")
+            .SetColor(ButtonPurple)
+            .ParentTo(page)
+            .SetWidth(120f);
+
+        var backRt = back.RectTransform;
+        var aboutRt = about.RectTransform;
+        aboutRt.anchorMin = backRt.anchorMin;
+        aboutRt.anchorMax = backRt.anchorMax;
+        aboutRt.pivot = backRt.pivot;
+        aboutRt.anchoredPosition = backRt.anchoredPosition + new Vector2(0f, -AboutGap);
+
+        about.OnClick(() => VRAboutPanel.Open());
 
         var content = new GameObject("Content")
             .AddComponent<PeakElement>()
@@ -619,13 +637,22 @@ internal static class VRSettingsPage
     {
         const float cell = 132f;
         const float gap = 16f;
+        const float caption = 44f;
 
         var layouts = VRKeyboardLayout.All;
-        var rt = NewRow(content, "Languages", cell + gap * 2f);
+        var rt = NewRow(content, "Languages", cell + gap * 2f + caption);
 
         var font = Templates.SettingsCellPrefab != null
             ? Templates.SettingsCellPrefab.GetComponentInChildren<TextMeshProUGUI>(true)?.font
             : null;
+
+        var title = Text(rt, font, "Keyboard language layouts", 30f,
+            Vector2.zero, new Vector2(700f, caption));
+        title.alignment = TextAlignmentOptions.Left;
+        title.color = MutedColor;
+        title.rectTransform.anchorMin = title.rectTransform.anchorMax = new Vector2(0f, 1f);
+        title.rectTransform.pivot = new Vector2(0f, 1f);
+        title.rectTransform.anchoredPosition = new Vector2(20f, 0f);
 
         for (var i = 0; i < layouts.Length; i++)
         {
@@ -637,7 +664,7 @@ internal static class VRSettingsPage
             buttonRect.anchorMin = buttonRect.anchorMax = new Vector2(0f, 0.5f);
             buttonRect.pivot = new Vector2(0f, 0.5f);
             buttonRect.sizeDelta = new Vector2(cell, cell);
-            buttonRect.anchoredPosition = new Vector2(20f + i * (cell + gap), 0f);
+            buttonRect.anchoredPosition = new Vector2(20f + i * (cell + gap), -caption / 2f);
 
             var image = button.AddComponent<Image>();
             image.raycastTarget = true;

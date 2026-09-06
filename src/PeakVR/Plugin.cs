@@ -70,9 +70,6 @@ public partial class Plugin : BaseUnityPlugin
 
         VRSessionWatch.Install();
 
-        UrpDiagnostics.ApplySmallMeshCulling();
-        UrpDiagnostics.ApplyGpuOcclusionCulling();
-
         if (disableVr)
         {
             VrEnabled = false;

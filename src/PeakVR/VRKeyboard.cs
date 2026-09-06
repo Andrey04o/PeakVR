@@ -136,8 +136,7 @@ internal class VRKeyboard : MonoBehaviour
             }
         }
 
-        if (VRControls.MoveStick != null
-            && VRControls.MoveStick.ReadValue<Vector2>().sqrMagnitude >= StickClose * StickClose)
+        if (VRControls.Move().sqrMagnitude >= StickClose * StickClose)
         {
             CloseField();
             return;

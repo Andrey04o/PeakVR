@@ -9,6 +9,7 @@ namespace PeakVR;
 internal static class VRNetworking
 {
     private const byte EventCode = 199;
+    private const byte ExitCode = 198;
     public const float StaleTime = 1f;
 
     private static bool registered;
@@ -25,6 +26,9 @@ internal static class VRNetworking
         public Quaternion rightRot;
         public Vector3 leftHint;
         public Vector3 rightHint;
+        public Vector3 leftShoulder;
+        public Vector3 rightShoulder;
+        public bool hasShoulders;
         public bool hasHands;
         public float sinceReceived;
     }
@@ -68,18 +72,37 @@ internal static class VRNetworking
             || refs.ikLeft.data.hint == null || refs.ikRight.data.hint == null)
             return;
 
+        if (refs.ikLeft.data.root == null || refs.ikRight.data.root == null)
+            return;
+        if (!VRArmIKPatch.HasTargets)
+            return;
+
         Transform root = c.transform;
         Quaternion invRoot = Quaternion.Inverse(root.rotation);
 
-        Vector3 lp = root.InverseTransformPoint(refs.IKHandTargetLeft.position);
-        Quaternion lr = invRoot * refs.IKHandTargetLeft.rotation;
-        Vector3 rp = root.InverseTransformPoint(refs.IKHandTargetRight.position);
-        Quaternion rr = invRoot * refs.IKHandTargetRight.rotation;
-        Vector3 lh = root.InverseTransformPoint(refs.ikLeft.data.hint.position);
-        Vector3 rh = root.InverseTransformPoint(refs.ikRight.data.hint.position);
+        Vector3 lp = root.InverseTransformPoint(VRArmIKPatch.LastTargetLeft);
+        Quaternion lr = invRoot * VRArmIKPatch.LastRotLeft;
+        Vector3 rp = root.InverseTransformPoint(VRArmIKPatch.LastTargetRight);
+        Quaternion rr = invRoot * VRArmIKPatch.LastRotRight;
+        Vector3 lh = root.InverseTransformPoint(VRArmIKPatch.LastHintLeft);
+        Vector3 rh = root.InverseTransformPoint(VRArmIKPatch.LastHintRight);
 
-        object[] content = { VRHeadRoll.LocalRoll, lp, lr, rp, rr, lh, rh };
+        Vector3 ls = root.InverseTransformPoint(VRArmIKPatch.LastShoulderLeft);
+        Vector3 rs = root.InverseTransformPoint(VRArmIKPatch.LastShoulderRight);
+
+        object[] content = { VRHeadRoll.LocalRoll, lp, lr, rp, rr, lh, rh, ls, rs };
         PhotonNetwork.RaiseEvent(EventCode, content, SendOptionsToOthers, SendOptions.SendUnreliable);
+
+        VRHandTrace.Sent(c, lp, rp);
+    }
+
+    public static void SendVrOff()
+    {
+        if (!PhotonNetwork.InRoom)
+            return;
+
+        PhotonNetwork.RaiseEvent(ExitCode, null, SendOptionsToOthers, SendOptions.SendReliable);
+        Plugin.Log.LogInfo("[PeakVR][Net] told the lobby this player left VR");
     }
 
     public static bool IsActiveRemote(Character c)
@@ -92,6 +115,14 @@ internal static class VRNetworking
 
     private static void OnEvent(EventData e)
     {
+        if (e.Code == ExitCode)
+        {
+            Remotes.Remove(e.Sender);
+            Plugin.Log.LogInfo($"[PeakVR][Net] actor {e.Sender} left VR — dropping their pose");
+            VRNetReceiver.Drop(e.Sender);
+            return;
+        }
+
         if (e.Code != EventCode)
             return;
 
@@ -105,6 +136,9 @@ internal static class VRNetworking
             rightRot = (Quaternion)content[4],
             leftHint = (Vector3)content[5],
             rightHint = (Vector3)content[6],
+            leftShoulder = content.Length >= 9 ? (Vector3)content[7] : Vector3.zero,
+            rightShoulder = content.Length >= 9 ? (Vector3)content[8] : Vector3.zero,
+            hasShoulders = content.Length >= 9,
             hasHands = true,
             sinceReceived = 0f,
         };

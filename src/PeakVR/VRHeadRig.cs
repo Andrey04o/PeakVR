@@ -11,9 +11,7 @@ internal class VRHeadRig : MonoBehaviour
 
     private const float SnapThreshold = 0.7f;
     private const float SnapReleaseThreshold = 0.3f;
-    private const float SmoothDeadzone = 0.15f;
 
-    private const float StickDeadzone = 0.1f;
     private const float ForceMultiplier = 8f;
     private const float MaxGap = 0.75f;
     private const float MinGap = 0.02f;
@@ -120,12 +118,12 @@ internal class VRHeadRig : MonoBehaviour
         if (VRControls.TurnStick == null)
             return;
 
-        var x = VRControls.TurnStick.ReadValue<Vector2>().x;
+        var x = VRControls.Turn().x;
         var oldYaw = turnYaw;
 
         if (Plugin.Config.SmoothTurn.Value)
         {
-            if (Mathf.Abs(x) > SmoothDeadzone)
+            if (x != 0f)
                 turnYaw += x * Plugin.Config.SmoothTurnSpeed.Value * Time.deltaTime;
         }
         else if (snapReady && Mathf.Abs(x) > SnapThreshold)
@@ -425,8 +423,7 @@ internal class VRHeadRig : MonoBehaviour
         var gap = originOffset + hmdXZ;
         var gapMag = gap.magnitude;
 
-        var stick = VRControls.MoveStick != null ? VRControls.MoveStick.ReadValue<Vector2>().magnitude : 0f;
-        if (stick > StickDeadzone)
+        if (VRControls.Move() != Vector2.zero)
         {
             originOffset = Vector2.MoveTowards(originOffset, originOffset - gap, RecenterSpeed * Time.deltaTime);
             ComputeWalkInput(character);

@@ -5,7 +5,7 @@ namespace PeakVR;
 
 internal class VRMenuScroll : MonoBehaviour
 {
-    private const float Deadzone = 0.2f;
+    private const float MinAxis = 0.1f;
     private const float ScrollSpeed = 1.1f;
     private const float SliderSpeed = 0.5f;
 
@@ -26,7 +26,7 @@ internal class VRMenuScroll : MonoBehaviour
         if (!Plugin.VrEnabled || VRControls.TurnStick == null || VRPointer.Canvas == null)
             return;
 
-        var stick = VRControls.TurnStick.ReadValue<Vector2>();
+        var stick = VRControls.Turn();
         var target = VRPointer.Target;
         if (target == null)
             return;
@@ -39,7 +39,7 @@ internal class VRMenuScroll : MonoBehaviour
                 ? (slider.direction == Slider.Direction.TopToBottom ? -stick.y : stick.y)
                 : stick.x;
 
-            if (Mathf.Abs(input) < Deadzone)
+            if (Mathf.Abs(input) < MinAxis)
                 return;
 
             var span = slider.maxValue - slider.minValue;
@@ -51,7 +51,7 @@ internal class VRMenuScroll : MonoBehaviour
         }
 
         var y = stick.y;
-        if (Mathf.Abs(y) < Deadzone)
+        if (Mathf.Abs(y) < MinAxis)
             return;
 
         var bar = target.GetComponentInParent<Scrollbar>();
@@ -62,7 +62,7 @@ internal class VRMenuScroll : MonoBehaviour
                 ? (bar.direction == Scrollbar.Direction.TopToBottom ? -stick.y : stick.y)
                 : stick.x;
 
-            if (Mathf.Abs(input) < Deadzone)
+            if (Mathf.Abs(input) < MinAxis)
                 return;
 
             bar.value = Mathf.Clamp01(bar.value + input * SliderSpeed * Time.unscaledDeltaTime);

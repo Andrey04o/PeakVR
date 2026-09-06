@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -12,12 +13,18 @@ internal class VRLanguageToggle : MonoBehaviour, IPointerClickHandler, IPointerE
     private static readonly Color Hover = new(0.27f, 0.50f, 0.74f, 1f);
     private static readonly Color Dim = new(0.62f, 0.64f, 0.68f, 1f);
 
+    private static readonly List<VRLanguageToggle> Live = new();
+
     private string layout;
     private Image background;
     private TextMeshProUGUI label;
     private Image box;
     private GameObject tick;
     private bool over;
+
+    private void OnEnable() => Live.Add(this);
+
+    private void OnDisable() => Live.Remove(this);
 
     public void Setup(string name, Image image, TextMeshProUGUI text, Image checkBox, GameObject checkMark)
     {
@@ -47,18 +54,25 @@ internal class VRLanguageToggle : MonoBehaviour, IPointerClickHandler, IPointerE
         if (entry == null)
             return;
 
+        if (entry.Value && VRKeyboardLanguages.EnabledCount() <= 1)
+            return;
+
         entry.Value = !entry.Value;
-        Paint();
+
+        foreach (var toggle in Live)
+            toggle.Paint();
     }
 
     private bool Selected => Plugin.Config != null && Plugin.Config.KeyboardLayoutEnabled(layout);
+
+    private bool Locked => Selected && VRKeyboardLanguages.EnabledCount() <= 1;
 
     private void Paint()
     {
         var on = Selected;
 
         if (background != null)
-            background.color = over ? Hover : on ? Accent : Idle;
+            background.color = over && !Locked ? Hover : on ? Accent : Idle;
 
         if (label != null)
             label.color = on || over ? Color.white : Dim;

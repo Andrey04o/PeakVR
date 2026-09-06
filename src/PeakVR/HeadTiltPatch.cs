@@ -12,7 +12,24 @@ internal static class HeadTiltPatch
     private const float NeckDamper = 120f;
     private const float NeckMaxForce = 10000f;
 
-    private static readonly HashSet<Bodypart> widened = new();
+    private class NeckState
+    {
+        public ConfigurableJointMotion angularX;
+        public ConfigurableJointMotion angularY;
+        public ConfigurableJointMotion angularZ;
+        public RotationDriveMode driveMode;
+        public JointDrive slerpDrive;
+        public readonly List<(Collider head, Collider body)> uncoupled = new();
+    }
+
+    private static readonly Dictionary<Bodypart, NeckState> widened = new();
+    private static readonly Dictionary<Character, Bodypart> heads = new();
+
+    public static void RestoreFor(Character character)
+    {
+        if (character != null && heads.TryGetValue(character, out var head) && head != null)
+            RestoreNeck(head);
+    }
 
     [HarmonyPostfix]
     private static void Postfix(Bodypart __instance)
@@ -28,21 +45,28 @@ internal static class HeadTiltPatch
             return;
 
         var character = __instance.character;
-        if (character == null || character.data.fullyPassedOut)
+        if (character == null)
             return;
 
         float roll;
         if (character.IsLocal)
         {
             if (!Plugin.VrEnabled)
+            {
+                RestoreNeck(__instance);
                 return;
+            }
 
             roll = VRHeadRoll.LocalRoll;
         }
         else if (!VRNetReceiver.RemoteRolls.TryGetValue(character, out roll))
         {
+            RestoreNeck(__instance);
             return;
         }
+
+        if (character.data.fullyPassedOut)
+            return;
 
         if (Mathf.Abs(roll) < MinRoll)
             return;
@@ -69,12 +93,25 @@ internal static class HeadTiltPatch
 
     private static void FreeNeck(Bodypart head)
     {
-        if (!widened.Add(head))
+        if (widened.ContainsKey(head))
             return;
 
         var joint = head.GetComponent<ConfigurableJoint>();
         if (joint == null)
             return;
+
+        var state = new NeckState
+        {
+            angularX = joint.angularXMotion,
+            angularY = joint.angularYMotion,
+            angularZ = joint.angularZMotion,
+            driveMode = joint.rotationDriveMode,
+            slerpDrive = joint.slerpDrive
+        };
+        widened[head] = state;
+        if (head.character != null)
+            heads[head.character] = head;
+        Log(head, "neck freed for VR head tilt");
 
         joint.angularXMotion = ConfigurableJointMotion.Free;
         joint.angularYMotion = ConfigurableJointMotion.Free;
@@ -83,41 +120,74 @@ internal static class HeadTiltPatch
         joint.rotationDriveMode = RotationDriveMode.Slerp;
         joint.slerpDrive = Strengthen(joint.slerpDrive);
 
-        IgnoreBodyCollisions(head);
+        IgnoreBodyCollisions(head, state);
     }
 
-    private static void IgnoreBodyCollisions(Bodypart head)
+    private static void RestoreNeck(Bodypart head)
+    {
+        if (!widened.TryGetValue(head, out var state))
+            return;
+
+        widened.Remove(head);
+        if (head.character != null)
+            heads.Remove(head.character);
+
+        var joint = head.GetComponent<ConfigurableJoint>();
+        if (joint != null)
+        {
+            joint.angularXMotion = state.angularX;
+            joint.angularYMotion = state.angularY;
+            joint.angularZMotion = state.angularZ;
+            joint.rotationDriveMode = state.driveMode;
+            joint.slerpDrive = state.slerpDrive;
+        }
+
+        foreach (var pair in state.uncoupled)
+            if (pair.head != null && pair.body != null)
+                Physics.IgnoreCollision(pair.head, pair.body, false);
+
+        Log(head, $"neck restored ({state.uncoupled.Count} collision pairs re-coupled)");
+        state.uncoupled.Clear();
+    }
+
+    private static void Log(Bodypart head, string message)
+    {
+        var name = head.character != null ? head.character.characterName : "?";
+        Plugin.Log.LogInfo($"[PeakVR][HeadTilt] '{name}': {message}");
+    }
+
+    private static void IgnoreBodyCollisions(Bodypart head, NeckState state)
     {
         var character = head.character;
         if (character == null)
             return;
 
         var headColliders = head.GetComponentsInChildren<Collider>(true);
-        var bodyColliders = character.GetComponentsInChildren<Collider>(true);
 
-        foreach (var hc in headColliders)
+        foreach (var part in character.GetComponentsInChildren<Bodypart>(true))
         {
-            if (hc == null)
+            if (part == null || part == head || IsHand(part.partType))
                 continue;
 
-            foreach (var bc in bodyColliders)
+            foreach (var bc in part.GetComponents<Collider>())
             {
-                if (bc == null || bc == hc || bc.transform.IsChildOf(head.transform) || IsHand(bc))
+                if (bc == null || bc.transform.IsChildOf(head.transform))
                     continue;
 
-                Physics.IgnoreCollision(hc, bc, true);
+                foreach (var hc in headColliders)
+                {
+                    if (hc == null || hc == bc || Physics.GetIgnoreCollision(hc, bc))
+                        continue;
+
+                    Physics.IgnoreCollision(hc, bc, true);
+                    state.uncoupled.Add((hc, bc));
+                }
             }
         }
     }
 
-    private static bool IsHand(Collider collider)
-    {
-        var part = collider.GetComponentInParent<Bodypart>();
-        if (part == null)
-            return false;
-
-        return part.partType == BodypartType.Hand_L || part.partType == BodypartType.Hand_R;
-    }
+    private static bool IsHand(BodypartType type) =>
+        type == BodypartType.Hand_L || type == BodypartType.Hand_R;
 
     private static JointDrive Strengthen(JointDrive drive)
     {

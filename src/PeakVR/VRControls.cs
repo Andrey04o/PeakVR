@@ -1,9 +1,12 @@
+using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace PeakVR;
 
 internal static class VRControls
 {
+    private const float FallbackDeadzone = 0.15f;
+
     public static InputAction MoveStick { get; private set; }
     public static InputAction TurnStick { get; private set; }
 
@@ -60,5 +63,28 @@ internal static class VRControls
     private static InputAction Button(string name, string binding)
     {
         return new InputAction(name, InputActionType.Button, binding);
+    }
+
+    public static Vector2 Move() =>
+        Deadzoned(MoveStick, Plugin.Config != null ? Plugin.Config.MoveDeadzone.Value : FallbackDeadzone);
+
+    public static Vector2 Turn() =>
+        Deadzoned(TurnStick, Plugin.Config != null ? Plugin.Config.TurnDeadzone.Value : FallbackDeadzone);
+
+    private static Vector2 Deadzoned(InputAction action, float deadzone)
+    {
+        if (action == null)
+            return Vector2.zero;
+
+        var value = action.ReadValue<Vector2>();
+
+        if (deadzone <= 0f)
+            return value;
+
+        var magnitude = value.magnitude;
+        if (magnitude <= deadzone)
+            return Vector2.zero;
+
+        return value * ((magnitude - deadzone) / (1f - deadzone) / magnitude);
     }
 }

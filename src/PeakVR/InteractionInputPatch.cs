@@ -41,7 +41,7 @@ internal static class InteractionInputPatch
                 __instance.spectateRightWasPressed = true;
 
             // Right stick Y zooms the spectator camera closer / farther (game reads scroll*IsPressed).
-            var zoomY = VRControls.TurnStick.ReadValue<Vector2>().y;
+            var zoomY = VRControls.Turn().y;
             if (zoomY > 0.5f)
                 __instance.scrollForwardIsPressed = true;
             else if (zoomY < -0.5f)
@@ -143,7 +143,7 @@ internal static class InteractionInputPatch
     // stick having to return towards centre before it fires again.
     private static void InjectEmotePaging(CharacterInput input)
     {
-        var x = VRControls.MoveStick.ReadValue<Vector2>().x;
+        var x = VRControls.Move().x;
         var dir = x > PageOn ? 1 : x < -PageOn ? -1 : 0;
 
         if (pageDir != 0 && Mathf.Abs(x) < PageOff)
@@ -162,7 +162,7 @@ internal static class InteractionInputPatch
 
     private static void InjectScroll(CharacterInput input)
     {
-        var scrollY = VRControls.TurnStick.ReadValue<Vector2>().y;
+        var scrollY = VRControls.Turn().y;
         var dir = scrollY > ScrollOn ? 1 : scrollY < -ScrollOn ? -1 : 0;
 
         if (scrollDir != 0 && Mathf.Abs(scrollY) < ScrollOff)

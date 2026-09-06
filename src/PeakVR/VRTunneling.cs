@@ -146,8 +146,8 @@ internal class VRTunneling : MonoBehaviour
             Plugin.Log.LogInfo($"[PeakVR][Tunnel] speed={speed:F2} current={current:F2}");
         }
 
-        var turning = Plugin.Config.SmoothTurn.Value && VRControls.TurnStick != null
-            && Mathf.Abs(VRControls.TurnStick.ReadValue<Vector2>().x) > TurnThreshold;
+        var turning = Plugin.Config.SmoothTurn.Value
+            && Mathf.Abs(VRControls.Turn().x) > TurnThreshold;
 
         return speed > MinSpeed || turning ? 1f : 0f;
     }

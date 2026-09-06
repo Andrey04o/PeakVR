@@ -1,4 +1,4 @@
-using HarmonyLib;
+﻿using HarmonyLib;
 using UnityEngine;
 using UnityEngine.Animations.Rigging;
 
@@ -31,6 +31,8 @@ internal static class VRArmIKPatch
     private static readonly Vector3 ShoulderOffsetRight = new(0.18f, -0.2f, 0f);
     private static readonly Vector3 ElbowSeedLocal = new(0f, -0.7f, -0.5f);
     private const float ElbowHintDistance = 0.3f;
+    private const float StraightFrom = 0.75f;
+    private const float MinHintOffset = 0.08f;
     private const float HandInfluence = 0.35f;
     public const float MinElbowAngle = 40f;
 
@@ -44,6 +46,28 @@ internal static class VRArmIKPatch
         c.refs.ikRig.weight = 1f;
         c.refs.ikLeft.weight = 1f;
         c.refs.ikRight.weight = 1f;
+
+        Reanchor(c);
+    }
+
+    private static void Reanchor(Character c)
+    {
+        if (!HasTargets)
+            return;
+
+        var refs = c.refs;
+        if (refs.ikLeft.data.root == null || refs.ikRight.data.root == null)
+            return;
+
+        LastShoulderLeft = refs.ikLeft.data.root.position;
+        LastShoulderRight = refs.ikRight.data.root.position;
+
+        LastTargetLeft = LastShoulderLeft + OffsetLeft;
+        LastTargetRight = LastShoulderRight + OffsetRight;
+        LastHintLeft = LastShoulderLeft + HintOffsetLeft;
+        LastHintRight = LastShoulderRight + HintOffsetRight;
+
+        VRHandDebug.Show(c, LastTargetLeft, LastTargetRight);
     }
 
     [HarmonyPatch(nameof(CharacterAnimations.ConfigureIK))]
@@ -86,7 +110,42 @@ internal static class VRArmIKPatch
         refs.ikRig.weight = 1f;
         refs.ikLeft.weight = 1f;
         refs.ikRight.weight = 1f;
+
+        ForceConstraintWeights(refs.ikLeft);
+        ForceConstraintWeights(refs.ikRight);
+
+        LastShoulderLeft = refs.ikLeft.data.root.position;
+        LastShoulderRight = refs.ikRight.data.root.position;
+
+        OffsetLeft = targetL - LastShoulderLeft;
+        OffsetRight = targetR - LastShoulderRight;
+        HintOffsetLeft = (refs.ikLeft.data.hint != null ? refs.ikLeft.data.hint.position : targetL) - LastShoulderLeft;
+        HintOffsetRight = (refs.ikRight.data.hint != null ? refs.ikRight.data.hint.position : targetR) - LastShoulderRight;
+
+        LastTargetLeft = targetL;
+        LastTargetRight = targetR;
+        LastHintLeft = LastShoulderLeft + HintOffsetLeft;
+        LastHintRight = LastShoulderRight + HintOffsetRight;
+        LastRotLeft = refs.IKHandTargetLeft.rotation;
+        LastRotRight = refs.IKHandTargetRight.rotation;
+        HasTargets = true;
+
+        VRHandDebug.Show(c, targetL, targetR);
     }
+
+    public static bool HasTargets;
+    public static Vector3 OffsetLeft;
+    public static Vector3 OffsetRight;
+    public static Vector3 HintOffsetLeft;
+    public static Vector3 HintOffsetRight;
+    public static Vector3 LastTargetLeft;
+    public static Vector3 LastTargetRight;
+    public static Vector3 LastHintLeft;
+    public static Vector3 LastHintRight;
+    public static Vector3 LastShoulderLeft;
+    public static Vector3 LastShoulderRight;
+    public static Quaternion LastRotLeft = Quaternion.identity;
+    public static Quaternion LastRotRight = Quaternion.identity;
 
     private static Vector3 ClampMinElbowBend(TwoBoneIKConstraint ik, Vector3 target)
     {
@@ -124,9 +183,16 @@ internal static class VRArmIKPatch
             return;
 
         Vector3 shoulderPos = ik.data.root.position;
-        var axis = handPos - shoulderPos;
-        if (axis.sqrMagnitude < 1e-4f)
+        var toHand = handPos - shoulderPos;
+        if (toHand.sqrMagnitude < 1e-4f)
             return;
+
+        var reach = ArmReach(ik);
+        var extension = reach > 1e-4f ? Mathf.Clamp01(toHand.magnitude / reach) : 0f;
+        var offset = Mathf.Max(MinHintOffset,
+            ElbowHintDistance * (1f - Mathf.InverseLerp(StraightFrom, 1f, extension)));
+
+        var axis = toHand;
         axis.Normalize();
 
         var downPole = Vector3.ProjectOnPlane(Vector3.down, axis);
@@ -139,7 +205,48 @@ internal static class VRArmIKPatch
 
         var pole = Vector3.Slerp(downPole.normalized, handPole.normalized, HandInfluence);
 
-        hint.position = (shoulderPos + handPos) * 0.5f + pole.normalized * ElbowHintDistance;
+        hint.position = (shoulderPos + handPos) * 0.5f + pole.normalized * offset;
+    }
+
+    public static void ForceConstraintWeights(TwoBoneIKConstraint ik)
+    {
+        if (ik == null)
+            return;
+
+        var data = ik.data;
+        var changed = false;
+
+        if (!Mathf.Approximately(data.targetPositionWeight, 1f))
+        {
+            data.targetPositionWeight = 1f;
+            changed = true;
+        }
+
+        if (!Mathf.Approximately(data.targetRotationWeight, 1f))
+        {
+            data.targetRotationWeight = 1f;
+            changed = true;
+        }
+
+        if (data.hint != null && !Mathf.Approximately(data.hintWeight, 1f))
+        {
+            data.hintWeight = 1f;
+            changed = true;
+        }
+
+        if (changed)
+            ik.data = data;
+    }
+
+    private static float ArmReach(TwoBoneIKConstraint ik)
+    {
+        var root = ik.data.root;
+        var mid = ik.data.mid;
+        var tip = ik.data.tip;
+        if (root == null || mid == null || tip == null)
+            return 0f;
+
+        return Vector3.Distance(root.position, mid.position) + Vector3.Distance(mid.position, tip.position);
     }
 
     private static bool ShouldDrive(CharacterAnimations anim, out Character c)

@@ -9,6 +9,8 @@ internal static class VRRender
 {
     private static bool logged;
     private static bool aoDisabled;
+    private static bool aoCaptured;
+    private static bool aoWasActive;
 
     private static int originalMsaa = -1;
     private static int originalAA = -1;
@@ -57,12 +59,14 @@ internal static class VRRender
             MainCamera.instance.cam.farClipPlane = originalFarPlane;
         originalFarPlane = -1f;
 
-        if (aoDisabled)
+        if (aoCaptured)
         {
+            aoCaptured = false;
             aoDisabled = false;
             try
             {
-                UrpDiagnostics.SetFeatureActive("HBAO", true);
+                UrpDiagnostics.SetFeatureActive("HBAO", aoWasActive);
+                Plugin.Log.LogInfo($"[PeakVR] HBAO ambient occlusion restored to {(aoWasActive ? "on" : "off")} for flat mode");
             }
             catch (Exception e)
             {
@@ -174,7 +178,13 @@ internal static class VRRender
         bool disable = Plugin.Config == null || Plugin.Config.ForceDisableHBAO.Value;
         try
         {
-            UrpDiagnostics.SetFeatureActive("HBAO", !disable);
+            if (!aoCaptured)
+            {
+                aoWasActive = UrpDiagnostics.IsFeatureActive("HBAO");
+                aoCaptured = true;
+            }
+
+            UrpDiagnostics.SetFeatureActive("HBAO", !disable && aoWasActive);
             if (disable && !aoDisabled)
             {
                 aoDisabled = true;

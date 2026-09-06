@@ -19,6 +19,9 @@ internal class VRNetReceiver : MonoBehaviour
         public Quaternion rightRot;
         public Vector3 leftHint;
         public Vector3 rightHint;
+        public Vector3 leftShoulder;
+        public Vector3 rightShoulder;
+        public bool hasShoulders;
         public bool init;
 
         public int outlierCount;
@@ -31,9 +34,51 @@ internal class VRNetReceiver : MonoBehaviour
         public bool rollInit;
     }
 
+    private class IkWeights
+    {
+        public float rig;
+        public float left;
+        public float right;
+    }
+
     private readonly Dictionary<int, Smooth> smoothing = new();
     private readonly List<int> stale = new();
+    private static readonly Dictionary<Character, IkWeights> IkOriginals = new();
+    private static readonly Dictionary<Character, Smooth> Poses = new();
     public static readonly Dictionary<Character, float> RemoteRolls = new();
+
+    public static void ApplyTo(Character character)
+    {
+        if (character != null && Poses.TryGetValue(character, out var s))
+            ApplyHands(character, s);
+    }
+
+    public static void Drop(int actor)
+    {
+        if (!PlayerHandler.TryGetCharacter(actor, out var gone) || gone == null)
+        {
+            Plugin.Log.LogWarning($"[PeakVR][Net] actor {actor} left VR but no Character was found — " +
+                "their head tilt and hand IK could not be restored");
+            return;
+        }
+
+        RemoteRolls.Remove(gone);
+        Poses.Remove(gone);
+        HeadTiltPatch.RestoreFor(gone);
+        VRHandDebug.Hide(gone);
+
+        Plugin.Log.LogInfo($"[PeakVR][Net] '{gone.characterName}' is no longer VR — restoring head tilt and hand IK");
+
+        try
+        {
+            RestoreIK(gone);
+        }
+        catch (System.Exception e)
+        {
+            Plugin.Log.LogError($"[PeakVR][Net] restoring hand IK for '{gone.characterName}' failed: {e}");
+        }
+    }
+
 
     private void Update()
     {
@@ -76,6 +121,8 @@ internal class VRNetReceiver : MonoBehaviour
                 smoothing[kv.Key] = s;
             }
 
+            s.hasShoulders = pose.hasShoulders;
+
             if (!s.init)
             {
                 s.headRoll = pose.headRoll;
@@ -85,6 +132,8 @@ internal class VRNetReceiver : MonoBehaviour
                 s.rightRot = pose.rightRot;
                 s.leftHint = pose.leftHint;
                 s.rightHint = pose.rightHint;
+                s.leftShoulder = pose.leftShoulder;
+                s.rightShoulder = pose.rightShoulder;
                 s.init = true;
             }
             else
@@ -111,6 +160,8 @@ internal class VRNetReceiver : MonoBehaviour
                         s.rightRot = pose.rightRot;
                         s.leftHint = pose.leftHint;
                         s.rightHint = pose.rightHint;
+                        s.leftShoulder = pose.leftShoulder;
+                        s.rightShoulder = pose.rightShoulder;
                     }
                 }
                 else
@@ -122,11 +173,13 @@ internal class VRNetReceiver : MonoBehaviour
                     s.rightRot = Quaternion.Slerp(s.rightRot, pose.rightRot, t);
                     s.leftHint = Vector3.Lerp(s.leftHint, pose.leftHint, t);
                     s.rightHint = Vector3.Lerp(s.rightHint, pose.rightHint, t);
+                    s.leftShoulder = Vector3.Lerp(s.leftShoulder, pose.leftShoulder, t);
+                    s.rightShoulder = Vector3.Lerp(s.rightShoulder, pose.rightShoulder, t);
                 }
             }
 
             if (pose.hasHands)
-                ApplyHands(character, s);
+                Poses[character] = s;
 
             RemoteRolls[character] = s.headRoll;
         }
@@ -135,11 +188,32 @@ internal class VRNetReceiver : MonoBehaviour
         {
             VRNetworking.Remotes.Remove(key);
             smoothing.Remove(key);
-
-            if (PlayerHandler.TryGetCharacter(key, out var gone) && gone != null)
-                RemoteRolls.Remove(gone);
+            Drop(key);
         }
     }
+
+    private static void RestoreIK(Character character)
+    {
+        var refs = character.refs;
+        if (refs == null)
+            return;
+
+        if (IkOriginals.TryGetValue(character, out var original))
+        {
+            IkOriginals.Remove(character);
+
+            if (refs.ikRig != null)
+                refs.ikRig.weight = original.rig;
+            if (refs.ikLeft != null)
+                refs.ikLeft.weight = original.left;
+            if (refs.ikRight != null)
+                refs.ikRight.weight = original.right;
+        }
+
+        if (refs.animations != null)
+            refs.animations.ConfigureIK();
+    }
+
 
     private static void ApplyHands(Character character, Smooth s)
     {
@@ -148,11 +222,38 @@ internal class VRNetReceiver : MonoBehaviour
             || refs.ikRig == null || refs.ikLeft == null || refs.ikRight == null)
             return;
 
+        if (!IkOriginals.ContainsKey(character))
+            IkOriginals[character] = new IkWeights
+            {
+                rig = refs.ikRig.weight,
+                left = refs.ikLeft.weight,
+                right = refs.ikRight.weight
+            };
+
         var root = character.transform;
 
-        refs.IKHandTargetLeft.position = root.TransformPoint(s.leftPos);
+        var leftPos = s.leftPos;
+        var rightPos = s.rightPos;
+        var leftHint = s.leftHint;
+        var rightHint = s.rightHint;
+
+        if (s.hasShoulders && refs.ikLeft.data.root != null && refs.ikRight.data.root != null)
+        {
+            var leftShoulder = root.InverseTransformPoint(refs.ikLeft.data.root.position);
+            var rightShoulder = root.InverseTransformPoint(refs.ikRight.data.root.position);
+
+            leftPos = leftShoulder + (s.leftPos - s.leftShoulder);
+            rightPos = rightShoulder + (s.rightPos - s.rightShoulder);
+            leftHint = leftShoulder + (s.leftHint - s.leftShoulder);
+            rightHint = rightShoulder + (s.rightHint - s.rightShoulder);
+        }
+
+        var worldLeft = root.TransformPoint(leftPos);
+        var worldRight = root.TransformPoint(rightPos);
+
+        refs.IKHandTargetLeft.position = worldLeft;
         refs.IKHandTargetLeft.rotation = root.rotation * s.leftRot;
-        refs.IKHandTargetRight.position = root.TransformPoint(s.rightPos);
+        refs.IKHandTargetRight.position = worldRight;
         refs.IKHandTargetRight.rotation = root.rotation * s.rightRot;
 
         refs.ikRig.weight = 1f;
@@ -160,9 +261,15 @@ internal class VRNetReceiver : MonoBehaviour
         refs.ikRight.weight = 1f;
 
         if (refs.ikLeft.data.hint != null)
-            refs.ikLeft.data.hint.position = root.TransformPoint(s.leftHint);
+            refs.ikLeft.data.hint.position = root.TransformPoint(leftHint);
         if (refs.ikRight.data.hint != null)
-            refs.ikRight.data.hint.position = root.TransformPoint(s.rightHint);
+            refs.ikRight.data.hint.position = root.TransformPoint(rightHint);
+
+        VRArmIKPatch.ForceConstraintWeights(refs.ikLeft);
+        VRArmIKPatch.ForceConstraintWeights(refs.ikRight);
+
+        VRHandTrace.Received(character, leftPos, rightPos);
+        VRHandDebug.Show(character, worldLeft, worldRight);
     }
 
 }
