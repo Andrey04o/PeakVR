@@ -29,6 +29,10 @@ Running the mod using r2modman can be done simply by clicking "Start Modded", wh
 | 1.1.0 | 1.64.a and 0.65.d (beta) |
 | 1.0.0 | 1.64.a and 0.65.d (beta) |
 
+# Switching between VR and flat mode
+
+Press **F11** at any time - in the main menu or mid-run - to switch between VR and flat mode.
+
 # Funny tip
 
 DirectX 11 can give you an extra **10–27 FPS**! Add the launch option `-force-d3d11` to start the game in DirectX 11.
@@ -129,3 +133,9 @@ You can also find my other games on [itch.io](https://andrey04o.itch.io/).
 - VR controller FBX model — Unity VR Template
 - [Input Prompts (1.5A)](https://kenney.nl/assets/input-prompts) — created/distributed by [Kenney](https://www.kenney.nl), Creative Commons Zero (CC0)
 - [ModConfig](https://github.com/PEAKModding/PEAKLib) — PEAK Modding, MIT License
+
+# Contact
+
+- Bug reports and feature requests: [GitHub issues](https://github.com/Andrey04o/PeakVR/issues)
+- [PEAK Modding Community](https://discord.gg/SAw86z24rB) Discord server - the [PeakVR chat](https://discord.com/channels/1363179626435707082/1530848108853067786)
+- Or message me directly - Discord: `andrey04o`, Telegram: [@andrey04o](https://t.me/andrey04o)

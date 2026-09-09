@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.5.0
+
+- Updated for the latest PEAK
+- Added: VR keyboard and numpad
+- Added: Switch between VR and flat mode, with the F11 hotkey
+- Added: "Start In VR" setting
+- Added: A "VR Settings" button in the Settings menu
+- Added: PeakTextChat support
+- Added: Compatibility with PEAKInvitation, PEAKLobbyBrowser mods
+- Added: "Move Stick Deadzone" and "Turn Stick Deadzone" settings
+- Added: "Fix Hazard Rendering" setting (on by default) - the arms the spiked balls swing on were invisible in VR
+- Changed: VR players stand in a calmer idle pose
+- Changed: The About window now links to Thunderstore, and the support links moved to the README
+- Fixed: VR button glyphs in the prompts were hidden by walls and terrain
+
 ## 1.4.1
 
 - Fixed: The loading screen could stay over the whole view after spawning in
