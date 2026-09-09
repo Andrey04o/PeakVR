@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using BepInEx.Configuration;
 using PEAKLib.UI;
@@ -75,7 +75,6 @@ internal static class VRSettingsPage
 
             Row.Heading("Tools"),
             Row.Setting("Verbose Logging"),
-            Row.Setting("Show Hand Targets"),
             Row.Setting("Reacquire Audio Device"),
         }),
 

@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 
 namespace PeakVR;
 
@@ -49,9 +49,22 @@ internal static class VRHandTrace
             $" | L pos{refs.ikLeft.data.targetPositionWeight:F2} rot{refs.ikLeft.data.targetRotationWeight:F2}" +
             $" hint{refs.ikLeft.data.hintWeight:F2} bound={Bound(refs.ikLeft, refs.IKHandTargetLeft)}" +
             $" | R bound={Bound(refs.ikRight, refs.IKHandTargetRight)}");
+
+        Plugin.Log.LogInfo($"[PeakVR][Hands] {tag} '{c.characterName}' ROT" +
+            $" targetL{E(refs.IKHandTargetLeft)} handL{E(refs.ikLeft.data.tip)}" +
+            $" deltaL{Gap(refs.IKHandTargetLeft, refs.ikLeft.data.tip)}" +
+            $" | targetR{E(refs.IKHandTargetRight)} handR{E(refs.ikRight.data.tip)}" +
+            $" deltaR{Gap(refs.IKHandTargetRight, refs.ikRight.data.tip)}" +
+            $" | shootRoll={ShootableAim.RollEnabled && ShootableAim.IsShootableHeld()}" +
+            $" item={(c.data != null && c.data.currentItem != null ? c.data.currentItem.name : "none")}");
     }
 
     private static string W(Transform bone) => bone == null ? "(null)" : V(bone.position);
+
+    private static string E(Transform bone) => bone == null ? "(null)" : V(bone.rotation.eulerAngles);
+
+    private static string Gap(Transform a, Transform b) =>
+        a == null || b == null ? "(n/a)" : $"{Quaternion.Angle(a.rotation, b.rotation):F1}deg";
 
     private static string Bound(UnityEngine.Animations.Rigging.TwoBoneIKConstraint ik, Transform expected)
     {

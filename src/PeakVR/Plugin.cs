@@ -194,6 +194,12 @@ public partial class Plugin : BaseUnityPlugin
         if (kb.lKey.wasPressedThisFrame)
             RenderDiagnostics.Toggle();
 
+        if (kb.bKey.wasPressedThisFrame)
+            VRHandDebug.Toggle();
+
+        if (kb.iKey.wasPressedThisFrame)
+            IdlePosePatch.Cycle();
+
         if (kb.kKey.wasPressedThisFrame)
             RenderDiagnostics.ToggleLod0Only();
 

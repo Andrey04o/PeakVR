@@ -1,4 +1,4 @@
-using BepInEx.Configuration;
+﻿using BepInEx.Configuration;
 
 namespace LCVR;
 
@@ -12,7 +12,6 @@ public class Config
     public ConfigEntry<UnityEngine.KeyCode> ModeHotkey { get; }
     public ConfigEntry<string> OpenXRRuntime { get; }
     public ConfigEntry<bool> EnableVerboseLogging { get; }
-    public ConfigEntry<bool> ShowHandTargets { get; }
     public ConfigEntry<bool> ReacquireAudioDevice { get; }
     public ConfigEntry<bool> ModForegroundUI { get; }
     public ConfigEntry<bool> ModUIOnLeftHand { get; }
@@ -91,11 +90,6 @@ public class Config
 
         EnableVerboseLogging = file.Bind("VR", "Verbose Logging", false,
             "Enables verbose debug logging during OpenXR initialization.");
-
-        ShowHandTargets = file.Bind("VR", "Show Hand Targets", false,
-            "Troubleshooting only. Draws spheres where the arm IK is being aimed: red = the hand target, "
-            + "green = where the hand bone actually ended up, blue = the elbow hint. Shown for yourself and "
-            + "for every VR player in the lobby, so you can see whether a mismatch is in the aim or the pose.");
 
         ModForegroundUI = file.Bind("VR", "Other Mods UI In VR", true,
             "Pull flat screen-space UI created by other mods into VR as a head-locked foreground panel. "
@@ -297,7 +291,7 @@ public class Config
         Migrate(file);
     }
 
-    private const int CurrentConfigVersion = 1;
+    private const int CurrentConfigVersion = 2;
 
     public ConfigEntry<int> ConfigVersion { get; }
 

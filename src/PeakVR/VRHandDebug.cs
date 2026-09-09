@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 namespace PeakVR;
@@ -78,8 +78,21 @@ internal static class VRHandDebug
 
     private static readonly Dictionary<Character, Markers> Live = new();
 
-    public static bool Enabled =>
-        Plugin.Config != null && Plugin.Config.ShowHandTargets.Value;
+    private static bool visible = true;
+
+    public static bool Enabled => Plugin.DebugButtons && visible;
+
+    public static void Toggle()
+    {
+        visible = !visible;
+        Plugin.Log.LogInfo($"[PeakVR] Hand target markers {(visible ? "shown" : "hidden")}");
+
+        if (visible)
+            return;
+
+        foreach (var c in new List<Character>(Live.Keys))
+            Hide(c);
+    }
 
     public static void Show(Character c, Vector3 leftTarget, Vector3 rightTarget)
     {
