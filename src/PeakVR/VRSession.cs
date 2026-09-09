@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace PeakVR;
@@ -85,6 +85,8 @@ internal static class VRSession
             UrpDiagnostics.RestoreDepthPriming();
             UrpDiagnostics.RestoreSmallMeshCulling();
             UrpDiagnostics.RestoreGpuOcclusionCulling();
+
+            UIOverlay.ForgetFlattened();
 
             Plugin.Log.LogWarning("[PeakVR][Mode] flat mode is active");
         }

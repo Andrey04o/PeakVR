@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -145,6 +145,40 @@ internal static class UIOverlay
     }
 
     private static readonly HashSet<Material> Queued = new();
+
+    private static readonly HashSet<Canvas> flattened = new();
+
+    public static void FlattenDepth(Canvas canvas, string tag)
+    {
+        if (canvas == null)
+            return;
+
+        var moved = 0;
+        string first = null;
+
+        var root = canvas.transform;
+
+        foreach (var rt in canvas.GetComponentsInChildren<RectTransform>(true))
+        {
+            if (rt.transform == root || rt.GetComponent<Canvas>() != null)
+                continue;
+
+            var local = rt.localPosition;
+            if (Mathf.Approximately(local.z, 0f))
+                continue;
+
+            first ??= $"{rt.name} z={local.z:F1}";
+            rt.localPosition = new Vector3(local.x, local.y, 0f);
+            moved++;
+        }
+
+        if (moved == 0 || !flattened.Add(canvas))
+            return;
+
+        Plugin.Log.LogInfo($"[PeakVR] Flattened {moved} depth offset(s) on '{tag}' (first: {first})");
+    }
+
+    public static void ForgetFlattened() => flattened.Clear();
 
     public static void RestoreForFlat()
     {

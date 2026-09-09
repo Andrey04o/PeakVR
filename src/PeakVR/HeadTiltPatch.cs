@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using HarmonyLib;
 using UnityEngine;
 
@@ -111,7 +111,6 @@ internal static class HeadTiltPatch
         widened[head] = state;
         if (head.character != null)
             heads[head.character] = head;
-        Log(head, "neck freed for VR head tilt");
 
         joint.angularXMotion = ConfigurableJointMotion.Free;
         joint.angularYMotion = ConfigurableJointMotion.Free;
@@ -146,14 +145,7 @@ internal static class HeadTiltPatch
             if (pair.head != null && pair.body != null)
                 Physics.IgnoreCollision(pair.head, pair.body, false);
 
-        Log(head, $"neck restored ({state.uncoupled.Count} collision pairs re-coupled)");
         state.uncoupled.Clear();
-    }
-
-    private static void Log(Bodypart head, string message)
-    {
-        var name = head.character != null ? head.character.characterName : "?";
-        Plugin.Log.LogInfo($"[PeakVR][HeadTilt] '{name}': {message}");
     }
 
     private static void IgnoreBodyCollisions(Bodypart head, NeckState state)

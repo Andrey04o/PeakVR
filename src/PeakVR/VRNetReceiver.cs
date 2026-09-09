@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
 namespace PeakVR;
@@ -268,7 +268,6 @@ internal class VRNetReceiver : MonoBehaviour
         VRArmIKPatch.ForceConstraintWeights(refs.ikLeft);
         VRArmIKPatch.ForceConstraintWeights(refs.ikRight);
 
-        VRHandTrace.Received(character, leftPos, rightPos);
         VRHandDebug.Show(character, worldLeft, worldRight);
     }
 

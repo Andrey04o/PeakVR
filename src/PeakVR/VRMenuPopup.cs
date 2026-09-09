@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.XR.Interaction.Toolkit.UI;
@@ -29,7 +29,10 @@ internal class VRMenuPopup : MonoBehaviour
             return;
 
         if (MenuCanvasPatch.MenuCanvas != null)
+        {
             MenuCanvasPatch.MenuCanvas.worldCamera = cam;
+            UIOverlay.FlattenDepth(MenuCanvasPatch.MenuCanvas, "main menu");
+        }
 
         var popup = FindPopup();
 
@@ -62,6 +65,7 @@ internal class VRMenuPopup : MonoBehaviour
         {
             UIOverlay.SweepForegroundLayer(popup);
             UIOverlay.MakeAlwaysVisible(popup, true);
+            UIOverlay.FlattenDepth(popup, popup.transform.root.name);
         }
     }
 
