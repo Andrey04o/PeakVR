@@ -940,6 +940,8 @@ internal static class VRSettingsPage
 
         public RectTransform Target;
 
+        private static bool logged;
+
         private void LateUpdate()
         {
             enabled = false;
@@ -949,15 +951,20 @@ internal static class VRSettingsPage
 
             var lowest = float.MaxValue;
             var found = false;
+            var anchor = "";
 
             foreach (Transform sibling in Target.parent)
             {
                 if (sibling == Target || sibling is not RectTransform rt || !sibling.gameObject.activeSelf)
                     continue;
 
+                if (rt.GetComponent<Selectable>() == null)
+                    continue;
+
                 if (rt.anchoredPosition.y < lowest)
                 {
                     lowest = rt.anchoredPosition.y;
+                    anchor = rt.name;
                     found = true;
                 }
             }
