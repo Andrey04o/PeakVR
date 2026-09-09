@@ -23,6 +23,8 @@ Running the mod using r2modman can be done simply by clicking "Start Modded", wh
 
 | Mod version | Tested game version |
 | --- | --- |
+| 1.5.0 | 2.4.b |
+| 1.4.1 | 2.1.a |
 | 1.4.0 | 2.0.a |
 | 1.3.0 | 1.65.a |
 | 1.2.0 | 1.65.a |
@@ -31,7 +33,7 @@ Running the mod using r2modman can be done simply by clicking "Start Modded", wh
 
 # Switching between VR and flat mode
 
-Press **F11** at any time - in the main menu or mid-run - to switch between VR and flat mode.
+Press **F11** at any time to switch between VR and flat mode.
 
 # Funny tip
 
@@ -119,6 +121,12 @@ The plugin loads a `peakvr` asset bundle that is not included in this repository
 
 Launch the game with the `-vr-debugbuttons` argument to enable developer hotkeys.
 
+# Used Assets
+
+- VR controller FBX model — Unity VR Template
+- [Input Prompts (1.5A)](https://kenney.nl/assets/input-prompts) — created/distributed by [Kenney](https://www.kenney.nl), Creative Commons Zero (CC0)
+- [ModConfig](https://github.com/PEAKModding/PEAKLib) — PEAK Modding, MIT License
+
 # Support the mod
 
 If PeakVR is useful to you, you can support its development:
@@ -127,12 +135,6 @@ If PeakVR is useful to you, you can support its development:
 - [Patreon](https://www.patreon.com/cw/04o)
 
 You can also find my other games on [itch.io](https://andrey04o.itch.io/).
-
-# Used Assets
-
-- VR controller FBX model — Unity VR Template
-- [Input Prompts (1.5A)](https://kenney.nl/assets/input-prompts) — created/distributed by [Kenney](https://www.kenney.nl), Creative Commons Zero (CC0)
-- [ModConfig](https://github.com/PEAKModding/PEAKLib) — PEAK Modding, MIT License
 
 # Contact
 

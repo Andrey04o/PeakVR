@@ -8,6 +8,10 @@
 - Added: "Start In VR" setting
 - Added: A "VR Settings" button in the Settings menu
 - Added: PeakTextChat support
+
+| ![PeakTextChat on the left wrist](https://github.com/Andrey04o/PeakVR/blob/main/Changelog1.jpg?raw=true) | ![Typing on the VR keyboard](https://github.com/Andrey04o/PeakVR/blob/main/Changelog2.jpg?raw=true) |
+| --- | --- |
+
 - Added: Compatibility with PEAKInvitation, PEAKLobbyBrowser mods
 - Added: "Move Stick Deadzone" and "Turn Stick Deadzone" settings
 - Added: "Fix Hazard Rendering" setting (on by default) - the arms the spiked balls swing on were invisible in VR
