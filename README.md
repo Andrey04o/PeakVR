@@ -29,12 +29,6 @@ Running the mod using r2modman can be done simply by clicking "Start Modded", wh
 | 1.1.0 | 1.64.a and 0.65.d (beta) |
 | 1.0.0 | 1.64.a and 0.65.d (beta) |
 
-# Image looks blurry?
-
-Set **Settings / Mod Settings / PEAK VR / VR GRAPHICS / MAKE IMAGE SHARPER** to **Enable**.
-
-![Make Image Sharper](https://github.com/Andrey04o/PeakVR/blob/main/MakeImageSharper.jpg)
-
 # Funny tip
 
 DirectX 11 can give you an extra **10–27 FPS**! Add the launch option `-force-d3d11` to start the game in DirectX 11.
@@ -120,3 +114,18 @@ The plugin loads a `peakvr` asset bundle that is not included in this repository
 ## Debug keys
 
 Launch the game with the `-vr-debugbuttons` argument to enable developer hotkeys.
+
+# Support the mod
+
+If PeakVR is useful to you, you can support its development:
+
+- [Boosty](https://boosty.to/04o)
+- [Patreon](https://www.patreon.com/cw/04o)
+
+You can also find my other games on [itch.io](https://andrey04o.itch.io/).
+
+# Used Assets
+
+- VR controller FBX model — Unity VR Template
+- [Input Prompts (1.5A)](https://kenney.nl/assets/input-prompts) — created/distributed by [Kenney](https://www.kenney.nl), Creative Commons Zero (CC0)
+- [ModConfig](https://github.com/PEAKModding/PEAKLib) — PEAK Modding, MIT License

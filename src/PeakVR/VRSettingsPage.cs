@@ -130,19 +130,36 @@ internal static class VRSettingsPage
         private RectTransform self;
         private float lastWidth = -1f;
         private int lastCount = -1;
+        private int lastFirstTab;
 
         private void Awake() => self = (RectTransform)transform;
+
+        private void OnEnable()
+        {
+            lastCount = -1;
+            lastFirstTab = 0;
+        }
 
         private void LateUpdate()
         {
             var tabs = GetComponentsInChildren<LayoutElement>(true);
             var width = self.rect.width;
 
-            if (tabs.Length == 0 || (Mathf.Approximately(width, lastWidth) && tabs.Length == lastCount))
+            if (tabs.Length == 0)
+            {
+                lastCount = -1;
+                lastFirstTab = 0;
+                return;
+            }
+
+            var firstTab = tabs[0].GetInstanceID();
+
+            if (Mathf.Approximately(width, lastWidth) && tabs.Length == lastCount && firstTab == lastFirstTab)
                 return;
 
             lastWidth = width;
             lastCount = tabs.Length;
+            lastFirstTab = firstTab;
 
             var each = (width - Spacing * (tabs.Length - 1)) / tabs.Length - 1f;
             each = Mathf.Clamp(each, MinWidth, MaxWidth);
