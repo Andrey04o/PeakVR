@@ -348,7 +348,7 @@ internal static class OpenXR
     {
         private static XRGeneralSettings xrGeneralSettings;
         private static XRManagerSettings xrManagerSettings;
-        private static OpenXRLoader xrLoader;
+        private static XRLoader xrLoader;
 
         private static readonly ManualLogSource Logger = new("OpenXR Loader");
 
@@ -415,6 +415,9 @@ internal static class OpenXR
 
         public static bool InitializeXR()
         {
+            if (PeakVR.OpenVRBackend.Selected)
+                return InitializeOpenVR();
+
             InitializeScripts();
 
             // Check if Unity's OpenXR subsystem is available
@@ -496,6 +499,42 @@ internal static class OpenXR
             return false;
         }
 
+        private static bool InitializeOpenVR()
+        {
+            var subsystems = new List<ISubsystemDescriptor>();
+            SubsystemManager.GetAllSubsystemDescriptors(subsystems);
+
+            if (!subsystems.Any(s => s.id == PeakVR.OpenVRBackend.DisplaySubsystem))
+            {
+                Logger.LogError(
+                    "No OpenVR subsystem found. XRSDKOpenVR.dll is missing from PEAK_Data/Plugins, "
+                    + "or its UnitySubsystemsManifest.json was not deployed.");
+
+                foreach (var descriptor in subsystems)
+                    Logger.LogInfo($"- subsystem present: {descriptor.id}");
+
+                return false;
+            }
+
+            InitializeScripts();
+            PeakVR.OpenVRBackend.RegisterLayouts();
+
+            xrGeneralSettings.InitXRSDK();
+            xrGeneralSettings.Start();
+
+            var displays = new List<XRDisplaySubsystem>();
+            SubsystemManager.GetInstances(displays);
+
+            if (displays.Count == 0)
+            {
+                Logger.LogError($"OpenVR did not start. SteamVR init result: {PeakVR.OpenVRBackend.InitError()}");
+                return false;
+            }
+
+            Logger.LogInfo($"OpenVR started ({displays.Count} display subsystem(s))");
+            return true;
+        }
+
         private static bool InitializeXR(Runtime? runtime)
         {
             if (runtime is { } rt)
@@ -534,12 +573,21 @@ internal static class OpenXR
         {
             xrGeneralSettings ??= ScriptableObject.CreateInstance<XRGeneralSettings>();
             xrManagerSettings ??= ScriptableObject.CreateInstance<XRManagerSettings>();
-            xrLoader ??= ScriptableObject.CreateInstance<OpenXRLoader>();
+            if (PeakVR.OpenVRBackend.Selected)
+                xrLoader ??= ScriptableObject.CreateInstance<Unity.XR.OpenVR.OpenVRLoader>();
+            else
+                xrLoader ??= ScriptableObject.CreateInstance<OpenXRLoader>();
 
             xrGeneralSettings.Manager = xrManagerSettings;
 
             ((List<XRLoader>)xrManagerSettings.activeLoaders).Clear();
             ((List<XRLoader>)xrManagerSettings.activeLoaders).Add(xrLoader);
+
+            if (PeakVR.OpenVRBackend.Selected)
+            {
+                PeakVR.OpenVRBackend.Configure();
+                return;
+            }
 
             OpenXRSettings.Instance.renderMode = OpenXRSettings.RenderMode.MultiPass;
             OpenXRSettings.Instance.depthSubmissionMode = OpenXRSettings.DepthSubmissionMode.None;

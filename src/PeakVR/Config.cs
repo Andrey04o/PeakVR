@@ -10,6 +10,7 @@ public class Config
     public ConfigEntry<bool> StartInVR { get; }
     public ConfigEntry<bool> ModeHotkeyEnabled { get; }
     public ConfigEntry<UnityEngine.KeyCode> ModeHotkey { get; }
+    public ConfigEntry<string> VRBackend { get; }
     public ConfigEntry<string> OpenXRRuntime { get; }
     public ConfigEntry<bool> EnableVerboseLogging { get; }
     public ConfigEntry<bool> ReacquireAudioDevice { get; }
@@ -82,6 +83,12 @@ public class Config
         // mods' keybinds. Our own page shows the common function keys as a dropdown.
         ModeHotkey = file.Bind("VR", "Mode Switch Key", UnityEngine.KeyCode.F11,
             "The key that switches between VR and flat mode.");
+
+        VRBackend = file.Bind("VR", "VR Backend", "OpenXR",
+            new ConfigDescription(
+                "Which VR API drives the headset. OpenXR works with every runtime. OpenVR talks to "
+                + "SteamVR directly and is experimental. Restart the game to apply.",
+                new AcceptableValueList<string>("OpenXR", "OpenVR")));
 
         OpenXRRuntime = file.Bind("VR", "OpenXR Runtime", "System Default",
             new ConfigDescription(

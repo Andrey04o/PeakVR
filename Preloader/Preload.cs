@@ -27,6 +27,26 @@ public static class Preload
                                        }
                                        """;
     
+    private const string OPENVR_MANIFEST = """
+                                          {
+                                            "name": "XRSDKOpenVR",
+                                            "version": "1.0.0-preview.1",
+                                            "libraryName": "XRSDKOpenVR",
+                                            "displays": [
+                                              {
+                                                "id": "OpenVR Display"
+                                              }
+                                            ],
+                                            "inputs": [
+                                              {
+                                                "id": "OpenVR Input",
+                                                "disablesLegacyInput": true,
+                                                "disablesLegacyVr": true
+                                              }
+                                            ]
+                                          }
+                                          """;
+
     private static readonly ManualLogSource Logger = BepInEx.Logging.Logger.CreateLogSource("LCVR.Preload");
     
     public static void Initialize()
@@ -69,6 +89,27 @@ public static class Preload
 
         if (!CopyResourceFile(oxrLoader, oxrLoaderTarget))
             Logger.LogWarning("Could not find plugin openxr_loader.dll, VR might not work!");
+
+        SetupOpenVrAssets(subsystems, plugins, current);
+    }
+
+    private static void SetupOpenVrAssets(string subsystems, string plugins, string current)
+    {
+        var openVr = Path.Combine(subsystems, "XRSDKOpenVR");
+        if (!Directory.Exists(openVr))
+            Directory.CreateDirectory(openVr);
+
+        var manifest = Path.Combine(openVr, "UnitySubsystemsManifest.json");
+        if (!File.Exists(manifest))
+            File.WriteAllText(manifest, OPENVR_MANIFEST);
+
+        if (!CopyResourceFile(Path.Combine(current, "RuntimeDeps/XRSDKOpenVR.dll"),
+                Path.Combine(plugins, "XRSDKOpenVR.dll")))
+            Logger.LogWarning("Could not find plugin XRSDKOpenVR.dll, the OpenVR backend will not work!");
+
+        if (!CopyResourceFile(Path.Combine(current, "RuntimeDeps/openvr_api.dll"),
+                Path.Combine(plugins, "openvr_api.dll")))
+            Logger.LogWarning("Could not find plugin openvr_api.dll, the OpenVR backend will not work!");
     }
     
     /// <summary>
