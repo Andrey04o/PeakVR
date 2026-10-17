@@ -23,6 +23,7 @@ Running the mod using r2modman can be done simply by clicking "Start Modded", wh
 
 | Mod version | Tested game version |
 | --- | --- |
+| 1.6.0 | 2.6.b |
 | 1.5.0 | 2.4.b |
 | 1.4.1 | 2.1.a |
 | 1.4.0 | 2.0.a |
@@ -113,6 +114,13 @@ From the same build's `<Project Name>_Data/Plugins/x86_64` directory extract the
 - openxr_loader.dll
 - UnityOpenXR.dll
 
+### OpenVR backend
+
+This mod adds SteamVR through OpenVR as a fallback. Take them from Valve's [OpenVR XR Plugin](https://github.com/ValveSoftware/unity-xr-plugin) (`com.valve.openvr/Runtime/x64/`) and place them in `Preloader/RuntimeDeps/`:
+
+- XRSDKOpenVR.dll
+- openvr_api.dll
+
 ## Asset bundle
 
 The plugin loads a `peakvr` asset bundle that is not included in this repository. Build it from the Unity project [PeakVR-Assets](https://github.com/Andrey04o/PeakVR-Assets): open the project and run **`Assets/Build PeakVR AssetBundle`** from the menu bar. Put the `peakvr` file into the `Bundles` folder.
@@ -126,6 +134,7 @@ Launch the game with the `-vr-debugbuttons` argument to enable developer hotkeys
 - VR controller FBX model — Unity VR Template
 - [Input Prompts (1.5A)](https://kenney.nl/assets/input-prompts) — created/distributed by [Kenney](https://www.kenney.nl), Creative Commons Zero (CC0)
 - [ModConfig](https://github.com/PEAKModding/PEAKLib) — PEAK Modding, MIT License
+- [OpenVR Unity XR plugin](https://github.com/ValveSoftware/unity-xr-plugin) (XRSDKOpenVR, openvr_api) — Copyright (c) Valve Corporation, BSD 3-Clause License
 
 # Support the mod
 

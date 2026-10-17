@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.0
+
+- Updated for the latest PEAK
+- Added: OpenVR support
+
 ## 1.5.0
 
 - Updated for the latest PEAK

@@ -422,10 +422,15 @@ internal static class OpenXR
         // Runs the same enumeration as a cold start, so the runtime override and fallbacks still apply.
         public static bool RestartXR()
         {
-            return InitializeXR();
+            return StartXR(false);
         }
 
         public static bool InitializeXR()
+        {
+            return StartXR(true);
+        }
+
+        private static bool StartXR(bool atBoot)
         {
             steamVrHasNoHeadset = false;
 
@@ -435,7 +440,7 @@ internal static class OpenXR
             if (InitializeOpenXR())
                 return true;
 
-            if (!PeakVR.OpenVRBackend.Preferred && InitializeOpenVR(true))
+            if (!PeakVR.OpenVRBackend.Preferred && InitializeOpenVR(atBoot))
                 return true;
 
             Logger.LogError("Neither OpenXR nor OpenVR could start VR.");
@@ -525,7 +530,7 @@ internal static class OpenXR
             return false;
         }
 
-        private static bool InitializeOpenVR(bool fallback)
+        private static bool InitializeOpenVR(bool skipWithoutHeadset)
         {
             if (!PeakVR.OpenVRBackend.Installed())
             {
@@ -533,13 +538,13 @@ internal static class OpenXR
                 return false;
             }
 
-            if (fallback && steamVrHasNoHeadset)
+            if (skipWithoutHeadset && steamVrHasNoHeadset)
             {
                 Logger.LogInfo("SteamVR's OpenXR runtime found no headset, skipping OpenVR");
                 return false;
             }
 
-            if (fallback && !PeakVR.OpenVRBackend.HeadsetPresent())
+            if (skipWithoutHeadset && !PeakVR.OpenVRBackend.HeadsetPresent())
             {
                 Logger.LogInfo("SteamVR reports no headset, skipping OpenVR");
                 return false;

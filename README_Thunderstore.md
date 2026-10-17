@@ -23,6 +23,7 @@ Running the mod using r2modman can be done simply by clicking "Start Modded", wh
 
 | Mod version | Tested game version |
 | --- | --- |
+| 1.6.0 | 2.6.b |
 | 1.5.0 | 2.4.b |
 | 1.4.1 | 2.1.a |
 | 1.4.0 | 2.0.a |
@@ -53,6 +54,7 @@ DirectX 11 can give you an extra **10–27 FPS**! Add the launch option `-force-
 - VR controller FBX model — Unity VR Template
 - [Input Prompts (1.5A)](https://kenney.nl/assets/input-prompts) — created/distributed by [Kenney](https://www.kenney.nl), Creative Commons Zero (CC0)
 - [ModConfig](https://github.com/PEAKModding/PEAKLib) — PEAK Modding, MIT License
+- [OpenVR Unity XR plugin](https://github.com/ValveSoftware/unity-xr-plugin) (XRSDKOpenVR, openvr_api) — Copyright (c) Valve Corporation, BSD 3-Clause License
 
 # Support the mod
 
