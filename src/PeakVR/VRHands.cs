@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.XR;
 
@@ -26,6 +26,7 @@ internal static class VRHands
 
         Left = CreateHand(rig, "LeftHand", "PeakVR IG Left Hand", out leftLaser);
         Right = CreateHand(rig, "RightHand", "PeakVR IG Right Hand", out rightLaser);
+        ApplyRotationOffset();
         interactRay = CreateInteractRay(Right);
     }
 
@@ -115,9 +116,9 @@ internal static class VRHands
         obj.transform.SetParent(pose.transform, false);
 
         var pos = new InputAction($"{hand} HandPos", InputActionType.Value,
-            $"<XRController>{{{hand}}}/pointer/position", expectedControlType: "Vector3");
+            VRControls.PosePositionPath(hand), expectedControlType: "Vector3");
         var rot = new InputAction($"{hand} HandRot", InputActionType.Value,
-            $"<XRController>{{{hand}}}/pointer/rotation", expectedControlType: "Quaternion");
+            VRControls.PoseRotationPath(hand), expectedControlType: "Quaternion");
         pos.Enable();
         rot.Enable();
 
@@ -139,7 +140,7 @@ internal static class VRHands
         line.enabled = false;
 
         var trigger = new InputAction($"{hand} PointerTrigger", InputActionType.Button,
-            $"<XRController>{{{hand}}}/triggerPressed");
+            VRControls.ControlPath(hand, "triggerPressed"));
         trigger.Enable();
 
         laser = obj.AddComponent<VRLaser>();
@@ -167,7 +168,6 @@ internal static class VRHands
         }
 
         Plugin.Log.LogInfo($"[PeakVR] Created in-game {name}");
-        ApplyRotationOffset();
         return obj.transform;
     }
 
@@ -176,10 +176,10 @@ internal static class VRHands
         if (Plugin.Config == null)
             return;
 
-        var offset = Quaternion.Euler(
+        var offset = Quaternion.Euler(new Vector3(
             Plugin.Config.ControllerOffsetX.Value,
             Plugin.Config.ControllerOffsetY.Value,
-            Plugin.Config.ControllerOffsetZ.Value);
+            Plugin.Config.ControllerOffsetZ.Value) + OpenVRBackend.RotationOffset);
 
         if (Left != null)
             Left.localRotation = offset;

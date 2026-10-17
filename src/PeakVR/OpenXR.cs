@@ -402,6 +402,7 @@ internal static class OpenXR
             if (!xrManagerSettings.isInitializationComplete)
                 return true;
 
+            PeakVR.OpenVRInput.Stop();
             xrManagerSettings.StopSubsystems();
             xrManagerSettings.DeinitializeLoader();
             return true;
@@ -532,6 +533,8 @@ internal static class OpenXR
             }
 
             Logger.LogInfo($"OpenVR started ({displays.Count} display subsystem(s))");
+            PeakVR.OpenVRInput.Start();
+            PeakVR.OpenVRDeviceProbe.Arm();
             return true;
         }
 

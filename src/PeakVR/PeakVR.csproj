@@ -3,6 +3,7 @@
   <PropertyGroup>
     <!-- This is the most appropriate target framework for the game's Unity version. -->
     <TargetFramework>netstandard2.1</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- This is the GUID of your mod. Example: com.github.YourAccount.BepInExTemplate -->
     <AssemblyName>com.andrey04o.PeakVR</AssemblyName>
     <!-- This is the display name of your mod. Example: BepInEx Template -->

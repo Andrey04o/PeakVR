@@ -100,8 +100,11 @@ public static class Preload
             Directory.CreateDirectory(openVr);
 
         var manifest = Path.Combine(openVr, "UnitySubsystemsManifest.json");
-        if (!File.Exists(manifest))
+        if (!File.Exists(manifest) || File.ReadAllText(manifest) != OPENVR_MANIFEST)
+        {
             File.WriteAllText(manifest, OPENVR_MANIFEST);
+            Logger.LogInfo("Wrote the OpenVR subsystem manifest");
+        }
 
         if (!CopyResourceFile(Path.Combine(current, "RuntimeDeps/XRSDKOpenVR.dll"),
                 Path.Combine(plugins, "XRSDKOpenVR.dll")))

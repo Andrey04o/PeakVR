@@ -143,10 +143,10 @@ public partial class Plugin : BaseUnityPlugin
             if (wasEnabled)
                 actions.Disable();
 
-            anyKey.AddBinding("<XRController>{RightHand}/triggerPressed");
-            anyKey.AddBinding("<XRController>{LeftHand}/triggerPressed");
-            anyKey.AddBinding("<XRController>{RightHand}/primaryButton");
-            anyKey.AddBinding("<XRController>{RightHand}/secondaryButton");
+            anyKey.AddBinding(VRControls.ControlPath("RightHand", "triggerPressed"));
+            anyKey.AddBinding(VRControls.ControlPath("LeftHand", "triggerPressed"));
+            anyKey.AddBinding(VRControls.ControlPath("RightHand", "primaryButton"));
+            anyKey.AddBinding(VRControls.ControlPath("RightHand", "secondaryButton"));
 
             if (wasEnabled)
                 actions.Enable();

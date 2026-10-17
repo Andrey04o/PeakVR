@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace PeakVR;
@@ -24,27 +24,27 @@ internal static class VRControls
     public static void Init()
     {
         MoveStick = new InputAction("VR Move", InputActionType.Value,
-            "<XRController>{LeftHand}/thumbstick", expectedControlType: "Vector2");
+            ControlPath("LeftHand", "thumbstick"), expectedControlType: "Vector2");
         TurnStick = new InputAction("VR Turn", InputActionType.Value,
-            "<XRController>{RightHand}/thumbstick", expectedControlType: "Vector2");
+            ControlPath("RightHand", "thumbstick"), expectedControlType: "Vector2");
 
-        LeftGrip = Button("VR LeftGrip", "<XRController>{LeftHand}/gripPressed");
-        RightGrip = Button("VR RightGrip", "<XRController>{RightHand}/gripPressed");
-        LeftTrigger = Button("VR LeftTrigger", "<XRController>{LeftHand}/triggerPressed");
-        RightTrigger = Button("VR RightTrigger", "<XRController>{RightHand}/triggerPressed");
-        LeftPrimary = Button("VR LeftPrimary", "<XRController>{LeftHand}/primaryButton");
-        RightPrimary = Button("VR RightPrimary", "<XRController>{RightHand}/primaryButton");
-        RightSecondary = Button("VR RightSecondary", "<XRController>{RightHand}/secondaryButton");
+        LeftGrip = Button("VR LeftGrip", ControlPath("LeftHand", "gripPressed"));
+        RightGrip = Button("VR RightGrip", ControlPath("RightHand", "gripPressed"));
+        LeftTrigger = Button("VR LeftTrigger", ControlPath("LeftHand", "triggerPressed"));
+        RightTrigger = Button("VR RightTrigger", ControlPath("RightHand", "triggerPressed"));
+        LeftPrimary = Button("VR LeftPrimary", ControlPath("LeftHand", "primaryButton"));
+        RightPrimary = Button("VR RightPrimary", ControlPath("RightHand", "primaryButton"));
+        RightSecondary = Button("VR RightSecondary", ControlPath("RightHand", "secondaryButton"));
 
-        Pause = Button("VR Pause", "<XRController>{LeftHand}/secondaryButton");
+        Pause = Button("VR Pause", ControlPath("LeftHand", "secondaryButton"));
 
         Sprint = new InputAction("VR Sprint", InputActionType.Button);
-        Sprint.AddBinding("<XRController>{LeftHand}/thumbstickClicked");
-        Sprint.AddBinding("<XRController>{LeftHand}/thumbstickpressed");
+        Sprint.AddBinding(ControlPath("LeftHand", "thumbstickClicked"));
+        Sprint.AddBinding(ControlPath("LeftHand", "thumbstickpressed"));
 
         Stash = new InputAction("VR Stash", InputActionType.Button);
-        Stash.AddBinding("<XRController>{RightHand}/thumbstickClicked");
-        Stash.AddBinding("<XRController>{RightHand}/thumbstickpressed");
+        Stash.AddBinding(ControlPath("RightHand", "thumbstickClicked"));
+        Stash.AddBinding(ControlPath("RightHand", "thumbstickpressed"));
 
         MoveStick.Enable();
         TurnStick.Enable();
@@ -59,6 +59,21 @@ internal static class VRControls
         Sprint.Enable();
         Stash.Enable();
     }
+
+    public static string ControlPath(string hand, string control) =>
+        OpenVRBackend.Selected
+            ? $"<{OpenVRInput.Layout}>{{{hand}}}/{control}"
+            : $"<XRController>{{{hand}}}/{control}";
+
+    public static string PosePositionPath(string hand) =>
+        OpenVRBackend.Selected
+            ? $"<XRController>{{{hand}}}/devicePosition"
+            : $"<XRController>{{{hand}}}/pointer/position";
+
+    public static string PoseRotationPath(string hand) =>
+        OpenVRBackend.Selected
+            ? $"<XRController>{{{hand}}}/deviceRotation"
+            : $"<XRController>{{{hand}}}/pointer/rotation";
 
     private static InputAction Button(string name, string binding)
     {

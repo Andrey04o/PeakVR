@@ -1,4 +1,4 @@
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.XR;
 
@@ -26,15 +26,15 @@ internal static class VRControllers
         obj.transform.SetParent(pose.transform, false);
 
         if (Plugin.Config != null)
-            obj.transform.localRotation = Quaternion.Euler(
+            obj.transform.localRotation = Quaternion.Euler(new Vector3(
                 Plugin.Config.ControllerOffsetX.Value,
                 Plugin.Config.ControllerOffsetY.Value,
-                Plugin.Config.ControllerOffsetZ.Value);
+                Plugin.Config.ControllerOffsetZ.Value) + OpenVRBackend.RotationOffset);
 
         var posAction = new InputAction($"{hand} Position", InputActionType.Value,
-            $"<XRController>{{{hand}}}/pointer/position", expectedControlType: "Vector3");
+            VRControls.PosePositionPath(hand), expectedControlType: "Vector3");
         var rotAction = new InputAction($"{hand} Rotation", InputActionType.Value,
-            $"<XRController>{{{hand}}}/pointer/rotation", expectedControlType: "Quaternion");
+            VRControls.PoseRotationPath(hand), expectedControlType: "Quaternion");
         posAction.Enable();
         rotAction.Enable();
 
@@ -55,7 +55,7 @@ internal static class VRControllers
         line.material = CreateLaserMaterial();
 
         var trigger = new InputAction($"{hand} Trigger", InputActionType.Button,
-            $"<XRController>{{{hand}}}/triggerPressed");
+            VRControls.ControlPath(hand, "triggerPressed"));
         trigger.Enable();
 
         var laser = obj.AddComponent<VRLaser>();

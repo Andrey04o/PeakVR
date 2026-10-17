@@ -28,33 +28,28 @@ internal static class OpenVRBackend
     public static bool Selected =>
         Plugin.Config != null && Plugin.Config.VRBackend.Value == "OpenVR";
 
+    public static UnityEngine.Vector3 RotationOffset =>
+        Selected ? new UnityEngine.Vector3(45f, 0f, 0f) : UnityEngine.Vector3.zero;
+
     public static void Configure()
     {
         var settings = new UserDefinedSettings
         {
             stereoRenderingMode = (ushort)OpenVRSettings.StereoRenderingModes.MultiPass,
             initializationType = (ushort)OpenVRSettings.InitializationTypes.Scene,
-            mirrorViewMode = (ushort)OpenVRSettings.MirrorViewModes.None,
+            mirrorViewMode = (ushort)OpenVRSettings.MirrorViewModes.Left,
             editorAppKey = null,
             actionManifestPath = null,
             applicationName = "PEAK"
         };
 
         SetUserDefinedSettings(settings);
-        Plugin.Log.LogInfo("[PeakVR][OpenVR] settings pushed (MultiPass, Scene, no mirror)");
+        Plugin.Log.LogInfo("[PeakVR][OpenVR] settings pushed (MultiPass, Scene, left-eye mirror)");
     }
 
     public static void RegisterLayouts()
     {
-        try
-        {
-            InputLayoutLoader.RegisterInputLayouts();
-            Plugin.Log.LogInfo("[PeakVR][OpenVR] input layouts registered");
-        }
-        catch (System.Exception e)
-        {
-            Plugin.Log.LogWarning($"[PeakVR][OpenVR] could not register input layouts: {e.Message}");
-        }
+        Plugin.Log.LogInfo("[PeakVR][OpenVR] leaving input layouts to the Input System XR layout builder");
     }
 
     public static string InitError()
