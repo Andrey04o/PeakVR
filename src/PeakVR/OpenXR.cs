@@ -534,7 +534,6 @@ internal static class OpenXR
 
             Logger.LogInfo($"OpenVR started ({displays.Count} display subsystem(s))");
             PeakVR.OpenVRInput.Start();
-            PeakVR.OpenVRDeviceProbe.Arm();
             return true;
         }
 

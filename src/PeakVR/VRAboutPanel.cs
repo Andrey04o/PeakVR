@@ -80,6 +80,7 @@ internal static class VRAboutPanel
         Label(page, "Input Prompts (1.5A) — Kenney (www.kenney.nl), Creative Commons Zero (CC0)",
             -372f + dy, 22f, credit);
         Label(page, "ModConfig — PEAK Modding, MIT License", -406f + dy, 22f, credit);
+        Label(page, "OpenVR Unity XR plugin — Valve Corporation, BSD 3-Clause License", -440f + dy, 22f, credit);
 
         return page;
     }

@@ -76,7 +76,6 @@ internal static class OpenVRInput
         public bool knuckles;
         public bool trigger;
         public bool grip;
-        public ulong lastPressed;
     }
 
     private static readonly Hand Left = new() { role = ETrackedControllerRole.LeftHand };
@@ -163,7 +162,6 @@ internal static class OpenVRInput
 
         hand.device = null;
         hand.trigger = hand.grip = false;
-        hand.lastPressed = 0;
     }
 
     private static void Poll()
@@ -206,15 +204,6 @@ internal static class OpenVRInput
 
         var pressed = raw.ulButtonPressed;
         var touched = raw.ulButtonTouched;
-
-        if (pressed != hand.lastPressed)
-        {
-            Plugin.Log.LogInfo(
-                $"[PeakVR][OpenVR] {hand.role} pressed=0x{pressed:X} touched=0x{touched:X} "
-                + $"a0=({raw.rAxis0.x:F2},{raw.rAxis0.y:F2}) a1=({raw.rAxis1.x:F2},{raw.rAxis1.y:F2}) "
-                + $"a2=({raw.rAxis2.x:F2},{raw.rAxis2.y:F2}) a3=({raw.rAxis3.x:F2},{raw.rAxis3.y:F2})");
-            hand.lastPressed = pressed;
-        }
 
         var stick = hand.knuckles ? raw.rAxis3 : raw.rAxis0;
         var stickBit = hand.knuckles ? ButtonAxis3 : ButtonAxis0;
