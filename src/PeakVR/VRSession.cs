@@ -14,7 +14,9 @@ internal static class VRSession
         if (!LCVR.OpenXR.Loader.InitializeXR())
             return false;
 
-        if (LCVR.OpenXR.GetActiveRuntimeName(out var name) &&
+        if (OpenVRBackend.Active)
+            LCVR.Logger.LogInfo($"Runtime being used: {OpenVRBackend.Choice}");
+        else if (LCVR.OpenXR.GetActiveRuntimeName(out var name) &&
             LCVR.OpenXR.GetActiveRuntimeVersion(out var major, out var minor, out var patch))
             LCVR.Logger.LogInfo($"OpenXR runtime being used: {name} ({major}.{minor}.{patch})");
         else

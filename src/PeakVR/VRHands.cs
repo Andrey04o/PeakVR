@@ -139,8 +139,7 @@ internal static class VRHands
         line.material = CreateLaserMaterial();
         line.enabled = false;
 
-        var trigger = new InputAction($"{hand} PointerTrigger", InputActionType.Button,
-            VRControls.ControlPath(hand, "triggerPressed"));
+        InputAction trigger = VRControls.Button($"{hand} PointerTrigger", hand, "triggerPressed");
         trigger.Enable();
 
         laser = obj.AddComponent<VRLaser>();

@@ -31,7 +31,8 @@ internal static class VRModeSwitch
             if (display != null && display.running)
                 running++;
 
-        var runtime = LCVR.OpenXR.GetActiveRuntimeName(out var name) ? name : "n/a";
+        string runtime = OpenVRBackend.Active ? OpenVRBackend.Choice
+            : LCVR.OpenXR.GetActiveRuntimeName(out string name) ? name : "n/a";
 
         Plugin.Log.LogWarning($"[PeakVR][Mode] {when}: vrEnabled={Plugin.VrEnabled} " +
             $"displays={displays.Count} running={running} runtime={runtime} " +

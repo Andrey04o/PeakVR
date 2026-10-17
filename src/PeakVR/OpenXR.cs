@@ -221,7 +221,7 @@ internal static class OpenXR
         try
         {
             foreach (var rt in GetRuntimes())
-                runtimeCache.Add(new KeyValuePair<string, string>(rt.Name ?? "Unknown", rt.Path ?? ""));
+                runtimeCache.Add(new KeyValuePair<string, string>(DisplayName(rt.Name), rt.Path ?? ""));
         }
         catch (Exception ex)
         {
@@ -238,8 +238,16 @@ internal static class OpenXR
         foreach (var rt in RuntimeList())
             choices.Add(rt.Key);
 
+        choices.Add(PeakVR.OpenVRBackend.Choice);
         return choices;
     }
+
+    public static string DisplayName(string name) => name switch
+    {
+        null => "Unknown",
+        "SteamVR" => "SteamVR (OpenXR)",
+        _ => name
+    };
 
     public static string ResolveRuntimePath(string name)
     {
@@ -348,7 +356,9 @@ internal static class OpenXR
     {
         private static XRGeneralSettings xrGeneralSettings;
         private static XRManagerSettings xrManagerSettings;
-        private static XRLoader xrLoader;
+        private static bool steamVrHasNoHeadset;
+        private static XRLoader openXRLoader;
+        private static XRLoader openVRLoader;
 
         private static readonly ManualLogSource Logger = new("OpenXR Loader");
 
@@ -405,6 +415,7 @@ internal static class OpenXR
             PeakVR.OpenVRInput.Stop();
             xrManagerSettings.StopSubsystems();
             xrManagerSettings.DeinitializeLoader();
+            PeakVR.OpenVRBackend.Active = false;
             return true;
         }
 
@@ -416,10 +427,24 @@ internal static class OpenXR
 
         public static bool InitializeXR()
         {
-            if (PeakVR.OpenVRBackend.Selected)
-                return InitializeOpenVR();
+            steamVrHasNoHeadset = false;
 
-            InitializeScripts();
+            if (PeakVR.OpenVRBackend.Preferred && InitializeOpenVR(false))
+                return true;
+
+            if (InitializeOpenXR())
+                return true;
+
+            if (!PeakVR.OpenVRBackend.Preferred && InitializeOpenVR(true))
+                return true;
+
+            Logger.LogError("Neither OpenXR nor OpenVR could start VR.");
+            return false;
+        }
+
+        private static bool InitializeOpenXR()
+        {
+            InitializeScripts(false);
 
             // Check if Unity's OpenXR subsystem is available
             var subsystems = new List<ISubsystemDescriptor>();
@@ -500,8 +525,34 @@ internal static class OpenXR
             return false;
         }
 
-        private static bool InitializeOpenVR()
+        private static bool InitializeOpenVR(bool fallback)
         {
+            if (!PeakVR.OpenVRBackend.Installed())
+            {
+                Logger.LogInfo("SteamVR is not installed, skipping OpenVR");
+                return false;
+            }
+
+            if (fallback && steamVrHasNoHeadset)
+            {
+                Logger.LogInfo("SteamVR's OpenXR runtime found no headset, skipping OpenVR");
+                return false;
+            }
+
+            if (fallback && !PeakVR.OpenVRBackend.HeadsetPresent())
+            {
+                Logger.LogInfo("SteamVR reports no headset, skipping OpenVR");
+                return false;
+            }
+
+            Logger.LogInfo("Attempting to initialize OpenVR on SteamVR");
+
+            if (xrManagerSettings != null && xrManagerSettings.isInitializationComplete)
+            {
+                xrManagerSettings.StopSubsystems();
+                xrManagerSettings.DeinitializeLoader();
+            }
+
             var subsystems = new List<ISubsystemDescriptor>();
             SubsystemManager.GetAllSubsystemDescriptors(subsystems);
 
@@ -517,8 +568,7 @@ internal static class OpenXR
                 return false;
             }
 
-            InitializeScripts();
-            PeakVR.OpenVRBackend.RegisterLayouts();
+            InitializeScripts(true);
 
             xrGeneralSettings.InitXRSDK();
             xrGeneralSettings.Start();
@@ -556,11 +606,19 @@ internal static class OpenXR
             var displays = new List<XRDisplaySubsystem>();
             SubsystemManager.GetInstances(displays);
 
-            if (PeakVR.Plugin.Config.EnableVerboseLogging.Value)
+            bool started = displays.Count > 0;
+            bool verbose = PeakVR.Plugin.Config.EnableVerboseLogging.Value;
+            string report = started && !verbose ? "" : GenerateReport();
+
+            if (!started && report.Contains("Runtime Name: SteamVR") &&
+                report.Contains("xrGetSystem: XR_ERROR_FORM_FACTOR_UNAVAILABLE"))
+                steamVrHasNoHeadset = true;
+
+            if (verbose)
             {
                 Logger.LogWarning("OpenXR Diagnostics Report:");
 
-                foreach (var line in GenerateReport().Split("\n"))
+                foreach (string line in report.Split("\n"))
                     Logger.LogWarning(line);
 
                 Logger.LogWarning("");
@@ -568,24 +626,25 @@ internal static class OpenXR
                     "To prevent diagnostics report from being printed, disable the 'EnableVerboseLogging' option in the settings.");
             }
 
-            return displays.Count > 0;
+            return started;
         }
 
-        private static void InitializeScripts()
+        private static void InitializeScripts(bool openVR)
         {
             xrGeneralSettings ??= ScriptableObject.CreateInstance<XRGeneralSettings>();
             xrManagerSettings ??= ScriptableObject.CreateInstance<XRManagerSettings>();
-            if (PeakVR.OpenVRBackend.Selected)
-                xrLoader ??= ScriptableObject.CreateInstance<Unity.XR.OpenVR.OpenVRLoader>();
-            else
-                xrLoader ??= ScriptableObject.CreateInstance<OpenXRLoader>();
 
+            XRLoader xrLoader = openVR
+                ? openVRLoader ??= ScriptableObject.CreateInstance<Unity.XR.OpenVR.OpenVRLoader>()
+                : openXRLoader ??= ScriptableObject.CreateInstance<OpenXRLoader>();
+
+            PeakVR.OpenVRBackend.Active = openVR;
             xrGeneralSettings.Manager = xrManagerSettings;
 
             ((List<XRLoader>)xrManagerSettings.activeLoaders).Clear();
             ((List<XRLoader>)xrManagerSettings.activeLoaders).Add(xrLoader);
 
-            if (PeakVR.OpenVRBackend.Selected)
+            if (openVR)
             {
                 PeakVR.OpenVRBackend.Configure();
                 return;

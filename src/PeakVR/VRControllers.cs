@@ -54,8 +54,7 @@ internal static class VRControllers
         line.startColor = line.endColor = Color.cyan;
         line.material = CreateLaserMaterial();
 
-        var trigger = new InputAction($"{hand} Trigger", InputActionType.Button,
-            VRControls.ControlPath(hand, "triggerPressed"));
+        InputAction trigger = VRControls.Button($"{hand} Trigger", hand, "triggerPressed");
         trigger.Enable();
 
         var laser = obj.AddComponent<VRLaser>();

@@ -10,7 +10,6 @@ public class Config
     public ConfigEntry<bool> StartInVR { get; }
     public ConfigEntry<bool> ModeHotkeyEnabled { get; }
     public ConfigEntry<UnityEngine.KeyCode> ModeHotkey { get; }
-    public ConfigEntry<string> VRBackend { get; }
     public ConfigEntry<string> OpenXRRuntime { get; }
     public ConfigEntry<bool> EnableVerboseLogging { get; }
     public ConfigEntry<bool> ReacquireAudioDevice { get; }
@@ -84,15 +83,10 @@ public class Config
         ModeHotkey = file.Bind("VR", "Mode Switch Key", UnityEngine.KeyCode.F11,
             "The key that switches between VR and flat mode.");
 
-        VRBackend = file.Bind("VR", "VR Backend", "OpenXR",
-            new ConfigDescription(
-                "Which VR API drives the headset. OpenXR works with every runtime. OpenVR talks to "
-                + "SteamVR directly and is experimental. Restart the game to apply.",
-                new AcceptableValueList<string>("OpenXR", "OpenVR")));
-
         OpenXRRuntime = file.Bind("VR", "OpenXR Runtime", "System Default",
             new ConfigDescription(
-                "The OpenXR runtime (headset software) that VR launches with. Restart the game to apply.",
+                "The runtime (headset software) that VR launches with. If it fails, the other OpenXR "
+                + "runtimes are tried, then SteamVR (OpenVR). Restart the game to apply.",
                 new AcceptableValueList<string>(OpenXR.GetRuntimeChoices().ToArray())));
 
         EnableVerboseLogging = file.Bind("VR", "Verbose Logging", false,

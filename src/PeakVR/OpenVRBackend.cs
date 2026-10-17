@@ -25,15 +25,36 @@ internal static class OpenVRBackend
     [DllImport("XRSDKOpenVR", CharSet = CharSet.Auto)]
     private static extern EVRInitError GetInitializationResult();
 
-    public static bool Selected =>
-        Plugin.Config != null && Plugin.Config.VRBackend.Value == "OpenVR";
+    public const string Choice = "SteamVR (OpenVR)";
+
+    public static bool Preferred =>
+        Plugin.Config != null && Plugin.Config.OpenXRRuntime.Value == Choice;
+
+    public static bool Active { get; set; }
+
+    public static bool Installed() => Query(OpenVR.IsRuntimeInstalled);
+
+    public static bool HeadsetPresent() => Query(OpenVR.IsHmdPresent);
+
+    private static bool Query(System.Func<bool> check)
+    {
+        try
+        {
+            return check();
+        }
+        catch (System.Exception e)
+        {
+            Plugin.Log.LogWarning($"[PeakVR][OpenVR] openvr_api unavailable: {e.Message}");
+            return false;
+        }
+    }
 
     public static UnityEngine.Vector3 RotationOffset =>
-        Selected ? new UnityEngine.Vector3(45f, 0f, 0f) : UnityEngine.Vector3.zero;
+        Active ? new UnityEngine.Vector3(45f, 0f, 0f) : UnityEngine.Vector3.zero;
 
     public static void Configure()
     {
-        var settings = new UserDefinedSettings
+        UserDefinedSettings settings = new UserDefinedSettings
         {
             stereoRenderingMode = (ushort)OpenVRSettings.StereoRenderingModes.MultiPass,
             initializationType = (ushort)OpenVRSettings.InitializationTypes.Scene,
@@ -45,11 +66,6 @@ internal static class OpenVRBackend
 
         SetUserDefinedSettings(settings);
         Plugin.Log.LogInfo("[PeakVR][OpenVR] settings pushed (MultiPass, Scene, left-eye mirror)");
-    }
-
-    public static void RegisterLayouts()
-    {
-        Plugin.Log.LogInfo("[PeakVR][OpenVR] leaving input layouts to the Input System XR layout builder");
     }
 
     public static string InitError()

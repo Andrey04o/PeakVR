@@ -94,7 +94,7 @@ internal static class OpenVRInput
         if (runner != null)
             return;
 
-        var obj = new GameObject("PeakVR OpenVR Input");
+        GameObject obj = new GameObject("PeakVR OpenVR Input");
         Object.DontDestroyOnLoad(obj);
         runner = obj.AddComponent<OpenVRInputRunner>();
     }
@@ -150,7 +150,7 @@ internal static class OpenVRInput
 
     private static OpenVRController AddDevice(string name, InternedString usage)
     {
-        var device = InputSystem.AddDevice<OpenVRController>(name);
+        OpenVRController device = InputSystem.AddDevice<OpenVRController>(name);
         InputSystem.SetDeviceUsage(device, usage);
         return device;
     }
@@ -169,7 +169,7 @@ internal static class OpenVRInput
         if (!active || InputState.currentUpdateType == InputUpdateType.BeforeRender)
             return;
 
-        var system = OpenVR.System;
+        CVRSystem system = OpenVR.System;
         Queue(Left, system);
         Queue(Right, system);
     }
@@ -179,7 +179,7 @@ internal static class OpenVRInput
         if (hand.device == null || !hand.device.added)
             return;
 
-        var state = new OpenVRControllerState();
+        OpenVRControllerState state = new OpenVRControllerState();
 
         if (system != null)
             Read(hand, system, ref state);
@@ -189,7 +189,7 @@ internal static class OpenVRInput
 
     private static void Read(Hand hand, CVRSystem system, ref OpenVRControllerState state)
     {
-        var index = system.GetTrackedDeviceIndexForControllerRole(hand.role);
+        uint index = system.GetTrackedDeviceIndexForControllerRole(hand.role);
 
         if (index >= OpenVR.k_unMaxTrackedDeviceCount)
             return;
@@ -197,17 +197,17 @@ internal static class OpenVRInput
         if (index != hand.index)
             Identify(hand, system, index);
 
-        var raw = new VRControllerState_t();
+        VRControllerState_t raw = new VRControllerState_t();
 
         if (!system.GetControllerState(index, ref raw, StateSize))
             return;
 
-        var pressed = raw.ulButtonPressed;
-        var touched = raw.ulButtonTouched;
+        ulong pressed = raw.ulButtonPressed;
+        ulong touched = raw.ulButtonTouched;
 
-        var stick = hand.knuckles ? raw.rAxis3 : raw.rAxis0;
-        var stickBit = hand.knuckles ? ButtonAxis3 : ButtonAxis0;
-        var primaryBit = hand.knuckles ? ButtonGrip : ButtonA;
+        VRControllerAxis_t stick = hand.knuckles ? raw.rAxis3 : raw.rAxis0;
+        int stickBit = hand.knuckles ? ButtonAxis3 : ButtonAxis0;
+        int primaryBit = hand.knuckles ? ButtonGrip : ButtonA;
 
         state.thumbstick = new Vector2(stick.x, stick.y);
         state.trigger = raw.rAxis1.x;
@@ -230,8 +230,8 @@ internal static class OpenVRInput
     {
         hand.index = index;
 
-        var type = StringProperty(system, index, ETrackedDeviceProperty.Prop_ControllerType_String);
-        var model = StringProperty(system, index, ETrackedDeviceProperty.Prop_ModelNumber_String);
+        string type = StringProperty(system, index, ETrackedDeviceProperty.Prop_ControllerType_String);
+        string model = StringProperty(system, index, ETrackedDeviceProperty.Prop_ModelNumber_String);
         hand.knuckles = type == "knuckles";
 
         Plugin.Log.LogInfo($"[PeakVR][OpenVR] {hand.role} controller: device {index}, type '{type}', model '{model}'");
@@ -239,8 +239,8 @@ internal static class OpenVRInput
 
     private static string StringProperty(CVRSystem system, uint index, ETrackedDeviceProperty property)
     {
-        var error = ETrackedPropertyError.TrackedProp_Success;
-        var buffer = new StringBuilder(256);
+        ETrackedPropertyError error = ETrackedPropertyError.TrackedProp_Success;
+        StringBuilder buffer = new StringBuilder(256);
         system.GetStringTrackedDeviceProperty(index, property, buffer, (uint)buffer.Capacity, ref error);
         return error == ETrackedPropertyError.TrackedProp_Success ? buffer.ToString() : "";
     }

@@ -580,7 +580,8 @@ internal static class VRSettingsPage
     {
         var mode = Plugin.VrEnabled ? "VR" : "Flat";
 
-        var active = LCVR.OpenXR.GetActiveRuntimeName(out var name)
+        string active = Plugin.VrEnabled && OpenVRBackend.Active ? OpenVRBackend.Choice
+            : LCVR.OpenXR.GetActiveRuntimeName(out var name)
             && LCVR.OpenXR.GetActiveRuntimeVersion(out var major, out var minor, out var patch)
                 ? $"{name} ({major}.{minor}.{patch})"
                 : Plugin.VrEnabled ? "unknown" : "none - VR is not running";

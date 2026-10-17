@@ -23,28 +23,26 @@ internal static class VRControls
 
     public static void Init()
     {
-        MoveStick = new InputAction("VR Move", InputActionType.Value,
-            ControlPath("LeftHand", "thumbstick"), expectedControlType: "Vector2");
-        TurnStick = new InputAction("VR Turn", InputActionType.Value,
-            ControlPath("RightHand", "thumbstick"), expectedControlType: "Vector2");
+        MoveStick = new InputAction("VR Move", InputActionType.Value, expectedControlType: "Vector2");
+        Bind(MoveStick, "LeftHand", "thumbstick");
+        TurnStick = new InputAction("VR Turn", InputActionType.Value, expectedControlType: "Vector2");
+        Bind(TurnStick, "RightHand", "thumbstick");
 
-        LeftGrip = Button("VR LeftGrip", ControlPath("LeftHand", "gripPressed"));
-        RightGrip = Button("VR RightGrip", ControlPath("RightHand", "gripPressed"));
-        LeftTrigger = Button("VR LeftTrigger", ControlPath("LeftHand", "triggerPressed"));
-        RightTrigger = Button("VR RightTrigger", ControlPath("RightHand", "triggerPressed"));
-        LeftPrimary = Button("VR LeftPrimary", ControlPath("LeftHand", "primaryButton"));
-        RightPrimary = Button("VR RightPrimary", ControlPath("RightHand", "primaryButton"));
-        RightSecondary = Button("VR RightSecondary", ControlPath("RightHand", "secondaryButton"));
+        LeftGrip = Button("VR LeftGrip", "LeftHand", "gripPressed");
+        RightGrip = Button("VR RightGrip", "RightHand", "gripPressed");
+        LeftTrigger = Button("VR LeftTrigger", "LeftHand", "triggerPressed");
+        RightTrigger = Button("VR RightTrigger", "RightHand", "triggerPressed");
+        LeftPrimary = Button("VR LeftPrimary", "LeftHand", "primaryButton");
+        RightPrimary = Button("VR RightPrimary", "RightHand", "primaryButton");
+        RightSecondary = Button("VR RightSecondary", "RightHand", "secondaryButton");
 
-        Pause = Button("VR Pause", ControlPath("LeftHand", "secondaryButton"));
+        Pause = Button("VR Pause", "LeftHand", "secondaryButton");
 
-        Sprint = new InputAction("VR Sprint", InputActionType.Button);
-        Sprint.AddBinding(ControlPath("LeftHand", "thumbstickClicked"));
-        Sprint.AddBinding(ControlPath("LeftHand", "thumbstickpressed"));
+        Sprint = Button("VR Sprint", "LeftHand", "thumbstickClicked");
+        Sprint.AddBinding("<XRController>{LeftHand}/thumbstickpressed");
 
-        Stash = new InputAction("VR Stash", InputActionType.Button);
-        Stash.AddBinding(ControlPath("RightHand", "thumbstickClicked"));
-        Stash.AddBinding(ControlPath("RightHand", "thumbstickpressed"));
+        Stash = Button("VR Stash", "RightHand", "thumbstickClicked");
+        Stash.AddBinding("<XRController>{RightHand}/thumbstickpressed");
 
         MoveStick.Enable();
         TurnStick.Enable();
@@ -60,24 +58,27 @@ internal static class VRControls
         Stash.Enable();
     }
 
-    public static string ControlPath(string hand, string control) =>
-        OpenVRBackend.Selected
-            ? $"<{OpenVRInput.Layout}>{{{hand}}}/{control}"
-            : $"<XRController>{{{hand}}}/{control}";
+    public static void Bind(InputAction action, string hand, string control)
+    {
+        action.AddBinding($"<XRController>{{{hand}}}/{control}");
+        action.AddBinding($"<{OpenVRInput.Layout}>{{{hand}}}/{control}");
+    }
 
     public static string PosePositionPath(string hand) =>
-        OpenVRBackend.Selected
+        OpenVRBackend.Active
             ? $"<XRController>{{{hand}}}/devicePosition"
             : $"<XRController>{{{hand}}}/pointer/position";
 
     public static string PoseRotationPath(string hand) =>
-        OpenVRBackend.Selected
+        OpenVRBackend.Active
             ? $"<XRController>{{{hand}}}/deviceRotation"
             : $"<XRController>{{{hand}}}/pointer/rotation";
 
-    private static InputAction Button(string name, string binding)
+    public static InputAction Button(string name, string hand, string control)
     {
-        return new InputAction(name, InputActionType.Button, binding);
+        InputAction action = new InputAction(name, InputActionType.Button);
+        Bind(action, hand, control);
+        return action;
     }
 
     public static Vector2 Move() =>
