@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using HarmonyLib;
 using Photon.Pun;
 using UnityEngine;
@@ -21,12 +22,19 @@ internal class VRClimbHand
     public bool HasShoulder;
     public Vector3 PalmLast;
     public bool IsPalmLastValid;
+    public bool IsRope;
+    public Rope Rope;
+    public float RopePercent;
 
     public Transform Controller => IsLeft ? VRHands.Left : VRHands.Right;
     public InputAction Grip => IsLeft ? VRControls.LeftGrip : VRControls.RightGrip;
 
+    public bool HasAnchor => IsGripping && (IsRope ? Rope != null : GripCollider != null);
+
     public Vector3 GetAnchor()
     {
+        if (IsRope)
+            return Rope.climbingAPI.GetPosition(RopePercent);
         return GripCollider.transform.TransformPoint(AnchorLocal);
     }
 }
@@ -56,9 +64,24 @@ internal static class VRHandClimb
     private const float HandFollowTime = 0.05f;
     private const float HandSpeedMax = 8f;
     private const float HandGain = 25f;
+    private const float RopeRadius = 0.1f;
+    private const float RopeUpSpeed = 0.3f;
+    private const float RopeTurnSpeed = 360f;
+    private const float HandsAcrossMin = 0.15f;
+    private const float HandsAcrossFull = 0.4f;
 
-    private static FootStepPlayer footSteps;
-    private static Character footStepsOwner;
+    private static Vector3 ropeForward = Vector3.forward;
+
+    private static readonly Collider[] Overlaps = new Collider[16];
+
+    private const float MoveSoundDistance = 0.45f;
+
+    private static Character soundOwner;
+    private static SFX_PlayOneShot soundGrab;
+    private static SFX_PlayOneShot soundMoveA;
+    private static SFX_PlayOneShot soundMoveB;
+    private static float moveDistance;
+    private static bool isMoveSoundB;
 
     public static readonly VRClimbHand Left = new() { IsLeft = true };
     public static readonly VRClimbHand Right = new() { IsLeft = false };
@@ -67,7 +90,11 @@ internal static class VRHandClimb
 
     public static bool Enabled => Plugin.VrEnabled && Plugin.Config != null && Plugin.Config.HandClimbing.Value;
 
-    public static bool IsHolding => Left.IsGripping || Right.IsGripping;
+    public static bool IsHolding => (Left.IsGripping && !Left.IsRope) || (Right.IsGripping && !Right.IsRope);
+
+    public static bool IsHoldingRope => (Left.IsGripping && Left.IsRope) || (Right.IsGripping && Right.IsRope);
+
+    public static bool IsHoldingAny => Left.IsGripping || Right.IsGripping;
 
     public static bool IsConsumed(bool isLeft)
     {
@@ -78,9 +105,15 @@ internal static class VRHandClimb
     {
         if (IsHolding && ShouldLetGo(c))
         {
-            DropHand(Left);
-            DropHand(Right);
+            DropWallHands();
             SendStop(c);
+        }
+
+        if (IsHoldingRope && !IsRopeValid(c))
+        {
+            DropRopeHands();
+            if (c.data.isRopeClimbing)
+                c.refs.ropeHandling.Stop();
         }
 
         UpdateHand(c, Left, playerMovementActive);
@@ -112,7 +145,7 @@ internal static class VRHandClimb
                 hand.IsInputConsumed = true;
         }
 
-        if (hand.IsGripping && hand.GripCollider == null)
+        if (hand.IsGripping && !hand.HasAnchor)
             Release(c, hand);
 
         if (hand.HasShoulder)
@@ -136,8 +169,47 @@ internal static class VRHandClimb
         return VRControls.RightPrimary != null && VRControls.RightPrimary.WasPressedThisFrame();
     }
 
+    private static bool IsRopeValid(Character c)
+    {
+        CharacterData data = c.data;
+        if (data.dead || data.fullyPassedOut || data.passedOut)
+            return false;
+        if (!data.isRopeClimbing || data.heldRope == null)
+            return false;
+        Rope held = GetHeldRope();
+        return held != null && held == data.heldRope;
+    }
+
+    private static Rope GetHeldRope()
+    {
+        if (Left.IsGripping && Left.IsRope && Left.Rope != null)
+            return Left.Rope;
+        if (Right.IsGripping && Right.IsRope && Right.Rope != null)
+            return Right.Rope;
+        return null;
+    }
+
+    private static void DropWallHands()
+    {
+        if (Left.IsGripping && !Left.IsRope)
+            DropHand(Left);
+        if (Right.IsGripping && !Right.IsRope)
+            DropHand(Right);
+    }
+
+    private static void DropRopeHands()
+    {
+        if (Left.IsGripping && Left.IsRope)
+            DropHand(Left);
+        if (Right.IsGripping && Right.IsRope)
+            DropHand(Right);
+    }
+
     private static Quaternion GetBodyYaw(Character c)
     {
+        if (IsHoldingRope && c.data.isRopeClimbing)
+            return Quaternion.LookRotation(ropeForward, Vector3.up);
+
         Vector3 flat = c.data.lookDirection_Flat;
         if (flat.sqrMagnitude < 1e-4f)
             return Quaternion.identity;
@@ -166,7 +238,7 @@ internal static class VRHandClimb
     {
         VRClimbHand hand = isLeft ? Left : Right;
         wrist = default;
-        if (!hand.IsGripping || hand.GripCollider == null || hand.Controller == null)
+        if (!hand.HasAnchor || hand.Controller == null)
             return false;
 
         wrist = GetWrist(hand) + hipShift;
@@ -180,7 +252,7 @@ internal static class VRHandClimb
 
     private static void PinHand(Character c, VRClimbHand hand)
     {
-        if (!hand.IsGripping || hand.GripCollider == null || hand.Controller == null)
+        if (!hand.HasAnchor || hand.Controller == null)
             return;
 
         Rigidbody rig = c.GetBodypartRig(hand.IsLeft ? BodypartType.Hand_L : BodypartType.Hand_R);
@@ -192,62 +264,47 @@ internal static class VRHandClimb
         rig.AddForce((velocityTarget - rig.linearVelocity) * HandGain, ForceMode.Acceleration);
     }
 
-    private static void PlayGrabSound(Character c, Collider col, Vector3 position)
+    private static void FindSounds(Character c)
     {
-        if (footSteps == null || footStepsOwner != c)
-        {
-            footSteps = c.GetComponentInChildren<FootStepPlayer>(true);
-            footStepsOwner = c;
-        }
-        if (footSteps == null || footSteps.surfaceLookup == null)
+        if (soundOwner == c)
             return;
 
-        footSteps.surfaceLookup.PlayStep(position, GetSurfaceIndex(footSteps, col));
-    }
-
-    private static int GetSurfaceIndex(FootStepPlayer steps, Collider col)
-    {
-        MeshRenderer renderer = col.GetComponent<MeshRenderer>();
-        if (renderer == null || renderer.sharedMaterial == null)
-            return 0;
-
-        string name = renderer.sharedMaterial.name.Replace(" (Instance)", "");
-        if (IsNamed(steps.beachSand, name) || IsNamed(steps.desertSand, name))
-            return 1;
-        if (IsNamed(steps.beachRock, name))
-            return 2;
-        if (IsAnyNamed(steps.jungleGrass, name))
-            return 3;
-        if (IsNamed(steps.jungleRock, name))
-            return 4;
-        if (IsNamed(steps.iceRock, name))
-            return 5;
-        if (IsNamed(steps.iceSnow, name))
-            return 6;
-        if (IsAnyNamed(steps.metal, name))
-            return 7;
-        if (IsAnyNamed(steps.wood, name))
-            return 8;
-        if (IsNamed(steps.volcanoRock, name))
-            return 9;
-        return 0;
-    }
-
-    private static bool IsNamed(Material material, string name)
-    {
-        return material != null && material.name == name;
-    }
-
-    private static bool IsAnyNamed(Material[] materials, string name)
-    {
-        if (materials == null)
-            return false;
-        for (int i = 0; i < materials.Length; i++)
+        soundOwner = c;
+        soundGrab = null;
+        soundMoveA = null;
+        soundMoveB = null;
+        SFX_PlayOneShot[] sounds = c.GetComponentsInChildren<SFX_PlayOneShot>(true);
+        for (int i = 0; i < sounds.Length; i++)
         {
-            if (IsNamed(materials[i], name))
-                return true;
+            string name = sounds[i].gameObject.name;
+            if (name == "SFX Climb Grab")
+                soundGrab = sounds[i];
+            else if (name == "SFX Climb Move (1)")
+                soundMoveA = sounds[i];
+            else if (name == "SFX Climb Move (2)")
+                soundMoveB = sounds[i];
         }
-        return false;
+    }
+
+    private static void PlayGrabSound(Character c)
+    {
+        FindSounds(c);
+        if (soundGrab != null)
+            soundGrab.Play();
+    }
+
+    private static void UpdateMoveSound(Character c, float dt)
+    {
+        moveDistance += c.data.avarageVelocity.magnitude * dt;
+        if (moveDistance < MoveSoundDistance)
+            return;
+
+        moveDistance = 0f;
+        FindSounds(c);
+        SFX_PlayOneShot sound = isMoveSoundB ? soundMoveB : soundMoveA;
+        isMoveSoundB = !isMoveSoundB;
+        if (sound != null)
+            sound.Play();
     }
 
     private static Vector3 GetVirtualPalm(VRClimbHand hand, Vector3 shoulder)
@@ -330,11 +387,14 @@ internal static class VRHandClimb
     {
         if (!hand.HasShoulder || MainCamera.instance == null)
             return false;
-        if (!CanStart(c))
-            return false;
 
         Vector3 shoulder = GetShoulder(c, hand, c.Center);
         Vector3 palm = GetVirtualPalm(hand, shoulder);
+        if (TryGrabRope(c, hand, palm))
+            return true;
+        if (IsHoldingRope || !CanStart(c))
+            return false;
+
         Vector3 palmDirection = GetPalmDirection(hand);
         Vector3 toPalm = palm - shoulder;
         Transform controller = hand.Controller;
@@ -353,6 +413,8 @@ internal static class VRHandClimb
             return false;
 
         Vector3 anchor = hit.point + hit.normal * PalmThickness;
+        hand.IsRope = false;
+        hand.Rope = null;
         hand.GripCollider = hit.collider;
         hand.AnchorLocal = hit.collider.transform.InverseTransformPoint(anchor);
         hand.Normal = hit.normal;
@@ -362,8 +424,210 @@ internal static class VRHandClimb
         if (!Left.IsGripping || !Right.IsGripping)
             StartClimb(c, anchor);
         else
-            PlayGrabSound(c, hit.collider, anchor);
+            PlayGrabSound(c);
         return true;
+    }
+
+    private static bool TryGrabRope(Character c, VRClimbHand hand, Vector3 palm)
+    {
+        CharacterData data = c.data;
+        if (data.dead || data.fullyPassedOut || data.passedOut)
+            return false;
+        if (data.isVineClimbing || data.currentClimbHandle != null || data.carrierCondor != null || data.isCarried)
+            return false;
+        if (c.OutOfStamina())
+            return false;
+        if (!FindRope(c, hand, palm, out Rope rope, out float percent))
+            return false;
+
+        Rope held = GetHeldRope();
+        if (held != null && held != rope)
+            return false;
+        if (data.isRopeClimbing && data.heldRope != rope)
+            return false;
+
+        PhotonView ropeView = rope.GetComponentInParent<PhotonView>();
+        if (ropeView == null)
+            return false;
+
+        if (!IsHoldingRope)
+            ropeForward = GetFlatLook(c);
+
+        hand.IsRope = true;
+        hand.Rope = rope;
+        hand.RopePercent = percent;
+        hand.GripCollider = null;
+        hand.Normal = Vector3.zero;
+        Vector3 anchor = hand.GetAnchor();
+        hand.Residual = Vector3.ClampMagnitude(anchor - palm, ResidualMax);
+        hand.IsGripping = true;
+
+        if (IsHolding)
+        {
+            DropWallHands();
+            SendStop(c);
+        }
+
+        if (!data.isRopeClimbing)
+        {
+            c.refs.items.EquipSlot(Optionable<byte>.None);
+            int index = Mathf.RoundToInt(percent * Mathf.Max(0, rope.SegmentCount - 1));
+            c.refs.view.RPC("GrabRopeRpc", RpcTarget.All, ropeView, index);
+            data.ropePercent = percent;
+        }
+        return true;
+    }
+
+    private static bool FindRope(Character c, VRClimbHand hand, Vector3 palm, out Rope rope, out float percent)
+    {
+        rope = null;
+        percent = 0f;
+        float distanceBest = RopeRadius * 2f;
+
+        int count = Physics.OverlapSphereNonAlloc(palm, RopeRadius, Overlaps, ~0, QueryTriggerInteraction.Collide);
+        for (int i = 0; i < count; i++)
+            CheckRope(c, Overlaps[i], palm, ref rope, ref percent, ref distanceBest);
+        if (rope != null || !hand.IsPalmLastValid)
+            return rope != null;
+
+        Vector3 sweep = palm - hand.PalmLast;
+        float distance = sweep.magnitude;
+        if (distance < 1e-3f)
+            return false;
+
+        Vector3 direction = sweep / distance;
+        count = Physics.SphereCastNonAlloc(hand.PalmLast, RopeRadius, direction, Hits, distance, ~0, QueryTriggerInteraction.Collide);
+        for (int i = 0; i < count; i++)
+        {
+            Vector3 center = hand.PalmLast + direction * Hits[i].distance;
+            CheckRope(c, Hits[i].collider, center, ref rope, ref percent, ref distanceBest);
+        }
+        return rope != null;
+    }
+
+    private static void CheckRope(Character c, Collider col, Vector3 point, ref Rope rope, ref float percent, ref float distanceBest)
+    {
+        if (col == null)
+            return;
+        RopeSegment segment = col.GetComponentInParent<RopeSegment>();
+        if (segment == null || segment.rope == null || !segment.rope.isClimbable)
+            return;
+
+        float angle = segment.GetAngle();
+        float angleMax = c.refs.ropeHandling.maxRopeAngle * 0.6f;
+        if (angle >= angleMax && 180f - angle >= angleMax)
+            return;
+
+        if (!GetClosestPercent(segment.rope, point, out float p, out float d))
+            return;
+        if (d >= distanceBest)
+            return;
+
+        distanceBest = d;
+        rope = segment.rope;
+        percent = p;
+    }
+
+    private static bool GetClosestPercent(Rope rope, Vector3 point, out float percent, out float distance)
+    {
+        percent = 0f;
+        distance = float.MaxValue;
+        List<Transform> segments = rope.GetRopeSegments();
+        int n = segments.Count;
+        if (n < 3)
+            return false;
+
+        for (int k = 1; k < n - 1; k++)
+        {
+            Vector3 a = segments[k].position;
+            Vector3 ab = segments[k + 1].position - a;
+            float t = ab.sqrMagnitude > 1e-6f ? Mathf.Clamp01(Vector3.Dot(point - a, ab) / ab.sqrMagnitude) : 0f;
+            float d = Vector3.Distance(point, a + ab * t);
+            if (d >= distance)
+                continue;
+            distance = d;
+            percent = (k + t) / (n - 1);
+        }
+        return true;
+    }
+
+    private static Vector3 GetFlatLook(Character c)
+    {
+        Vector3 look = c.data.lookDirection_Flat;
+        look.y = 0f;
+        if (look.sqrMagnitude < 1e-4f)
+            return Vector3.forward;
+        return look.normalized;
+    }
+
+    private static Vector3 GetHandsForward(Character c)
+    {
+        Vector3 look = GetFlatLook(c);
+        if (VRHands.Left == null || VRHands.Right == null)
+            return look;
+
+        Vector3 across = Vector3.ProjectOnPlane(VRHands.Right.position - VRHands.Left.position, Vector3.up);
+        float weight = Mathf.InverseLerp(HandsAcrossMin, HandsAcrossFull, across.magnitude);
+        if (weight <= 0f)
+            return look;
+
+        Vector3 perpendicular = Vector3.Cross(across.normalized, Vector3.up);
+        Vector3 forward = look * (1f - weight) + perpendicular * weight;
+        if (forward.sqrMagnitude < 1e-4f)
+            return perpendicular;
+        return forward.normalized;
+    }
+
+    public static void DriveRope(Character c)
+    {
+        Rope rope = c.data.heldRope;
+        if (rope == null || rope.climbingAPI == null)
+            return;
+
+        RopeClimbingAPI api = rope.climbingAPI;
+        float dt = Time.fixedDeltaTime;
+        Vector3 torso = c.TorsoPos();
+        Vector3 delta = Vector3.zero;
+        int count = 0;
+        if (Left.IsRope && Left.HasAnchor && Left.Rope == rope && Left.HasShoulder)
+        {
+            delta += GetHandDelta(c, Left, torso);
+            count++;
+        }
+        if (Right.IsRope && Right.HasAnchor && Right.Rope == rope && Right.HasShoulder)
+        {
+            delta += GetHandDelta(c, Right, torso);
+            count++;
+        }
+        if (count == 0)
+            return;
+        delta /= count;
+
+        Vector3 velocityTarget = Vector3.ClampMagnitude(delta / FollowTime, SpeedMax);
+        c.AddForce((velocityTarget - c.data.avarageVelocity) * VelocityGain);
+
+        if (GetClosestPercent(rope, torso + delta, out float percent, out float distance))
+            c.data.ropePercent = percent;
+
+        Vector3 forwardTarget = GetHandsForward(c);
+        ropeForward = Vector3.RotateTowards(ropeForward, forwardTarget, RopeTurnSpeed * Mathf.Deg2Rad * dt, 0f);
+        ropeForward = Vector3.ProjectOnPlane(ropeForward, Vector3.up).normalized;
+        if (ropeForward.sqrMagnitude < 1e-4f)
+            ropeForward = forwardTarget;
+        c.data.ropeClimbNormal = -ropeForward;
+        c.data.ropeClimbWorldNormal = c.data.ropeClimbNormal;
+        c.data.ropeClimbWorldUp = api.GetUp(c.data.ropePercent);
+
+        if (Vector3.Dot(c.data.avarageVelocity, Vector3.up) > RopeUpSpeed)
+        {
+            CharacterRopeHandling handling = c.refs.ropeHandling;
+            c.UseStamina(Mathf.Max(0f, handling.staminaUsageUp - handling.staminaUsage) * dt);
+        }
+
+        PinHand(c, Left);
+        PinHand(c, Right);
+        Left.Residual = Vector3.MoveTowards(Left.Residual, Vector3.zero, ResidualRelax * dt);
+        Right.Residual = Vector3.MoveTowards(Right.Residual, Vector3.zero, ResidualRelax * dt);
     }
 
     private static void StartClimb(Character c, Vector3 anchor)
@@ -418,8 +682,14 @@ internal static class VRHandClimb
         if (!hand.IsGripping)
             return;
 
+        bool isRope = hand.IsRope;
         DropHand(hand);
-        if (!IsHolding)
+        if (isRope)
+        {
+            if (!IsHoldingRope && c.data.isRopeClimbing)
+                c.refs.ropeHandling.Stop();
+        }
+        else if (!IsHolding)
             SendStop(c);
     }
 
@@ -427,6 +697,8 @@ internal static class VRHandClimb
     {
         hand.IsGripping = false;
         hand.GripCollider = null;
+        hand.IsRope = false;
+        hand.Rope = null;
         hand.AutoGrabLeft = 0f;
     }
 
@@ -435,6 +707,8 @@ internal static class VRHandClimb
         Character local = Character.localCharacter;
         if (IsHolding && local != null)
             SendStop(local);
+        if (IsHoldingRope && local != null && local.data.isRopeClimbing)
+            local.refs.ropeHandling.Stop();
         DropHand(Left);
         DropHand(Right);
         Left.IsGripHeld = false;
@@ -445,8 +719,11 @@ internal static class VRHandClimb
         Right.HasShoulder = false;
         Left.IsPalmLastValid = false;
         Right.IsPalmLastValid = false;
-        footSteps = null;
-        footStepsOwner = null;
+        soundOwner = null;
+        soundGrab = null;
+        soundMoveA = null;
+        soundMoveB = null;
+        moveDistance = 0f;
     }
 
     public static void DriveBody(Character c)
@@ -490,6 +767,7 @@ internal static class VRHandClimb
         c.data.climbPos = torso + delta - normal * BodyNormalDistance;
 
         UseStamina(c, velocity.magnitude, normal, dt);
+        UpdateMoveSound(c, dt);
 
         PinHand(c, Left);
         PinHand(c, Right);
@@ -569,7 +847,7 @@ internal static class HandClimbInputPatch
     [HarmonyPostfix]
     private static void Postfix(CharacterInput __instance)
     {
-        if (!Plugin.VrEnabled || !VRHandClimb.IsHolding)
+        if (!Plugin.VrEnabled || !VRHandClimb.IsHoldingAny)
             return;
 
         Character local = Character.localCharacter;
@@ -598,6 +876,24 @@ internal static class HandClimbBodyPatch
             return;
 
         VRHandClimb.DriveBody(local);
+    }
+}
+
+[HarmonyPatch(typeof(CharacterRopeHandling), "Climbing")]
+internal static class HandClimbRopePatch
+{
+    [HarmonyPrefix]
+    private static bool Prefix(CharacterRopeHandling __instance)
+    {
+        if (!Plugin.VrEnabled || !VRHandClimb.IsHoldingRope)
+            return true;
+
+        Character local = Character.localCharacter;
+        if (local == null || local.refs.ropeHandling != __instance || local.data.heldRope == null)
+            return true;
+
+        VRHandClimb.DriveRope(local);
+        return false;
     }
 }
 
