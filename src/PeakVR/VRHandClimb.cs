@@ -53,6 +53,12 @@ internal static class VRHandClimb
     private const float SlideSpeed = 0.6f;
     private const float SlideProbe = 0.15f;
     private const float InputSpeed = 1.5f;
+    private const float HandFollowTime = 0.05f;
+    private const float HandSpeedMax = 8f;
+    private const float HandGain = 25f;
+
+    private static FootStepPlayer footSteps;
+    private static Character footStepsOwner;
 
     public static readonly VRClimbHand Left = new() { IsLeft = true };
     public static readonly VRClimbHand Right = new() { IsLeft = false };
@@ -156,15 +162,92 @@ internal static class VRHandClimb
         Right.HasShoulder = true;
     }
 
-    public static bool TryGetWristTarget(bool isLeft, out Vector3 wrist)
+    public static bool TryGetWristTarget(bool isLeft, Vector3 hipShift, out Vector3 wrist)
     {
         VRClimbHand hand = isLeft ? Left : Right;
         wrist = default;
         if (!hand.IsGripping || hand.GripCollider == null || hand.Controller == null)
             return false;
 
-        wrist = hand.GetAnchor() - hand.Controller.rotation * PalmOffset;
+        wrist = GetWrist(hand) + hipShift;
         return true;
+    }
+
+    private static Vector3 GetWrist(VRClimbHand hand)
+    {
+        return hand.GetAnchor() - hand.Controller.rotation * PalmOffset;
+    }
+
+    private static void PinHand(Character c, VRClimbHand hand)
+    {
+        if (!hand.IsGripping || hand.GripCollider == null || hand.Controller == null)
+            return;
+
+        Rigidbody rig = c.GetBodypartRig(hand.IsLeft ? BodypartType.Hand_L : BodypartType.Hand_R);
+        if (rig == null || rig.isKinematic)
+            return;
+
+        Vector3 error = GetWrist(hand) - rig.position;
+        Vector3 velocityTarget = Vector3.ClampMagnitude(error / HandFollowTime, HandSpeedMax);
+        rig.AddForce((velocityTarget - rig.linearVelocity) * HandGain, ForceMode.Acceleration);
+    }
+
+    private static void PlayGrabSound(Character c, Collider col, Vector3 position)
+    {
+        if (footSteps == null || footStepsOwner != c)
+        {
+            footSteps = c.GetComponentInChildren<FootStepPlayer>(true);
+            footStepsOwner = c;
+        }
+        if (footSteps == null || footSteps.surfaceLookup == null)
+            return;
+
+        footSteps.surfaceLookup.PlayStep(position, GetSurfaceIndex(footSteps, col));
+    }
+
+    private static int GetSurfaceIndex(FootStepPlayer steps, Collider col)
+    {
+        MeshRenderer renderer = col.GetComponent<MeshRenderer>();
+        if (renderer == null || renderer.sharedMaterial == null)
+            return 0;
+
+        string name = renderer.sharedMaterial.name.Replace(" (Instance)", "");
+        if (IsNamed(steps.beachSand, name) || IsNamed(steps.desertSand, name))
+            return 1;
+        if (IsNamed(steps.beachRock, name))
+            return 2;
+        if (IsAnyNamed(steps.jungleGrass, name))
+            return 3;
+        if (IsNamed(steps.jungleRock, name))
+            return 4;
+        if (IsNamed(steps.iceRock, name))
+            return 5;
+        if (IsNamed(steps.iceSnow, name))
+            return 6;
+        if (IsAnyNamed(steps.metal, name))
+            return 7;
+        if (IsAnyNamed(steps.wood, name))
+            return 8;
+        if (IsNamed(steps.volcanoRock, name))
+            return 9;
+        return 0;
+    }
+
+    private static bool IsNamed(Material material, string name)
+    {
+        return material != null && material.name == name;
+    }
+
+    private static bool IsAnyNamed(Material[] materials, string name)
+    {
+        if (materials == null)
+            return false;
+        for (int i = 0; i < materials.Length; i++)
+        {
+            if (IsNamed(materials[i], name))
+                return true;
+        }
+        return false;
     }
 
     private static Vector3 GetVirtualPalm(VRClimbHand hand, Vector3 shoulder)
@@ -278,6 +361,8 @@ internal static class VRHandClimb
 
         if (!Left.IsGripping || !Right.IsGripping)
             StartClimb(c, anchor);
+        else
+            PlayGrabSound(c, hit.collider, anchor);
         return true;
     }
 
@@ -360,6 +445,8 @@ internal static class VRHandClimb
         Right.HasShoulder = false;
         Left.IsPalmLastValid = false;
         Right.IsPalmLastValid = false;
+        footSteps = null;
+        footStepsOwner = null;
     }
 
     public static void DriveBody(Character c)
@@ -403,6 +490,9 @@ internal static class VRHandClimb
         c.data.climbPos = torso + delta - normal * BodyNormalDistance;
 
         UseStamina(c, velocity.magnitude, normal, dt);
+
+        PinHand(c, Left);
+        PinHand(c, Right);
 
         Left.Residual = Vector3.MoveTowards(Left.Residual, Vector3.zero, ResidualRelax * dt);
         Right.Residual = Vector3.MoveTowards(Right.Residual, Vector3.zero, ResidualRelax * dt);
@@ -536,6 +626,28 @@ internal static class HandClimbGroundPatch
 
         __result = false;
         return false;
+    }
+}
+
+[HarmonyPatch(typeof(ClimbSFX), "Update")]
+internal static class HandClimbSoundPatch
+{
+    [HarmonyPrefix]
+    private static void Prefix(Character ___character, out bool __state)
+    {
+        __state = false;
+        if (___character == null || ___character.data.isClimbing || !VRHandClimb.IsLocalHolding(___character))
+            return;
+
+        ___character.data.isClimbing = true;
+        __state = true;
+    }
+
+    [HarmonyPostfix]
+    private static void Postfix(Character ___character, bool __state)
+    {
+        if (__state)
+            ___character.data.isClimbing = false;
     }
 }
 

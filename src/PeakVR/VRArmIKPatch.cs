@@ -95,9 +95,10 @@ internal static class VRArmIKPatch
         }
 
         VRHandClimb.StoreShoulders(c, refs.ikLeft.data.root.position, refs.ikRight.data.root.position);
-        if (VRHandClimb.TryGetWristTarget(true, out Vector3 gripL))
+        Vector3 hipShift = refs.hip.transform.position - c.GetBodypartRig(BodypartType.Hip).position;
+        if (VRHandClimb.TryGetWristTarget(true, hipShift, out Vector3 gripL))
             targetL = gripL;
-        if (VRHandClimb.TryGetWristTarget(false, out Vector3 gripR))
+        if (VRHandClimb.TryGetWristTarget(false, hipShift, out Vector3 gripR))
             targetR = gripR;
 
         refs.IKHandTargetLeft.position = targetL;
