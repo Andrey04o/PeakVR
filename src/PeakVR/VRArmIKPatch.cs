@@ -94,6 +94,12 @@ internal static class VRArmIKPatch
             targetR = ClampMinElbowBend(refs.ikRight, targetR);
         }
 
+        VRHandClimb.StoreShoulders(c, refs.ikLeft.data.root.position, refs.ikRight.data.root.position);
+        if (VRHandClimb.TryGetWristTarget(true, out Vector3 gripL))
+            targetL = gripL;
+        if (VRHandClimb.TryGetWristTarget(false, out Vector3 gripR))
+            targetR = gripR;
+
         refs.IKHandTargetLeft.position = targetL;
         refs.IKHandTargetRight.position = targetR;
 

@@ -45,6 +45,7 @@ public class Config
     public ConfigEntry<PeakVR.LineVisibility> InteractionLine { get; }
     public ConfigEntry<PeakVR.LineVisibility> HudLine { get; }
     public ConfigEntry<bool> AimAtObjectCenter { get; }
+    public ConfigEntry<bool> HandClimbing { get; }
 
     public ConfigEntry<float> ArmSpanScale { get; }
     public ConfigEntry<float> VirtualArmSpan { get; }
@@ -161,6 +162,10 @@ public class Config
         AimAtObjectCenter = file.Bind("Lasers", "Aim At Object Center", true,
             "When an interactable is available, snap the interaction line's end to the object's center " +
             "instead of pointing straight ahead.");
+
+        HandClimbing = file.Bind("Immersive", "Hand Climbing", true,
+            "Climb walls with your hands: squeeze the grip near a surface to hold it and pull yourself " +
+            "with your arms. Letting go of both grips releases the wall. Trigger climbing still works.");
 
         ArmSpanScale = file.Bind("VR", "Arm Span Scale", 1.089f,
             new ConfigDescription("Multiplier from your real arm reach to the character's arm reach. " +

@@ -56,11 +56,13 @@ internal static class InteractionInputPatch
             return;
         }
 
-        Inject(VRControls.RightGrip, ref __instance.interactWasPressed, ref __instance.interactIsPressed,
-            ref __instance.interactWasReleased);
+        if (!VRHandClimb.IsConsumed(false))
+            Inject(VRControls.RightGrip, ref __instance.interactWasPressed, ref __instance.interactIsPressed,
+                ref __instance.interactWasReleased);
 
-        Inject(VRControls.LeftGrip, ref __instance.dropWasPressed, ref __instance.dropIsPressed,
-            ref __instance.dropWasReleased);
+        if (!VRHandClimb.IsConsumed(true))
+            Inject(VRControls.LeftGrip, ref __instance.dropWasPressed, ref __instance.dropIsPressed,
+                ref __instance.dropWasReleased);
 
         // Jump is driven ONLY by A. Clear the game's native jump first (the VD-emulated gamepad
         // maps a button to it — the old "B also jumps") so B is free to hold/unhold, and so the

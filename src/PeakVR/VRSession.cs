@@ -162,6 +162,7 @@ internal static class VRSession
         VRMenuPopup.RestoreAll();
         VRMenuManager.RestoreAll();
         VRModCanvas.ReleaseAll();
+        VRHandClimb.ReleaseAll();
         VRHands.Destroy();
         VRHeadRoll.Reset();
         VRLayers.RestoreAll();
