@@ -1275,6 +1275,7 @@ internal static class VRHandClimb
         Right.IsPalmLastValid = false;
         RestoreSurfaceSounds();
         surfaceSounds = null;
+        VRClimbPose.Clear();
         soundOwner = null;
         soundGrab = null;
         soundMoveA = null;
