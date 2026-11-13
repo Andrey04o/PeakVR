@@ -62,13 +62,24 @@ internal static class OneHandedHoldPatch
         if (handR == null)
             return false;
 
-        Transform grip = item.transform.Find("Hand_R");
-        if (grip == null)
-            return false;
+        Quaternion gripLocalRot;
+        Vector3 gripLocalDir;
 
-        Quaternion itemRotInv = Quaternion.Inverse(item.transform.rotation);
-        Quaternion gripLocalRot = itemRotInv * grip.rotation;
-        Vector3 gripLocalDir = itemRotInv * (grip.position - item.transform.position);
+        if (IsLocalVR(items) && VRGrab.TryGripOffset(item, out Vector3 grabbedDir, out Quaternion grabbedRot))
+        {
+            gripLocalRot = grabbedRot;
+            gripLocalDir = grabbedDir;
+        }
+        else
+        {
+            Transform grip = item.transform.Find("Hand_R");
+            if (grip == null)
+                return false;
+
+            Quaternion itemRotInv = Quaternion.Inverse(item.transform.rotation);
+            gripLocalRot = itemRotInv * grip.rotation;
+            gripLocalDir = itemRotInv * (grip.position - item.transform.position);
+        }
 
         rot = handR.transform.rotation * Quaternion.Inverse(gripLocalRot);
         pos = handR.transform.position - rot * gripLocalDir;
@@ -87,10 +98,25 @@ internal static class OneHandedHoldPatch
         if (handR == null)
             return true;
 
-        handR.transform.position = (Vector3)GetPosRight.Invoke(__instance, new object[] { item });
-        handR.transform.rotation = (Quaternion)GetRotRight.Invoke(__instance, new object[] { item });
+        var second = IsLocalVR(__instance) && VRHandJoint.HeldByOtherHand(item, true);
+
+        if (!second)
+        {
+            if (IsLocalVR(__instance) && VRGrab.TryGripOffset(item, out Vector3 grabbedDir, out Quaternion grabbedRot))
+            {
+                handR.transform.position = item.transform.position + item.transform.rotation * grabbedDir;
+                handR.transform.rotation = item.transform.rotation * grabbedRot;
+            }
+            else
+            {
+                handR.transform.position = (Vector3)GetPosRight.Invoke(__instance, new object[] { item });
+                handR.transform.rotation = (Quaternion)GetRotRight.Invoke(__instance, new object[] { item });
+            }
+        }
+
         if (item.rig != null)
-            handR.gameObject.AddComponent<FixedJoint>().connectedBody = item.rig;
+            VRHandJoint.Attach(handR, item, second);
+
         return false;
     }
 
@@ -101,7 +127,9 @@ internal static class OneHandedHoldPatch
         if (!ShouldApply(__instance))
             return true;
 
-        DestroyHandJoint(__instance, BodypartType.Hand_L);
+        if (VRLeftHand.Carried == null || !IsLocalVR(__instance))
+            DestroyHandJoint(__instance, BodypartType.Hand_L);
+
         DestroyHandJoint(__instance, BodypartType.Hand_R);
         return false;
     }
