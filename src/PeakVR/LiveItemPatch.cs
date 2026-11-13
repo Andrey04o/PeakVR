@@ -39,7 +39,7 @@ internal static class StashDestroyPatch
 
     private static void DestroyUnlessLive(PhotonView view)
     {
-        if (VRGrab.SuppressStashDestroy)
+        if (VRHandItems.SuppressStashDestroy)
             return;
 
         PhotonNetwork.Destroy(view);
@@ -52,11 +52,21 @@ internal static class CarriedBonkPatch
     [HarmonyPrefix]
     private static bool Prefix(Bonkable __instance, Collision coll)
     {
-        if (!VRGrab.Enabled || __instance.item == null || VRLeftHand.Carried != __instance.item)
+        if (!VRHandItems.Enabled || __instance.item == null || VRHandItems.LeftItem != __instance.item)
             return true;
 
         var hit = coll.gameObject.GetComponentInParent<Character>();
         return hit == null || hit != Character.localCharacter;
+    }
+}
+
+[HarmonyPatch(typeof(ChessStabilizer), "FixedUpdate")]
+internal static class CarriedChessPatch
+{
+    [HarmonyPrefix]
+    private static bool Prefix(ChessStabilizer __instance)
+    {
+        return __instance.item == null || __instance.item != VRHandItems.LeftItem;
     }
 }
 
@@ -66,10 +76,10 @@ internal static class HeldItemCollisionPatch
     [HarmonyPostfix]
     private static void Postfix(Item __instance)
     {
-        if (!VRGrab.Enabled || __instance.rig == null || __instance.rig.isKinematic)
+        if (!VRHandItems.Enabled || __instance.rig == null || __instance.rig.isKinematic)
             return;
 
-        if (__instance.holderCharacter != Character.localCharacter && VRLeftHand.Carried != __instance)
+        if (__instance.holderCharacter != Character.localCharacter && VRHandItems.LeftItem != __instance)
             return;
 
         __instance.rig.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;

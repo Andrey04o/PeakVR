@@ -65,7 +65,7 @@ internal static class OneHandedHoldPatch
         Quaternion gripLocalRot;
         Vector3 gripLocalDir;
 
-        if (IsLocalVR(items) && VRGrab.TryGripOffset(item, out Vector3 grabbedDir, out Quaternion grabbedRot))
+        if (IsLocalVR(items) && VRHandItems.TryGripOffset(item, out Vector3 grabbedDir, out Quaternion grabbedRot))
         {
             gripLocalRot = grabbedRot;
             gripLocalDir = grabbedDir;
@@ -100,9 +100,18 @@ internal static class OneHandedHoldPatch
 
         var second = IsLocalVR(__instance) && VRHandJoint.HeldByOtherHand(item, true);
 
-        if (!second)
+        if (!second && IsLocalVR(__instance) && VRHandItems.Enabled && item.rig != null
+            && TryHoldTarget(__instance, item, out Vector3 holdPos, out Quaternion holdRot))
         {
-            if (IsLocalVR(__instance) && VRGrab.TryGripOffset(item, out Vector3 grabbedDir, out Quaternion grabbedRot))
+            item.transform.SetPositionAndRotation(holdPos, holdRot);
+            item.rig.position = holdPos;
+            item.rig.rotation = holdRot;
+            item.rig.linearVelocity = Vector3.zero;
+            item.rig.angularVelocity = Vector3.zero;
+        }
+        else if (!second)
+        {
+            if (IsLocalVR(__instance) && VRHandItems.TryGripOffset(item, out Vector3 grabbedDir, out Quaternion grabbedRot))
             {
                 handR.transform.position = item.transform.position + item.transform.rotation * grabbedDir;
                 handR.transform.rotation = item.transform.rotation * grabbedRot;
@@ -127,7 +136,7 @@ internal static class OneHandedHoldPatch
         if (!ShouldApply(__instance))
             return true;
 
-        if (VRLeftHand.Carried == null || !IsLocalVR(__instance))
+        if (VRHandItems.LeftItem == null || !IsLocalVR(__instance))
             DestroyHandJoint(__instance, BodypartType.Hand_L);
 
         DestroyHandJoint(__instance, BodypartType.Hand_R);
@@ -159,5 +168,57 @@ internal static class OneHandedHoldPatch
     {
         return Enabled && items.character != null
             && items.character == Character.localCharacter && VRHands.Right != null;
+    }
+}
+
+[HarmonyPatch]
+internal static class EquipSnapPatch
+{
+    private static bool isEquipping;
+    private static float lastFixedTime = -1f;
+
+    [HarmonyPatch(typeof(CharacterItems), nameof(CharacterItems.Equip))]
+    [HarmonyPrefix]
+    private static void EquipPrefix(CharacterItems __instance)
+    {
+        isEquipping = __instance.character != null && __instance.character == Character.localCharacter;
+    }
+
+    [HarmonyPatch(typeof(CharacterItems), nameof(CharacterItems.Equip))]
+    [HarmonyFinalizer]
+    private static void EquipFinalizer()
+    {
+        isEquipping = false;
+    }
+
+    [HarmonyPatch(typeof(CharacterRagdoll), nameof(CharacterRagdoll.FixedUpdate))]
+    [HarmonyPrefix]
+    private static bool RagdollPrefix(Character ___character)
+    {
+        if (!IsLocalVR(___character))
+            return true;
+
+        if (lastFixedTime == Time.fixedTime)
+            return false;
+
+        lastFixedTime = Time.fixedTime;
+        return true;
+    }
+
+    [HarmonyPatch(typeof(CharacterRagdoll), nameof(CharacterRagdoll.SnapToAnimation))]
+    [HarmonyPrefix]
+    private static bool SnapPrefix(Character ___character)
+    {
+        Character character = ___character;
+        if (!IsLocalVR(character) || character.data == null)
+            return true;
+
+        return !isEquipping && character.data.sinceItemAttach != 0f;
+    }
+
+    private static bool IsLocalVR(Character character)
+    {
+        return Plugin.VrEnabled && VRHandItems.Enabled && VRHands.Right != null && character != null
+            && character == Character.localCharacter;
     }
 }

@@ -236,7 +236,8 @@ internal static class VRHandClimb
             hand.IsInputConsumed = false;
             Release(c, hand);
         }
-        else if (hand.IsGripHeld && !hand.IsGripping && hand.AutoGrabLeft > 0f)
+        else if (hand.IsGripHeld && !hand.IsGripping && hand.AutoGrabLeft > 0f
+            && !VRHandItems.IsHolding(hand == Left))
         {
             hand.AutoGrabLeft -= Time.deltaTime;
             if (TryGrab(c, hand))
@@ -313,7 +314,7 @@ internal static class VRHandClimb
 
     private static VRClimbHand GetAdoptHand()
     {
-        bool? acting = VRLeftHand.ActingHand;
+        bool? acting = VRHandItems.ActingHand;
         VRClimbHand first = acting == false ? Left : Right;
         VRClimbHand second = first == Left ? Right : Left;
         if (CanAdopt(first))

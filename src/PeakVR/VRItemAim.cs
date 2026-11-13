@@ -44,8 +44,14 @@ internal class VRItemAim : MonoBehaviour
 
     private static void AdjustOffset(Vector3 delta)
     {
-        ShootableAim.RotationOffset += delta;
-        Plugin.Log.LogInfo($"[PeakVR] Item rotation offset = {ShootableAim.RotationOffset}");
+        Character character = Character.localCharacter;
+        Item item = character != null && character.data != null ? character.data.currentItem : null;
+        VRGripProfile profile = VRGripProfiles.Get(item);
+        if (profile == null)
+            return;
+
+        profile.RotationHand += delta;
+        Plugin.Log.LogInfo($"[PeakVR] Grip rotation offset '{item.name}' = {profile.RotationHand}");
     }
 
     private void LateUpdate()

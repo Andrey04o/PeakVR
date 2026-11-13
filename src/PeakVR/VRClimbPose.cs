@@ -94,7 +94,7 @@ internal static class VRClimbPose
             return;
 
         float stepCurl = Time.fixedDeltaTime * CurlSpeed;
-        UpdateFingerState(StateLeft, true, VRHandClimb.Left, VRLeftHand.Carried != null, step, stepCurl);
+        UpdateFingerState(StateLeft, true, VRHandClimb.Left, VRHandItems.LeftItem != null, step, stepCurl);
         UpdateFingerState(StateRight, false, VRHandClimb.Right, c.data.currentItem != null, step, stepCurl);
         ApplyFingers(FingersLeft, StateLeft);
         ApplyFingers(FingersRight, StateRight);

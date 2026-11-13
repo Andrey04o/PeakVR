@@ -22,7 +22,7 @@ internal static class VRHandJoint
             return false;
 
         if (right)
-            return VRLeftHand.Carried == item;
+            return VRHandItems.LeftItem == item;
 
         var local = Character.localCharacter;
         return local != null && local.data != null && local.data.currentItem == item;

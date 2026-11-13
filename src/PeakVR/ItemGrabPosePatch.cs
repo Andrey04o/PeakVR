@@ -11,7 +11,6 @@ internal static class ItemGrabPosePatch
         if (interactor == null || interactor != Character.localCharacter || VRHands.Right == null)
             return true;
 
-        VRGrab.Capture(__instance);
-        return !VRGrab.TryLivePickup(interactor, __instance);
+        return VRHandItems.RunVanillaInteract(interactor, __instance);
     }
 }

@@ -15,6 +15,7 @@ internal static class HandInteractPatch
 
     private const float LineStartOffset = 0.1f;
     private const float MinHitDistance = 0.0001f;
+    private const float TouchRange = 0.12f;
 
     // Contact point of whichever cast acquired the current target, so the line can end exactly where
     // we touched it rather than at the object's centre.
@@ -22,8 +23,14 @@ internal static class HandInteractPatch
     private static Vector3 hitPoint;
     private static int hitFrame = -1;
 
+    private static int targetFrame = -1;
+
     public static IInteractible RightTarget { get; private set; }
     public static IInteractible LeftTarget { get; private set; }
+
+    public static bool IsFresh => targetFrame == Time.frameCount;
+
+    public static IInteractible LeftHover => IsFresh ? LeftTarget : null;
 
     [HarmonyPostfix]
     private static void Postfix(Interaction __instance, ref IInteractible interactableResult)
@@ -35,10 +42,11 @@ internal static class HandInteractPatch
         if (local == null)
             return;
 
+        targetFrame = Time.frameCount;
         var climbing = interactableResult is ClimbHandle;
 
         RightTarget = climbing ? interactableResult : FindHandInteractable(__instance, local, true);
-        LeftTarget = VRGrab.LeftHandEnabled && !VRControllerHud.LeftPointing
+        LeftTarget = VRHandItems.Enabled && !VRControllerHud.LeftPointing
             ? FindHandInteractable(__instance, local, false)
             : null;
 
@@ -47,7 +55,7 @@ internal static class HandInteractPatch
 
         DrawLine(__instance, local, true, RightTarget);
 
-        if (VRGrab.LeftHandEnabled)
+        if (VRHandItems.Enabled)
             DrawLine(__instance, local, false, LeftTarget);
         else
             VRHands.SetInteractRay(false, false, default, default, default);
@@ -57,9 +65,12 @@ internal static class HandInteractPatch
     {
         var left = Held(local, LeftTarget) ? null : LeftTarget;
 
-        var acting = VRLeftHand.ActingHand;
+        var acting = VRHandItems.ActingHand;
         if (acting.HasValue)
-            return acting.Value ? RightTarget : left;
+        {
+            IInteractible actingTarget = acting.Value ? RightTarget : left;
+            return VRHandItems.IsGrabbable(actingTarget) ? null : actingTarget;
+        }
 
         if (left == null)
             return RightTarget;
@@ -93,8 +104,9 @@ internal static class HandInteractPatch
 
         var show = VRLine.ShouldShow(Plugin.Config.InteractionLine.Value, hovering);
         var aimed = right ? VRAim.TryRight(out var origin, out var dir) : VRAim.TryLeft(out origin, out dir);
+        bool busy = VRHandItems.IsBusy(local, !right);
 
-        if (!show || !aimed)
+        if (!show || !aimed || (busy && !hovering))
         {
             VRHands.SetInteractRay(right, false, default, default, default);
             return;
@@ -144,17 +156,23 @@ internal static class HandInteractPatch
         return true;
     }
 
-    private static bool ValidHandTarget(RaycastHit h, Character local, bool right, out IInteractible interactible)
+    private static bool ValidHandTarget(RaycastHit h, Character local, bool busy, out IInteractible interactible)
     {
         interactible = null;
         if (h.collider == null || local.refs.ragdoll.colliderList.Contains(h.collider))
             return false;
 
         var candidate = h.collider.GetComponentInParent<IInteractible>();
-        if (candidate == null || candidate is ClimbHandle || !candidate.IsInteractible(local))
+        if (candidate == null || candidate is ClimbHandle)
             return false;
 
-        if (right && candidate is Item item && item == local.data.currentItem)
+        if (busy && candidate is not CharacterInteractible)
+            return false;
+
+        if (candidate is Item item && (item == local.data.currentItem || item == VRHandItems.LeftItem))
+            return false;
+
+        if (!candidate.IsInteractible(local))
             return false;
 
         interactible = candidate;
@@ -186,11 +204,41 @@ internal static class HandInteractPatch
         return nearest;
     }
 
+    private static Item TouchedOtherHandItem(Character local, bool right)
+    {
+        if (!VRHandItems.Enabled || local.data == null)
+            return null;
+
+        Item other = right ? VRHandItems.LeftItem : local.data.currentItem;
+        if (other == null)
+            return null;
+
+        Item own = right ? local.data.currentItem : VRHandItems.LeftItem;
+        if (other == own)
+            return null;
+
+        Rigidbody bone = local.GetBodypartRig(right ? BodypartType.Hand_R : BodypartType.Hand_L);
+        if (bone == null)
+            return null;
+
+        Vector3 hand = bone.transform.position;
+        Vector3 point = VRGripProfiles.ClosestPoint(other, hand);
+        return Vector3.Distance(point, hand) <= TouchRange ? other : null;
+    }
+
     private static IInteractible FindHandInteractable(Interaction interaction, Character local, bool right)
     {
         var aimed = right ? VRAim.TryRight(out var origin, out var dir) : VRAim.TryLeft(out origin, out dir);
         if (!aimed)
             return null;
+
+        bool busy = VRHandItems.IsBusy(local, !right);
+        Item touched = busy ? null : TouchedOtherHandItem(local, right);
+        if (touched != null)
+        {
+            Remember(touched, Vector3.zero, false);
+            return touched;
+        }
 
         var distance = DistanceField != null ? (float)DistanceField.GetValue(interaction) : 3f;
         var mask = (int)HelperFunctions.GetMask(HelperFunctions.LayerType.AllPhysical);
@@ -205,7 +253,7 @@ internal static class HandInteractPatch
         for (var i = 0; i < lineCount; i++)
         {
             var h = LineBuffer[i];
-            if (h.distance >= bestDist || !ValidHandTarget(h, local, right, out var candidate))
+            if (h.distance >= bestDist || !ValidHandTarget(h, local, busy, out var candidate))
                 continue;
             best = candidate;
             bestDist = h.distance;
@@ -227,7 +275,7 @@ internal static class HandInteractPatch
         for (var i = 0; i < count; i++)
         {
             var h = SphereBuffer[i];
-            if (!ValidHandTarget(h, local, right, out var candidate))
+            if (!ValidHandTarget(h, local, busy, out var candidate))
                 continue;
             bool overlap = h.distance <= MinHitDistance;
             Vector3 point = overlap ? h.collider.ClosestPoint(origin) : h.point;
@@ -260,5 +308,22 @@ internal static class HandInteractPatch
         hitTarget = target;
         hitPoint = point;
         hitFrame = Time.frameCount;
+    }
+}
+
+[HarmonyPatch(typeof(Interaction), "LateUpdate")]
+internal static class HandHoverPatch
+{
+    [HarmonyPostfix]
+    private static void Postfix(Interaction __instance)
+    {
+        if (!Plugin.VrEnabled || !VRHandItems.Enabled || !HandInteractPatch.IsFresh)
+            return;
+
+        IInteractible hover = HandInteractPatch.RightTarget;
+        if (hover is ClimbHandle && VRHandClimb.Enabled)
+            hover = null;
+
+        __instance.currentHovered = hover;
     }
 }

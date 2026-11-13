@@ -18,6 +18,8 @@ internal static class InteractionInputPatch
     private static float scrollTickTime;
     private static bool crouchToggle;
     private static int pageDir;
+    private static bool primaryActive;
+    private static bool secondaryActive;
 
     [HarmonyPostfix]
     private static void Postfix(CharacterInput __instance, bool playerMovementActive)
@@ -56,19 +58,23 @@ internal static class InteractionInputPatch
             return;
         }
 
-        VRGrab.Step();
-        VRLeftHand.Step();
+        VRHandItems.Step();
 
-        if (VRGrab.AllowInteract && !VRHandClimb.IsConsumed(false))
-            Inject(VRControls.RightGrip, ref __instance.interactWasPressed, ref __instance.interactIsPressed,
-                ref __instance.interactWasReleased);
-
-        if (!VRHandClimb.IsConsumed(true))
+        if (!VRHandItems.Enabled)
         {
-            if (!VRGrab.LeftHandEnabled)
+            if (!VRHandClimb.IsConsumed(false))
+                Inject(VRControls.RightGrip, ref __instance.interactWasPressed, ref __instance.interactIsPressed,
+                    ref __instance.interactWasReleased);
+            if (!VRHandClimb.IsConsumed(true))
                 Inject(VRControls.LeftGrip, ref __instance.dropWasPressed, ref __instance.dropIsPressed,
                     ref __instance.dropWasReleased);
-            else if (VRLeftHand.InteractAllowed && !VRControllerHud.LeftPointing)
+        }
+        else
+        {
+            if (VRHandItems.IsInteractInput(false) && !VRHandClimb.IsConsumed(false))
+                Inject(VRControls.RightGrip, ref __instance.interactWasPressed, ref __instance.interactIsPressed,
+                    ref __instance.interactWasReleased);
+            if (VRHandItems.IsInteractInput(true) && !VRHandClimb.IsConsumed(true) && !VRControllerHud.LeftPointing)
                 Inject(VRControls.LeftGrip, ref __instance.interactWasPressed, ref __instance.interactIsPressed,
                     ref __instance.interactWasReleased);
         }
@@ -115,12 +121,15 @@ internal static class InteractionInputPatch
         if (!playerMovementActive)
             return;
 
-        if (!VREmoteWheel.RightTriggerConsumed && !VRChatButton.RightTriggerConsumed)
-            Inject(VRControls.RightTrigger, ref __instance.usePrimaryWasPressed, ref __instance.usePrimaryIsPressed,
-                ref __instance.usePrimaryWasReleased);
-        if (!VRControllerHud.LeftTriggerConsumed)
-            Inject(VRControls.LeftTrigger, ref __instance.useSecondaryWasPressed, ref __instance.useSecondaryIsPressed,
-                ref __instance.useSecondaryWasReleased);
+        bool isUseAllowed = VRGripProfiles.IsUseAllowed(local);
+
+        InjectUse(VRControls.RightTrigger,
+            isUseAllowed && !VREmoteWheel.RightTriggerConsumed && !VRChatButton.RightTriggerConsumed,
+            ref primaryActive, ref __instance.usePrimaryWasPressed, ref __instance.usePrimaryIsPressed,
+            ref __instance.usePrimaryWasReleased);
+        InjectUse(VRControls.LeftTrigger, isUseAllowed && !VRControllerHud.LeftTriggerConsumed,
+            ref secondaryActive, ref __instance.useSecondaryWasPressed, ref __instance.useSecondaryIsPressed,
+            ref __instance.useSecondaryWasReleased);
 
         // Sprint (left-stick click). Inject the edge too so climbing lunge (RPCA_ClimbJump) arms —
         // it needs sprintWasPressed to set sprintHasBeenPressedSinceClimb, not just sprintIsPressed.
@@ -212,6 +221,21 @@ internal static class InteractionInputPatch
 
         return item.OnScrollForwardPressed != null || item.OnScrollBackwardPressed != null
             || item.OnScrollForwardHeld != null || item.OnScrollBackwardHeld != null;
+    }
+
+    private static void InjectUse(InputAction action, bool isAllowed, ref bool active, ref bool wasPressed,
+        ref bool isPressed, ref bool wasReleased)
+    {
+        if (!isAllowed)
+        {
+            if (active)
+                wasReleased = true;
+            active = false;
+            return;
+        }
+
+        Inject(action, ref wasPressed, ref isPressed, ref wasReleased);
+        active = action.IsPressed();
     }
 
     private static void Inject(InputAction action, ref bool wasPressed, ref bool isPressed, ref bool wasReleased)
