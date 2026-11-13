@@ -16,7 +16,12 @@ internal static class VRClimbPose
     private const string ClipWallName = "A_Scout_Climb_Idle";
     private const string ClipIdleName = "A_Scout_Idle1";
     private const float BlendTime = 0.2f;
-    private const float LegWallBlend = 0.35f;
+    private const float LegWallAngle = 35f;
+    private const float LegNearAngle = 65f;
+    private const float RopeFootDrop = 0.9f;
+    private const float RopeLegStrength = 0.7f;
+    private const float LegFarAngle = 0f;
+    private const float LegAimStrength = 0.8f;
     private const int LegLeanSteps = 4;
     private const float LegClearance = 0.08f;
 
@@ -48,19 +53,27 @@ internal static class VRClimbPose
     private static float weightWallRight;
     private static float weightIdleRight;
     private static float poseTime;
+    private static Vector3 legInto;
+    private static Vector3 legForward = Vector3.forward;
+    private static float weightRope;
+    private static Vector3 ropeFoot;
+    private static Vector3 animOffset;
 
     public static void Apply(Character c)
     {
         bool isAny = VRHandClimb.IsHoldingAny;
+        bool isLegs = UpdateInto(c);
+        bool isRope = UpdateRope(c);
         float step = Time.fixedDeltaTime / BlendTime;
-        weightLegs = Mathf.MoveTowards(weightLegs, VRHandClimb.IsLocalHolding(c) ? 1f : 0f, step);
+        weightLegs = Mathf.MoveTowards(weightLegs, isLegs ? 1f : 0f, step);
+        weightRope = Mathf.MoveTowards(weightRope, isRope ? 1f : 0f, step);
         weightWallLeft = Mathf.MoveTowards(weightWallLeft, isAny && IsWallHand(VRHandClimb.Left) ? 1f : 0f, step);
         weightWallRight = Mathf.MoveTowards(weightWallRight, isAny && IsWallHand(VRHandClimb.Right) ? 1f : 0f, step);
         weightIdleLeft = Mathf.MoveTowards(weightIdleLeft, isAny && !VRHandClimb.Left.IsGripping ? 1f : 0f, step);
         weightIdleRight = Mathf.MoveTowards(weightIdleRight, isAny && !VRHandClimb.Right.IsGripping ? 1f : 0f, step);
 
         bool isFingers = weightWallLeft > 0f || weightWallRight > 0f || weightIdleLeft > 0f || weightIdleRight > 0f;
-        if (weightLegs <= 0f && !isFingers)
+        if (weightLegs <= 0f && weightRope <= 0f && !isFingers)
         {
             poseTime = 0f;
             return;
@@ -70,12 +83,18 @@ internal static class VRClimbPose
             return;
 
         poseTime += Time.fixedDeltaTime;
+        animOffset = Vector3.zero;
+        if (c.refs.animationHipTransform != null && c.refs.hip != null)
+            animOffset = c.refs.hip.Rig.position - c.refs.animationHipTransform.position;
+
+        if (weightRope > 0f)
+            AimLegsToRope();
 
         if (weightLegs > 0f && clipFall != null)
         {
             Sample(clipFall);
             BlendBones(Legs, weightLegs);
-            LeanLegs(c);
+            LeanLegs();
         }
 
         if ((weightWallLeft > 0f || weightWallRight > 0f) && clipWall != null)
@@ -116,6 +135,10 @@ internal static class VRClimbPose
         weightIdleLeft = 0f;
         weightIdleRight = 0f;
         poseTime = 0f;
+        legInto = Vector3.zero;
+        legForward = Vector3.forward;
+        weightRope = 0f;
+        ropeFoot = Vector3.zero;
     }
 
     private static bool IsWallHand(VRClimbHand hand)
@@ -144,18 +167,71 @@ internal static class VRClimbPose
         }
     }
 
-    private static void LeanLegs(Character c)
+    private static bool UpdateInto(Character c)
     {
-        Vector3 normal = c.data.climbNormal;
-        if (normal.sqrMagnitude < 1e-4f)
-            return;
+        if (!VRHandClimb.IsLocalHolding(c))
+            return false;
 
-        Vector3 into = -normal.normalized;
-        LeanLeg(legLeft, footLeft, into);
-        LeanLeg(legRight, footRight, into);
+        Vector3 normal = c.data.climbNormal;
+        if (normal.sqrMagnitude > 1e-4f)
+            legInto = -normal.normalized;
+        Vector3 forward = Vector3.ProjectOnPlane(c.data.lookDirection_Flat, Vector3.up);
+        if (forward.sqrMagnitude > 1e-4f)
+            legForward = forward.normalized;
+        return true;
     }
 
-    private static void LeanLeg(Transform leg, Transform foot, Vector3 into)
+    private static bool UpdateRope(Character c)
+    {
+        if (!VRHandClimb.TryGetRopeLine(c, out Vector3 point, out Vector3 up))
+            return false;
+
+        ropeFoot = point - up.normalized * RopeFootDrop;
+        return true;
+    }
+
+    private static void AimLegsToRope()
+    {
+        if (legLeft == null || legRight == null || footLeft == null || footRight == null)
+            return;
+
+        AimLeg(legLeft, footLeft, ropeFoot - (legLeft.position + animOffset), RopeLegStrength * weightRope);
+        AimLeg(legRight, footRight, ropeFoot - (legRight.position + animOffset), RopeLegStrength * weightRope);
+    }
+
+    private static void AimLeg(Transform leg, Transform foot, Vector3 aim, float strength)
+    {
+        Vector3 current = foot.position - leg.position;
+        if (current.sqrMagnitude < 1e-6f || aim.sqrMagnitude < 1e-6f)
+            return;
+
+        current.Normalize();
+        Vector3 target = Vector3.Slerp(current, aim.normalized, strength);
+        leg.rotation = Quaternion.FromToRotation(current, target) * leg.rotation;
+    }
+
+    private static void LeanLegs()
+    {
+        if (legLeft == null || legRight == null)
+            return;
+
+        float side = 0f;
+        Vector3 across = legLeft.position - legRight.position;
+        Vector3 flat = Vector3.ProjectOnPlane(legInto, Vector3.up);
+        if (flat.sqrMagnitude > 1e-4f && across.sqrMagnitude > 1e-6f)
+            side = Vector3.Dot(across.normalized, flat.normalized) * Mathf.Clamp01(flat.magnitude * 2f);
+        LeanLeg(legLeft, footLeft, GetLegAngle(side));
+        LeanLeg(legRight, footRight, GetLegAngle(-side));
+    }
+
+    private static float GetLegAngle(float side)
+    {
+        if (side >= 0f)
+            return Mathf.Lerp(LegWallAngle, LegNearAngle, side);
+        return Mathf.Lerp(LegWallAngle, LegFarAngle, -side);
+    }
+
+    private static void LeanLeg(Transform leg, Transform foot, float angle)
     {
         if (leg == null || foot == null)
             return;
@@ -165,18 +241,28 @@ internal static class VRClimbPose
         if (length < 1e-3f)
             return;
 
-        Vector3 down = dir / length;
-        for (int i = LegLeanSteps; i > 0; i--)
+        Vector3 aim = Vector3.down;
+        Vector3 axis = Vector3.Cross(Vector3.down, legInto);
+        if (axis.sqrMagnitude < 1e-4f)
+            axis = Vector3.Cross(Vector3.down, legForward);
+        if (legInto.sqrMagnitude > 1e-4f && axis.sqrMagnitude > 1e-4f)
         {
-            float blend = LegWallBlend * weightLegs * i / LegLeanSteps;
-            Vector3 target = Vector3.Slerp(down, into, blend);
-            if (Physics.Raycast(leg.position, target, length + LegClearance, HelperFunctions.terrainMapMask,
-                    QueryTriggerInteraction.Ignore))
-                continue;
+            axis.Normalize();
+            float span = Vector3.Angle(Vector3.down, legInto);
+            float total = Mathf.Min(angle * span / 90f, span);
+            for (int i = LegLeanSteps; i > 0; i--)
+            {
+                Vector3 test = Quaternion.AngleAxis(total * i / LegLeanSteps, axis) * Vector3.down;
+                if (Physics.Raycast(leg.position + animOffset, test, length + LegClearance, HelperFunctions.terrainMapMask,
+                        QueryTriggerInteraction.Ignore))
+                    continue;
 
-            leg.rotation = Quaternion.FromToRotation(down, target) * leg.rotation;
-            return;
+                aim = test;
+                break;
+            }
         }
+
+        AimLeg(leg, foot, aim, LegAimStrength * weightLegs);
     }
 
     private static bool Prepare(Character c)
@@ -229,7 +315,6 @@ internal static class VRClimbPose
         AddFingers(FingersRight, GetPart(ragdoll, BodypartType.Hand_R), "_R", animator.transform);
 
         MirrorMap.Clear();
-        Plugin.Log.LogInfo($"[PeakVR][ClimbPose] fall={clipFall != null} wall={clipWall != null} idle={clipIdle != null} legs={Legs.Count} fingers={FingersLeft.Count}/{FingersRight.Count}");
         return true;
     }
 
