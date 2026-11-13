@@ -8,13 +8,32 @@ internal class VRPoseBone
 {
     public Transform Real;
     public Transform Mirror;
+    public Quaternion Open;
+    public Quaternion Closed;
+    public Quaternion Like;
+    public bool IsIndex;
+    public bool IsThumb;
+}
+
+internal class VRFingerState
+{
+    public float CurlIndex;
+    public float CurlGrip;
+    public float CurlThumb;
+    public float WeightFree;
+    public float WeightLike;
 }
 
 internal static class VRClimbPose
 {
     private const string ClipFallName = "A_Scout_Fall_Neutral";
     private const string ClipWallName = "A_Scout_Climb_Idle";
-    private const string ClipIdleName = "A_Scout_Idle1";
+    private const string ClipHoldName = "A_Scout_Hands";
+    private const string ClipLikeName = "A_Scout_Emote_ThumbsUp";
+    private const float HoldClosedTime = 0.5f;
+    private const float LikeTime = 0.5f;
+    private const float LikePress = 0.8f;
+    private const float CurlSpeed = 12f;
     private const float BlendTime = 0.2f;
     private const float LegWallAngle = 35f;
     private const float LegNearAngle = 65f;
@@ -37,7 +56,8 @@ internal static class VRClimbPose
     private static GameObject mirrorRoot;
     private static AnimationClip clipFall;
     private static AnimationClip clipWall;
-    private static AnimationClip clipIdle;
+    private static AnimationClip clipHold;
+    private static AnimationClip clipLike;
     private static Transform legLeft;
     private static Transform footLeft;
     private static Transform legRight;
@@ -49,9 +69,9 @@ internal static class VRClimbPose
 
     private static float weightLegs;
     private static float weightWallLeft;
-    private static float weightIdleLeft;
     private static float weightWallRight;
-    private static float weightIdleRight;
+    private static readonly VRFingerState StateLeft = new();
+    private static readonly VRFingerState StateRight = new();
     private static float poseTime;
     private static Vector3 legInto;
     private static Vector3 legForward = Vector3.forward;
@@ -69,18 +89,21 @@ internal static class VRClimbPose
         weightRope = Mathf.MoveTowards(weightRope, isRope ? 1f : 0f, step);
         weightWallLeft = Mathf.MoveTowards(weightWallLeft, isAny && IsWallHand(VRHandClimb.Left) ? 1f : 0f, step);
         weightWallRight = Mathf.MoveTowards(weightWallRight, isAny && IsWallHand(VRHandClimb.Right) ? 1f : 0f, step);
-        weightIdleLeft = Mathf.MoveTowards(weightIdleLeft, isAny && !VRHandClimb.Left.IsGripping ? 1f : 0f, step);
-        weightIdleRight = Mathf.MoveTowards(weightIdleRight, isAny && !VRHandClimb.Right.IsGripping ? 1f : 0f, step);
 
-        bool isFingers = weightWallLeft > 0f || weightWallRight > 0f || weightIdleLeft > 0f || weightIdleRight > 0f;
-        if (weightLegs <= 0f && weightRope <= 0f && !isFingers)
+        if (!Prepare(c))
+            return;
+
+        float stepCurl = Time.fixedDeltaTime * CurlSpeed;
+        UpdateFingerState(StateLeft, true, VRHandClimb.Left, VRLeftHand.Carried != null, step, stepCurl);
+        UpdateFingerState(StateRight, false, VRHandClimb.Right, c.data.currentItem != null, step, stepCurl);
+        ApplyFingers(FingersLeft, StateLeft);
+        ApplyFingers(FingersRight, StateRight);
+
+        if (weightLegs <= 0f && weightRope <= 0f && weightWallLeft <= 0f && weightWallRight <= 0f)
         {
             poseTime = 0f;
             return;
         }
-
-        if (!Prepare(c))
-            return;
 
         poseTime += Time.fixedDeltaTime;
         animOffset = Vector3.zero;
@@ -92,24 +115,116 @@ internal static class VRClimbPose
 
         if (weightLegs > 0f && clipFall != null)
         {
-            Sample(clipFall);
+            Sample(clipFall, true);
             BlendBones(Legs, weightLegs);
             LeanLegs();
         }
 
         if ((weightWallLeft > 0f || weightWallRight > 0f) && clipWall != null)
         {
-            Sample(clipWall);
+            Sample(clipWall, false);
             BlendBones(FingersLeft, weightWallLeft);
             BlendBones(FingersRight, weightWallRight);
         }
+    }
 
-        if ((weightIdleLeft > 0f || weightIdleRight > 0f) && clipIdle != null)
+    private static void UpdateFingerState(VRFingerState state, bool isLeft, VRClimbHand hand, bool isHolding, float step,
+        float stepCurl)
+    {
+        float grip = VRControls.GripValue(isLeft);
+        float trigger = VRControls.TriggerValue(isLeft);
+        bool isTouched = VRControls.IsThumbTouched(isLeft);
+        bool isFree = !hand.IsGripping;
+        bool isLike = isFree && !isHolding && !isTouched && grip >= LikePress && trigger >= LikePress;
+        state.CurlIndex = Mathf.MoveTowards(state.CurlIndex, trigger, stepCurl);
+        state.CurlGrip = Mathf.MoveTowards(state.CurlGrip, isHolding ? 1f : grip, stepCurl);
+        state.CurlThumb = Mathf.MoveTowards(state.CurlThumb, isTouched ? 1f : 0f, stepCurl);
+        state.WeightFree = Mathf.MoveTowards(state.WeightFree, isFree ? 1f : 0f, step);
+        state.WeightLike = Mathf.MoveTowards(state.WeightLike, isLike ? 1f : 0f, stepCurl);
+    }
+
+    private static void ApplyFingers(List<VRPoseBone> bones, VRFingerState state)
+    {
+        if (state.WeightFree <= 0f)
+            return;
+
+        for (int i = 0; i < bones.Count; i++)
         {
-            Sample(clipIdle);
-            BlendBones(FingersLeft, weightIdleLeft);
-            BlendBones(FingersRight, weightIdleRight);
+            VRPoseBone bone = bones[i];
+            if (bone.Real == null)
+                continue;
+            float curl = bone.IsIndex ? state.CurlIndex : bone.IsThumb ? state.CurlThumb : state.CurlGrip;
+            Quaternion target = Quaternion.Slerp(bone.Open, bone.Closed, curl);
+            if (state.WeightLike > 0f)
+                target = Quaternion.Slerp(target, bone.Like, state.WeightLike);
+            bone.Real.localRotation = Quaternion.Slerp(bone.Real.localRotation, target, state.WeightFree);
         }
+    }
+
+    private static void CachePoses()
+    {
+        if (clipHold != null)
+        {
+            clipHold.SampleAnimation(mirrorRoot, 0f);
+            StorePose(FingersLeft, 0);
+            StorePose(FingersRight, 0);
+            clipHold.SampleAnimation(mirrorRoot, clipHold.length * HoldClosedTime);
+            StorePose(FingersLeft, 1);
+            StorePose(FingersRight, 1);
+        }
+        else
+        {
+            StorePose(FingersLeft, 0);
+            StorePose(FingersRight, 0);
+            StorePose(FingersLeft, 1);
+            StorePose(FingersRight, 1);
+        }
+
+        if (clipLike == null)
+        {
+            CopyLike(FingersLeft);
+            CopyLike(FingersRight);
+            return;
+        }
+
+        clipLike.SampleAnimation(mirrorRoot, clipLike.length * LikeTime);
+        Dictionary<string, Quaternion> left = new();
+        for (int i = 0; i < FingersLeft.Count; i++)
+        {
+            VRPoseBone bone = FingersLeft[i];
+            bone.Like = bone.Mirror.localRotation;
+            left[GetFingerKey(bone.Mirror.name)] = bone.Like;
+        }
+        for (int i = 0; i < FingersRight.Count; i++)
+        {
+            VRPoseBone bone = FingersRight[i];
+            bone.Like = left.TryGetValue(GetFingerKey(bone.Mirror.name), out Quaternion q)
+                ? new Quaternion(q.x, -q.y, -q.z, q.w)
+                : bone.Open;
+        }
+    }
+
+    private static void StorePose(List<VRPoseBone> bones, int slot)
+    {
+        for (int i = 0; i < bones.Count; i++)
+        {
+            VRPoseBone bone = bones[i];
+            if (slot == 0)
+                bone.Open = bone.Mirror.localRotation;
+            else
+                bone.Closed = bone.Mirror.localRotation;
+        }
+    }
+
+    private static void CopyLike(List<VRPoseBone> bones)
+    {
+        for (int i = 0; i < bones.Count; i++)
+            bones[i].Like = bones[i].Open;
+    }
+
+    private static string GetFingerKey(string name)
+    {
+        return name.Replace("_L", "").Replace("_R", "");
     }
 
     public static void Clear()
@@ -120,7 +235,8 @@ internal static class VRClimbPose
         owner = null;
         clipFall = null;
         clipWall = null;
-        clipIdle = null;
+        clipHold = null;
+        clipLike = null;
         legLeft = null;
         footLeft = null;
         legRight = null;
@@ -132,8 +248,8 @@ internal static class VRClimbPose
         weightLegs = 0f;
         weightWallLeft = 0f;
         weightWallRight = 0f;
-        weightIdleLeft = 0f;
-        weightIdleRight = 0f;
+        ResetState(StateLeft);
+        ResetState(StateRight);
         poseTime = 0f;
         legInto = Vector3.zero;
         legForward = Vector3.forward;
@@ -141,15 +257,24 @@ internal static class VRClimbPose
         ropeFoot = Vector3.zero;
     }
 
+    private static void ResetState(VRFingerState state)
+    {
+        state.CurlIndex = 0f;
+        state.CurlGrip = 0f;
+        state.CurlThumb = 0f;
+        state.WeightFree = 0f;
+        state.WeightLike = 0f;
+    }
+
     private static bool IsWallHand(VRClimbHand hand)
     {
         return hand.IsGripping && !hand.IsObject;
     }
 
-    private static void Sample(AnimationClip clip)
+    private static void Sample(AnimationClip clip, bool isLooped)
     {
         float length = clip.length;
-        float time = length > 0f ? poseTime % length : 0f;
+        float time = isLooped && length > 0f ? poseTime % length : 0f;
         clip.SampleAnimation(mirrorRoot, time);
     }
 
@@ -287,8 +412,10 @@ internal static class VRClimbPose
                 clipFall = clip;
             else if (clip.name == ClipWallName)
                 clipWall = clip;
-            else if (clip.name == ClipIdleName)
-                clipIdle = clip;
+            else if (clip.name == ClipHoldName)
+                clipHold = clip;
+            else if (clip.name == ClipLikeName)
+                clipLike = clip;
         }
 
         owner = c;
@@ -313,6 +440,7 @@ internal static class VRClimbPose
 
         AddFingers(FingersLeft, GetPart(ragdoll, BodypartType.Hand_L), "_L", animator.transform);
         AddFingers(FingersRight, GetPart(ragdoll, BodypartType.Hand_R), "_R", animator.transform);
+        CachePoses();
 
         MirrorMap.Clear();
         return true;
@@ -334,10 +462,21 @@ internal static class VRClimbPose
         for (int i = 0; i < children.Length; i++)
         {
             Transform child = children[i];
-            if (child == hand || !child.name.EndsWith(side) || !IsFingerName(child.name))
+            if (child == hand || !IsSideName(child.name, side) || !IsFingerName(child.name))
                 continue;
             AddBone(bones, child, root);
+            if (bones.Count == 0 || bones[bones.Count - 1].Real != child)
+                continue;
+            bones[bones.Count - 1].IsIndex = child.name.StartsWith("Index_");
+            bones[bones.Count - 1].IsThumb = child.name.StartsWith("Thumb_");
         }
+    }
+
+    private static bool IsSideName(string name, string side)
+    {
+        if (name.EndsWith("_end"))
+            return false;
+        return name.EndsWith(side) || name.Contains(side + "_");
     }
 
     private static bool IsFingerName(string name)

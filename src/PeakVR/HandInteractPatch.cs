@@ -229,13 +229,15 @@ internal static class HandInteractPatch
             var h = SphereBuffer[i];
             if (!ValidHandTarget(h, local, right, out var candidate))
                 continue;
-            var angle = Vector3.Angle(h.point - origin, dir);
+            bool overlap = h.distance <= MinHitDistance;
+            Vector3 point = overlap ? h.collider.ClosestPoint(origin) : h.point;
+            var angle = Vector3.Angle(point - origin, dir);
             if (angle >= bestAngle)
                 continue;
             best = candidate;
             bestAngle = angle;
-            bestPoint = h.point;
-            bestPointValid = h.distance > MinHitDistance;
+            bestPoint = point;
+            bestPointValid = !overlap || point != origin;
         }
 
         if (best != null)

@@ -199,7 +199,7 @@ internal static class VRHandClimb
     public static void UpdateGrips(Character c, bool playerMovementActive)
     {
         if (Enabled)
-            AdoptVanillaRope(c);
+            AdoptVanillaHang(c);
 
         if (IsHolding && ShouldLetGo(c))
         {
@@ -253,21 +253,32 @@ internal static class VRHandClimb
         }
     }
 
-    private static void AdoptVanillaRope(Character c)
+    private static void AdoptVanillaHang(Character c)
     {
-        Rope rope = c.data.heldRope;
-        if (!c.data.isRopeClimbing || rope == null || IsHeldByHand(rope))
+        CharacterData data = c.data;
+        Rope rope = data.isRopeClimbing ? data.heldRope : null;
+        JungleVine vine = data.isVineClimbing ? data.heldVine : null;
+        if (rope == null && vine == null)
+            return;
+        if (IsHeldByHand(rope != null ? rope : vine))
+            return;
+        if (vine != null && (vine.colliderType != JungleVine.ColliderType.Capsule || vine.colliderRoot == null))
             return;
 
-        VRClimbHand hand = Right;
-        if (!hand.IsGripHeld || hand.IsGripping || !hand.HasShoulder || c.OutOfStamina())
+        VRClimbHand hand = GetAdoptHand();
+        if (hand == null || c.OutOfStamina())
         {
             StopHang(c);
             return;
         }
 
         Vector3 palm = GetVirtualPalm(hand, GetShoulder(c, hand, c.Center));
-        if (!GetClosestPercent(rope, palm, out float percent, out float distance))
+        float percent;
+        float distance;
+        bool isFound = rope != null
+            ? GetClosestPercent(rope, palm, out percent, out distance)
+            : GetClosestVinePercent(vine, palm, out percent, out distance);
+        if (!isFound)
         {
             StopHang(c);
             return;
@@ -275,8 +286,18 @@ internal static class VRHandClimb
 
         bool wasWall = IsHolding;
         hand.ClearKind();
-        hand.IsRope = true;
-        hand.Rope = rope;
+        if (rope != null)
+        {
+            hand.IsRope = true;
+            hand.Rope = rope;
+        }
+        else
+        {
+            hand.IsVine = true;
+            hand.Vine = vine;
+            percent = Mathf.Clamp(percent, VinePercentMin, VinePercentMax);
+            AttachVel(c.refs.vineClimbing) = 0f;
+        }
         hand.Percent = percent;
         hand.Normal = Vector3.zero;
         hand.Residual = Vector3.ClampMagnitude(hand.GetAnchor() - palm, ResidualMax);
@@ -287,7 +308,24 @@ internal static class VRHandClimb
             SendStop(c);
         else
             bodyForward = GetFlatLook(c);
-        PlayRopeSound(c);
+        PlayObjectSound(c, hand);
+    }
+
+    private static VRClimbHand GetAdoptHand()
+    {
+        bool? acting = VRLeftHand.ActingHand;
+        VRClimbHand first = acting == false ? Left : Right;
+        VRClimbHand second = first == Left ? Right : Left;
+        if (CanAdopt(first))
+            return first;
+        if (CanAdopt(second))
+            return second;
+        return null;
+    }
+
+    private static bool CanAdopt(VRClimbHand hand)
+    {
+        return hand.IsGripHeld && !hand.IsGripping && hand.HasShoulder;
     }
 
     private static bool ShouldLetGo(Character c)
@@ -1672,12 +1710,13 @@ internal static class HandClimbAnimationPatch
 [HarmonyPatch(typeof(Interaction), nameof(Interaction.DoInteractableRaycasts))]
 internal static class HandClimbInteractPatch
 {
+    [HarmonyPriority(Priority.Last)]
     [HarmonyPostfix]
     private static void Postfix(ref IInteractible interactableResult)
     {
         if (!VRHandClimb.Enabled || interactableResult == null)
             return;
-        if (interactableResult is JungleVine || interactableResult is ClimbHandle)
+        if (interactableResult is ClimbHandle)
             interactableResult = null;
     }
 }

@@ -17,6 +17,12 @@ internal static class VRControls
     public static InputAction LeftPrimary { get; private set; }
     public static InputAction RightPrimary { get; private set; }
     public static InputAction RightSecondary { get; private set; }
+    public static InputAction LeftGripValue { get; private set; }
+    public static InputAction RightGripValue { get; private set; }
+    public static InputAction LeftTriggerValue { get; private set; }
+    public static InputAction RightTriggerValue { get; private set; }
+    public static InputAction LeftThumbTouch { get; private set; }
+    public static InputAction RightThumbTouch { get; private set; }
     public static InputAction Pause { get; private set; }
     public static InputAction Sprint { get; private set; }
     public static InputAction Stash { get; private set; }
@@ -36,6 +42,13 @@ internal static class VRControls
         RightPrimary = Button("VR RightPrimary", "RightHand", "primaryButton");
         RightSecondary = Button("VR RightSecondary", "RightHand", "secondaryButton");
 
+        LeftGripValue = Axis("VR LeftGripValue", "LeftHand", "grip");
+        RightGripValue = Axis("VR RightGripValue", "RightHand", "grip");
+        LeftTriggerValue = Axis("VR LeftTriggerValue", "LeftHand", "trigger");
+        RightTriggerValue = Axis("VR RightTriggerValue", "RightHand", "trigger");
+        LeftThumbTouch = Touch("VR LeftThumbTouch", "LeftHand");
+        RightThumbTouch = Touch("VR RightThumbTouch", "RightHand");
+
         Pause = Button("VR Pause", "LeftHand", "secondaryButton");
 
         Sprint = Button("VR Sprint", "LeftHand", "thumbstickClicked");
@@ -53,6 +66,12 @@ internal static class VRControls
         LeftPrimary.Enable();
         RightPrimary.Enable();
         RightSecondary.Enable();
+        LeftGripValue.Enable();
+        RightGripValue.Enable();
+        LeftTriggerValue.Enable();
+        RightTriggerValue.Enable();
+        LeftThumbTouch.Enable();
+        RightThumbTouch.Enable();
         Pause.Enable();
         Sprint.Enable();
         Stash.Enable();
@@ -79,6 +98,47 @@ internal static class VRControls
         InputAction action = new InputAction(name, InputActionType.Button);
         Bind(action, hand, control);
         return action;
+    }
+
+    private static InputAction Axis(string name, string hand, string control)
+    {
+        InputAction action = new InputAction(name, InputActionType.Value, expectedControlType: "Axis");
+        Bind(action, hand, control);
+        return action;
+    }
+
+    private static InputAction Touch(string name, string hand)
+    {
+        InputAction action = new InputAction(name, InputActionType.PassThrough);
+        action.AddBinding($"<XRController>{{{hand}}}/primaryTouched");
+        action.AddBinding($"<XRController>{{{hand}}}/secondaryTouched");
+        return action;
+    }
+
+    public static float GripValue(bool isLeft)
+    {
+        InputAction action = isLeft ? LeftGripValue : RightGripValue;
+        return action != null ? action.ReadValue<float>() : 0f;
+    }
+
+    public static float TriggerValue(bool isLeft)
+    {
+        InputAction action = isLeft ? LeftTriggerValue : RightTriggerValue;
+        return action != null ? action.ReadValue<float>() : 0f;
+    }
+
+    public static bool IsThumbTouched(bool isLeft)
+    {
+        InputAction action = isLeft ? LeftThumbTouch : RightThumbTouch;
+        if (action == null)
+            return false;
+
+        foreach (InputControl control in action.controls)
+        {
+            if (control is UnityEngine.InputSystem.Controls.ButtonControl button && button.isPressed)
+                return true;
+        }
+        return false;
     }
 
     public static Vector2 Move() =>
