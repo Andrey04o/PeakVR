@@ -82,10 +82,10 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
         IInteractible target = VRHandItems.Enabled ? HandInteractPatch.LeftHover : null;
         IInteractible right = Interaction.instance != null ? Interaction.instance.currentHovered : null;
 
-        if (!Exists(target) || ReferenceEquals(target, right) || VRHands.Left == null)
+        if (!Exists(target) || VRHands.Left == null)
             target = null;
 
-        SetLeftHover(target, right);
+        SetLeftHover(ReferenceEquals(target, right) ? null : target, right);
 
         if (target == null || !EnsureLeftCanvas(gui))
         {

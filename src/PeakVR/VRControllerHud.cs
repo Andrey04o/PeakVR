@@ -20,6 +20,12 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
     private bool lateSweepDone;
     private int frame;
     private RectTransform promptsRoot;
+    private InventoryItemUI leftCell;
+    private CanvasGroup leftCellGroup;
+    private bool isLeftCellShown;
+    private static readonly System.Reflection.FieldInfo StartingSize =
+        HarmonyLib.AccessTools.Field(typeof(InventoryItemUI), "startingSizeDelta");
+    private static readonly Vector2 LeftCellPos = new(0f, 110f);
 
     private const float PromptsY = 165f;
     private const float PromptSpacing = 0f;
@@ -90,6 +96,7 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
 
         UpdateBackface();
         UpdateSelection();
+        UpdateLeftCell();
 
         if (++frame % RefreshInterval == 0)
         {
@@ -156,6 +163,7 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
 
         if (gui.temporaryItem != null)
         {
+            CreateLeftCell(gui);
             Center(gui.temporaryItem.transform, right, new Vector2(startX - ItemSpacing, 0f));
             RegisterCell(gui.temporaryItem.transform, 250);
         }
@@ -176,6 +184,93 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
 
         moved = true;
         Plugin.Log.LogInfo("[PeakVR] HUD moved onto controllers");
+    }
+
+    private void CreateLeftCell(GUIManager gui)
+    {
+        if (leftCell != null)
+            Destroy(leftCell.gameObject);
+
+        InventoryItemUI source = gui.items[0];
+        if (source == null)
+            return;
+
+        GameObject copy = Instantiate(source.gameObject, left.transform, false);
+        copy.name = "PeakVR LeftHandItem";
+        leftCell = copy.GetComponent<InventoryItemUI>();
+        leftCell.isTemporarySlot = true;
+        leftCell.isBackpack = false;
+
+        Vector2 size = (Vector2)StartingSize.GetValue(source);
+        if (size == Vector2.zero)
+            size = source.rectTransform.sizeDelta;
+        leftCell.rectTransform.sizeDelta = size;
+        StartingSize.SetValue(leftCell, size);
+
+        foreach (BoxCollider box in copy.GetComponentsInChildren<BoxCollider>(true))
+            Destroy(box.gameObject);
+
+        if (copy.transform is RectTransform rt)
+        {
+            rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+            rt.anchoredPosition = LeftCellPos;
+            rt.localScale = Vector3.one;
+            rt.localRotation = Quaternion.identity;
+        }
+
+        leftCellGroup = copy.GetComponent<CanvasGroup>();
+        if (leftCellGroup == null)
+            leftCellGroup = copy.AddComponent<CanvasGroup>();
+        leftCellGroup.alpha = 0f;
+        leftCellGroup.interactable = false;
+        leftCellGroup.blocksRaycasts = false;
+        isLeftCellShown = false;
+        leftCell.Clear();
+    }
+
+    private static ItemSlot LeftHandSlot()
+    {
+        Character local = Character.localCharacter;
+        Item item = VRHandItems.LeftItem;
+        if (local == null || local.player == null || item == null)
+            return null;
+
+        if (local.data != null && local.data.currentItem == item)
+        {
+            Optionable<byte> selected = local.refs.items.currentSelectedSlot;
+            return selected.IsSome ? local.player.GetItemSlot(selected.Value) : null;
+        }
+
+        return VRLeftSlot.For(local.player);
+    }
+
+    private void UpdateLeftCell()
+    {
+        if (leftCell == null || leftCellGroup == null)
+            return;
+
+        ItemSlot slot = LeftHandSlot();
+        bool isFilled = slot != null && !slot.IsEmpty();
+
+        if (!isFilled)
+        {
+            if (isLeftCellShown)
+            {
+                isLeftCellShown = false;
+                leftCellGroup.alpha = 0f;
+                leftCell.Clear();
+            }
+            return;
+        }
+
+        if (!isLeftCellShown)
+        {
+            isLeftCellShown = true;
+            leftCellGroup.alpha = 1f;
+            leftCell.Clear();
+        }
+
+        leftCell.SetItem(slot);
     }
 
     private void MovePrompts(GUIManager gui)
@@ -277,6 +372,10 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
         if (promptsRoot != null)
             Destroy(promptsRoot.gameObject);
         promptsRoot = null;
+
+        if (leftCell != null)
+            Destroy(leftCell.gameObject);
+        leftCell = null;
 
         if (left != null)
             Destroy(left.gameObject);

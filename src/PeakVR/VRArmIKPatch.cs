@@ -104,13 +104,18 @@ internal static class VRArmIKPatch
         refs.IKHandTargetLeft.position = targetL;
         refs.IKHandTargetRight.position = targetR;
 
-        refs.IKHandTargetLeft.rotation = VRHands.Left.rotation * HandRotationOffset;
+        Quaternion leftRot = VRHands.Left.rotation * HandRotationOffset;
+        Item leftItem = VRHandItems.LeftItem;
+        if (ShootableAim.RollEnabled && leftItem != null && VRHandItems.IsLeftSnapped
+            && VRGripProfiles.TryGetRotationOffset(leftItem, true, out Quaternion leftOffset))
+            leftRot *= leftOffset;
+        refs.IKHandTargetLeft.rotation = leftRot;
 
         Quaternion rightRot = VRHands.Right.rotation * HandRotationOffset;
         Item heldItem = c.data != null ? c.data.currentItem : null;
         Rigidbody handR = c.GetBodypartRig(BodypartType.Hand_R);
         if (ShootableAim.RollEnabled && heldItem != null && handR != null
-            && VRGripProfiles.TryGetHandRotation(heldItem, handR.transform, out Quaternion gripOffset))
+            && VRGripProfiles.TryGetHandRotation(heldItem, handR.transform, false, out Quaternion gripOffset))
             rightRot *= gripOffset;
         refs.IKHandTargetRight.rotation = rightRot;
 

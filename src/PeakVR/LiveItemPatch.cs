@@ -70,6 +70,17 @@ internal static class CarriedChessPatch
     }
 }
 
+[HarmonyPatch(typeof(Breakable), "OnCollisionEnter")]
+internal static class CarriedBreakablePatch
+{
+    [HarmonyPrefix]
+    private static bool Prefix(Breakable __instance)
+    {
+        Item left = VRHandItems.LeftItem;
+        return left == null || left.gameObject != __instance.gameObject;
+    }
+}
+
 [HarmonyPatch(typeof(Item), "UpdateCollisionDetectionMode")]
 internal static class HeldItemCollisionPatch
 {

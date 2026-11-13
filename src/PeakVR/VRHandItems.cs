@@ -98,6 +98,15 @@ internal class VRHandItems : MonoBehaviour
     private const float RagdollControl = 0.01f;
     private const float EquipCooldown = 0.25f;
     private const float AutoGrabTime = 1f;
+    private const float RestoreDelay = 0.5f;
+    private const int IgnoreRefreshFrames = 15;
+
+    private static readonly System.Collections.Generic.List<Collider> ArmBuffer =
+        new System.Collections.Generic.List<Collider>();
+
+    private Item ignoredRight;
+    private Item ignoredLeft;
+    private int ignoreFrame;
 
     private static VRHandItems instance;
 
@@ -137,6 +146,7 @@ internal class VRHandItems : MonoBehaviour
     private Vector3 leftGripDir;
     private Quaternion leftGripRot;
     private bool isLeftGripCaptured;
+    private bool isLeftSnapped;
     private float rightAutoLeft;
     private float leftAutoLeft;
 
@@ -147,6 +157,8 @@ internal class VRHandItems : MonoBehaviour
     public static bool? ActingHand { get; private set; }
 
     public static Item LeftItem => instance != null ? instance.leftItem : null;
+
+    public static bool IsLeftSnapped => instance != null && instance.isLeftSnapped;
 
     public static bool IsHolding(bool isLeft)
     {
@@ -250,6 +262,70 @@ internal class VRHandItems : MonoBehaviour
 
         TickRight(character);
         TickLeft(character);
+        StepIgnore(character);
+    }
+
+    private void StepIgnore(Character character)
+    {
+        Item right = character.data.currentItem;
+        Item left = leftItem;
+        bool isRefresh = ++ignoreFrame % IgnoreRefreshFrames == 0;
+
+        if (ignoredRight != right)
+        {
+            if (ignoredRight != left)
+                RestoreArmCollisions(character, ignoredRight);
+            ignoredRight = right;
+            IgnoreArmCollisions(character, right);
+        }
+        else if (isRefresh)
+        {
+            IgnoreArmCollisions(character, right);
+        }
+
+        if (ignoredLeft != left)
+        {
+            if (ignoredLeft != right)
+                RestoreArmCollisions(character, ignoredLeft);
+            ignoredLeft = left;
+            IgnoreArmCollisions(character, left);
+        }
+        else if (isRefresh)
+        {
+            IgnoreArmCollisions(character, left);
+        }
+    }
+
+    private static void IgnoreArmCollisions(Character character, Item item)
+    {
+        if (item == null)
+            return;
+
+        foreach (Collider arm in ArmColliders(character))
+        {
+            foreach (Collider col in item.GetComponentsInChildren<Collider>(true))
+            {
+                if (arm != null && col != null)
+                    Physics.IgnoreCollision(arm, col, true);
+            }
+        }
+    }
+
+    private static void RestoreArmCollisions(Character character, Item item)
+    {
+        if (item == null || GameUtils.instance == null)
+            return;
+
+        GameUtils.instance.IgnoreCollisions(ArmColliders(character).ToArray(),
+            item.GetComponentsInChildren<Collider>(true), RestoreDelay);
+    }
+
+    private static System.Collections.Generic.List<Collider> ArmColliders(Character character)
+    {
+        ArmBuffer.Clear();
+        if (character.refs != null && character.refs.ragdoll != null)
+            ArmBuffer.AddRange(character.refs.ragdoll.colliderList);
+        return ArmBuffer;
     }
 
     private void ClearRight()
@@ -260,7 +336,7 @@ internal class VRHandItems : MonoBehaviour
         rightPending = null;
         rightAtPress = null;
         if (ActingHand == true)
-            ActingHand = null;
+            ActingHand = isLeftActing ? false : null;
     }
 
     private void ClearLeftInput()
@@ -269,7 +345,7 @@ internal class VRHandItems : MonoBehaviour
         isLeftDeferred = false;
         leftPending = null;
         if (ActingHand == false)
-            ActingHand = null;
+            ActingHand = isRightActing ? true : null;
     }
 
     private void TickRight(Character character)
@@ -414,7 +490,7 @@ internal class VRHandItems : MonoBehaviour
         isRightActing = false;
         rightActingReleasedFrame = Time.frameCount;
         if (ActingHand == true)
-            ActingHand = null;
+            ActingHand = isLeftActing ? false : null;
     }
 
     public static bool IsGrabbable(IInteractible target)
@@ -615,7 +691,10 @@ internal class VRHandItems : MonoBehaviour
 
         if (item == character.data.currentItem)
         {
-            AttachLeft(character, item, true);
+            if (!isRightGripped && !VRControls.RightGrip.IsPressed() && IsGrabbable(item))
+                MoveRightToLeft(character, item, false);
+            else
+                AttachLeft(character, item, true);
             return true;
         }
 
@@ -676,7 +755,7 @@ internal class VRHandItems : MonoBehaviour
         isLeftActing = false;
         leftActingReleasedFrame = Time.frameCount;
         if (ActingHand == false)
-            ActingHand = null;
+            ActingHand = isRightActing ? true : null;
     }
 
     private void Defer(Item held)
@@ -776,9 +855,20 @@ internal class VRHandItems : MonoBehaviour
                 item.SetKinematicNetworked(false, wantPos, wantRot);
 
             item.transform.SetPositionAndRotation(wantPos, wantRot);
+            item.rig.position = wantPos;
+            item.rig.rotation = wantRot;
             item.rig.linearVelocity = Vector3.zero;
             item.rig.angularVelocity = Vector3.zero;
             item.rig.useGravity = false;
+        }
+
+        bool isSnapped = false;
+        if (VRGripProfiles.TryGetRotationOffset(item, true, out Quaternion handOffset))
+        {
+            Quaternion rotated = bone.transform.rotation * handOffset;
+            bone.transform.rotation = rotated;
+            bone.rotation = rotated;
+            isSnapped = true;
         }
 
         if (leftJoint != null)
@@ -786,6 +876,7 @@ internal class VRHandItems : MonoBehaviour
         leftJoint = VRHandJoint.AttachRigid(bone, item);
 
         leftItem = item;
+        isLeftSnapped = isSnapped;
         isLeftGripCaptured = false;
 
         if (!isSecond)
@@ -811,6 +902,7 @@ internal class VRHandItems : MonoBehaviour
     private void DropLeftState(Character character)
     {
         leftItem = null;
+        isLeftSnapped = false;
         if (leftJoint != null)
             Destroy(leftJoint);
         leftJoint = null;

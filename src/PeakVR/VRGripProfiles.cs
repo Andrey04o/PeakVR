@@ -137,7 +137,7 @@ internal static class VRGripProfiles
             && Quaternion.Angle(localRot, snapRot) <= SnapMatchAngle;
     }
 
-    public static bool TryGetHandRotation(Item item, Transform hand, out Quaternion offset)
+    public static bool TryGetHandRotation(Item item, Transform hand, bool isLeft, out Quaternion offset)
     {
         offset = Quaternion.identity;
 
@@ -145,10 +145,25 @@ internal static class VRGripProfiles
         if (profile == null || profile.RotationHand == Vector3.zero)
             return false;
 
-        if (!profile.IsAimed && !IsAtSnap(item, hand, false))
+        if (!profile.IsAimed && !IsAtSnap(item, hand, isLeft))
             return false;
 
-        offset = Quaternion.Euler(profile.RotationHand);
+        return TryGetRotationOffset(item, isLeft, out offset);
+    }
+
+    public static bool TryGetRotationOffset(Item item, bool isLeft, out Quaternion offset)
+    {
+        offset = Quaternion.identity;
+
+        VRGripProfile profile = Get(item);
+        if (profile == null || profile.RotationHand == Vector3.zero)
+            return false;
+
+        Vector3 euler = profile.RotationHand;
+        if (isLeft)
+            euler = new Vector3(euler.x, -euler.y, -euler.z);
+
+        offset = Quaternion.Euler(euler);
         return true;
     }
 
