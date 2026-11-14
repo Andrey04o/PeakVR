@@ -101,15 +101,11 @@ internal static class VRArmIKPatch
         if (VRHandClimb.TryGetWristTarget(false, hipShift, out Vector3 gripR))
             targetR = gripR;
 
-        refs.IKHandTargetLeft.position = targetL;
-        refs.IKHandTargetRight.position = targetR;
-
         Quaternion leftRot = VRHands.Left.rotation * HandRotationOffset;
         Item leftItem = VRHandItems.LeftItem;
         if (ShootableAim.RollEnabled && leftItem != null && VRHandItems.IsLeftSnapped
             && VRGripProfiles.TryGetRotationOffset(leftItem, true, out Quaternion leftOffset))
             leftRot *= leftOffset;
-        refs.IKHandTargetLeft.rotation = leftRot;
 
         Quaternion rightRot = VRHands.Right.rotation * HandRotationOffset;
         Item heldItem = c.data != null ? c.data.currentItem : null;
@@ -117,6 +113,12 @@ internal static class VRArmIKPatch
         if (ShootableAim.RollEnabled && heldItem != null && handR != null
             && VRGripProfiles.TryGetHandRotation(heldItem, handR.transform, false, out Quaternion gripOffset))
             rightRot *= gripOffset;
+
+        VRTwoHandAim.Apply(c, targetR, ref targetL, ref rightRot, ref leftRot);
+
+        refs.IKHandTargetLeft.position = targetL;
+        refs.IKHandTargetRight.position = targetR;
+        refs.IKHandTargetLeft.rotation = leftRot;
         refs.IKHandTargetRight.rotation = rightRot;
 
         SetElbowHint(refs.ikLeft, targetL, VRHands.Left.rotation);
