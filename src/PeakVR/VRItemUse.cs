@@ -25,11 +25,14 @@ internal static class VRItemUse
     private static float spikeTick;
     private static RaycastHit spikeHit;
     private static GameObject spikePreview;
+    private static readonly Dictionary<ushort, bool> RopeCache = new Dictionary<ushort, bool>();
+    private static Item ropeItem;
+    private static bool isRopePressed;
 
     public static CharacterInteractible RightFriend { get; private set; }
     public static CharacterInteractible LeftFriend { get; private set; }
 
-    public static bool IsLeftBusy => leftUsing != null || spikeItem != null;
+    public static bool IsLeftBusy => leftUsing != null || spikeItem != null || (ropeItem != null && isRopePressed);
 
     public static float LeftProgress
     {
@@ -37,6 +40,9 @@ internal static class VRItemUse
         {
             if (spikeItem != null && spikeItem.usingTimePrimary > 0f)
                 return Mathf.Clamp01(spikeTick / spikeItem.usingTimePrimary);
+
+            if (ropeItem != null && ropeItem.overrideForceProgress)
+                return Mathf.Clamp01(ropeItem.overrideProgress);
 
             if (leftUsing == null || !leftUsing.shouldShowCastProgress)
                 return 0f;
@@ -90,6 +96,19 @@ internal static class VRItemUse
         StepClearLater();
 
         Item item = VRHandItems.LeftItem;
+        RopeTier tier = item != null && IsLeftOwnItem(local) ? GetRope(item) : null;
+        if (tier != null)
+        {
+            StopUse();
+            StopSpike();
+            if (ropeItem != null && ropeItem != item)
+                StopRope();
+
+            bool isRopeAllowed = isAllowed && CanInput(local);
+            StepRope(local, item, tier, isRopeAllowed && action.IsPressed());
+            return;
+        }
+
         if ((leftUsing != null && leftUsing != item) || (spikeItem != null && spikeItem != item))
             Stop();
 
@@ -173,11 +192,94 @@ internal static class VRItemUse
     {
         StopUse();
         StopSpike();
+        StopRope();
     }
 
     public static bool IsSpike(Item item)
     {
         return GetSpike(item) != null;
+    }
+
+    public static bool IsLeftPlacement(Item item)
+    {
+        return IsSpike(item) || GetRope(item) != null;
+    }
+
+    private static RopeTier GetRope(Item item)
+    {
+        if (item == null)
+            return null;
+
+        if (!RopeCache.TryGetValue(item.itemID, out bool isRope))
+        {
+            isRope = item.GetComponent<RopeTier>() != null;
+            RopeCache[item.itemID] = isRope;
+        }
+
+        return isRope ? item.GetComponent<RopeTier>() : null;
+    }
+
+    private static void StepRope(Character local, Item item, RopeTier tier, bool isPressed)
+    {
+        ropeItem = item;
+        bool isWasReleased = isRopePressed && !isPressed;
+        isRopePressed = isPressed;
+
+        RopeSpool spool = item.GetComponent<RopeSpool>();
+        CharacterInput input = local.input;
+        ItemState savedState = item.itemState;
+        Character savedHolder = item.trueHolderCharacter;
+        bool savedPressed = input.usePrimaryIsPressed;
+        bool savedReleased = input.usePrimaryWasReleased;
+
+        item.itemState = ItemState.Held;
+        item.holderCharacter = local;
+        input.usePrimaryIsPressed = isPressed;
+        input.usePrimaryWasReleased = isWasReleased;
+        ItemAim.ActiveItem = item;
+
+        if (spool != null)
+            spool.Update();
+        tier.Update();
+
+        ItemAim.ActiveItem = null;
+        input.usePrimaryIsPressed = savedPressed;
+        input.usePrimaryWasReleased = savedReleased;
+        item.holderCharacter = savedHolder;
+        item.itemState = savedState;
+    }
+
+    private static void StopRope()
+    {
+        Item item = ropeItem;
+        ropeItem = null;
+        isRopePressed = false;
+        ClearRopeHold(item);
+    }
+
+    public static void ClearRopeHold(Item item)
+    {
+        if (item == null || item.itemState == ItemState.Held || item.photonView == null || !item.photonView.IsMine)
+            return;
+
+        RopeSpool spool = item.GetComponent<RopeSpool>();
+        if (spool != null && spool.ropeInstance != null)
+        {
+            PhotonNetwork.Destroy(spool.ropeInstance);
+            spool.ropeInstance = null;
+            spool.rope = null;
+        }
+
+        RopeTier tier = item.GetComponent<RopeTier>();
+        if (tier == null)
+            return;
+
+        if (tier.ropeAnchor != null)
+            Object.DestroyImmediate(tier.ropeAnchor.gameObject);
+        tier.ropeAnchor = null;
+        tier.releaseCheck = false;
+        item.overrideForceProgress = false;
+        item.overrideProgress = 0f;
     }
 
     private static ClimbingSpikeComponent GetSpike(Item item)
@@ -207,7 +309,10 @@ internal static class VRItemUse
             if (!ItemAim.TryGetAim(item, out Vector3 origin, out Vector3 direction)
                 || !Physics.Raycast(origin, direction, out spikeHit, startDistance,
                     HelperFunctions.GetMask(HelperFunctions.LayerType.TerrainMap)))
+            {
+                Log($"left piton: no wall within {startDistance:F1}m");
                 return;
+            }
 
             spikeItem = item;
             spikeTick = 0f;
@@ -339,6 +444,12 @@ internal static class VRItemUse
         LeftAnimation = wanted;
     }
 
+    private static void Log(string message)
+    {
+        if (Plugin.Config != null && Plugin.Config.EnableVerboseLogging.Value)
+            Plugin.Log.LogInfo($"[PeakVR][ItemUse] {message}");
+    }
+
     private static bool CanInput(Character local)
     {
         return local.data != null && !local.data.passedOut && !local.data.fullyPassedOut && local.CanDoInput();
@@ -416,6 +527,20 @@ internal static class LeftUseAnimationPatch
             return;
 
         VRItemUse.ApplyUseAnimation(CharacterRef(__instance));
+    }
+}
+
+[HarmonyPatch(typeof(Rope), nameof(Rope.IsActive))]
+internal static class LeftRopeActivePatch
+{
+    [HarmonyPostfix]
+    private static void Postfix(Rope __instance, ref bool __result)
+    {
+        if (__result || !Plugin.VrEnabled || __instance.itemSpool == null)
+            return;
+
+        if (__instance.itemSpool == VRHandItems.LeftItem)
+            __result = true;
     }
 }
 

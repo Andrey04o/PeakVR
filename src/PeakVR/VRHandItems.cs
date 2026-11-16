@@ -503,7 +503,7 @@ internal class VRHandItems : MonoBehaviour
                     isRightSliding = true;
                     Log($"right slides '{held.name}'");
                 }
-                else if (held != null)
+                else if (held != null && !VRBackpackHands.TryStashRight(character, held))
                 {
                     ReleaseRight(character, held);
                 }
@@ -584,6 +584,12 @@ internal class VRHandItems : MonoBehaviour
 
         if (item != null)
         {
+            if (held == null && VRBackpackHands.TryTake(character, item, false))
+            {
+                isRightRequested = true;
+                return;
+            }
+
             if (TryGrabRight(character, item))
                 return;
 
@@ -823,6 +829,12 @@ internal class VRHandItems : MonoBehaviour
                 isLeftSliding = true;
                 Log($"left slides '{leftItem.name}'");
             }
+            else if (leftItem != null && !isLeftSliding && VRBackpackHands.TryFindLeftStash(character, leftItem))
+            {
+                Item stashed = leftItem;
+                ReleaseLeft(character, Vector3.zero);
+                VRBackpackHands.StashLeft(character, stashed);
+            }
             else if (leftItem != null && !isLeftSliding)
             {
                 ReleaseLeft(character, ThrowVelocity(character, velocityLeft));
@@ -883,6 +895,9 @@ internal class VRHandItems : MonoBehaviour
 
         if (target is Item item && item != null)
         {
+            if (VRBackpackHands.TryTake(character, item, true))
+                return;
+
             if (TryGrabLeft(character, item))
                 return;
 
@@ -1171,6 +1186,7 @@ internal class VRHandItems : MonoBehaviour
                 item.rig.linearVelocity = velocity;
         }
 
+        VRItemUse.ClearRopeHold(item);
         item.GetComponent<ItemPhysicsSyncer>()?.ForceSyncForFrames();
         Log($"left released '{item.name}' at {velocity.magnitude:F1}m/s");
     }
@@ -1307,6 +1323,7 @@ internal class VRHandItems : MonoBehaviour
 
         character.player.EmptySlot(Optionable<byte>.Some(slotId));
         item.SetState(ItemState.Ground);
+        VRItemUse.ClearRopeHold(item);
 
         if (item.rig != null)
         {

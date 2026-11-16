@@ -106,7 +106,7 @@ internal static class HandInteractPatch
         var aimed = right ? VRAim.TryRight(out var origin, out var dir) : VRAim.TryLeft(out origin, out dir);
         bool busy = VRHandItems.IsBusy(local, !right);
 
-        if (!show || !aimed || (busy && !hovering))
+        if (!show || !aimed || (busy && !hovering) || VRBackpackHands.IsPackTarget(target))
         {
             VRHands.SetInteractRay(right, false, default, default, default);
             return;
@@ -231,6 +231,13 @@ internal static class HandInteractPatch
         var aimed = right ? VRAim.TryRight(out var origin, out var dir) : VRAim.TryLeft(out origin, out dir);
         if (!aimed)
             return null;
+
+        IInteractible pack = VRBackpackHands.FindTarget(local, right);
+        if (pack != null)
+        {
+            Remember(pack, Vector3.zero, false);
+            return pack;
+        }
 
         bool busy = VRHandItems.IsBusy(local, !right);
         Item touched = busy ? null : TouchedOtherHandItem(local, right);

@@ -72,7 +72,7 @@ internal class VRItemAim : MonoBehaviour
             leftItem = null;
 
         bool isShootable = Show(right, rightItem, true);
-        isShootable |= Show(left, leftItem, VRItemUse.IsSpike(leftItem));
+        isShootable |= Show(left, leftItem, VRItemUse.IsLeftPlacement(leftItem));
 
         if (isShootable)
             HideGameReticle();

@@ -75,7 +75,9 @@ internal static class ItemAim
         if (!IsLocalHeld(item, out bool isLeft))
             return false;
 
-        bool hasItemAim = VRGripProfiles.TryGetAim(item, out origin, out direction);
+        VRGripProfile profile = VRGripProfiles.Get(item);
+        bool isHandAim = profile != null && profile.IsDeployable;
+        bool hasItemAim = !isHandAim && VRGripProfiles.TryGetAim(item, out origin, out direction);
         if (!hasItemAim)
         {
             bool hasHand = isLeft ? VRAim.TryLeft(out origin, out direction) : VRAim.TryRight(out origin, out direction);
