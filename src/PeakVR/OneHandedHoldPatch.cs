@@ -75,8 +75,11 @@ internal static class OneHandedHoldPatch
 
         if (isLeftPick)
         {
-            gripLocalRot = Quaternion.identity;
-            gripLocalDir = Quaternion.Inverse(item.transform.rotation) * (item.Center() - item.transform.position);
+            if (!VRGripProfiles.TryGetHandPose(item, true, out gripLocalDir, out gripLocalRot))
+            {
+                gripLocalRot = Quaternion.identity;
+                gripLocalDir = Quaternion.Inverse(item.transform.rotation) * (item.Center() - item.transform.position);
+            }
         }
         else if (IsLocalVR(items) && VRHandItems.TryGripOffset(item, out Vector3 grabbedDir, out Quaternion grabbedRot))
         {

@@ -288,6 +288,26 @@ internal static class VRGripProfiles
         return profile.HasSnapRight;
     }
 
+    public static bool TryGetHandPose(Item item, bool isLeft, out Vector3 pos, out Quaternion rot)
+    {
+        pos = Vector3.zero;
+        rot = Quaternion.identity;
+        VRGripProfile profile = Get(item);
+        if (profile == null)
+            return false;
+
+        if (isLeft)
+        {
+            pos = profile.SnapLeftPosition;
+            rot = profile.SnapLeftRotation;
+            return profile.HasSnapLeft;
+        }
+
+        pos = profile.SnapRightPosition;
+        rot = profile.SnapRightRotation;
+        return profile.HasSnapRight;
+    }
+
     public static bool CanSlide(Item item)
     {
         VRGripProfile profile = Get(item);

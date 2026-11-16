@@ -247,13 +247,16 @@ internal class VRHandItems : MonoBehaviour
         item.photonView.RPC("SetItemInstanceDataRPC", RpcTarget.All, slot.data);
         character.player.EmptySlot(Optionable<byte>.Some(slotID));
 
-        Vector3 offset = item.Center() - item.transform.position;
-        Vector3 position = bone.position - offset;
-        item.transform.position = position;
-        if (item.rig != null)
-            item.rig.position = position;
+        isLeftGripCaptured = VRGripProfiles.TryGetHandPose(item, true, out leftGripDir, out leftGripRot);
+        if (!isLeftGripCaptured)
+        {
+            Vector3 offset = item.Center() - item.transform.position;
+            Vector3 position = bone.position - offset;
+            item.transform.position = position;
+            if (item.rig != null)
+                item.rig.position = position;
+        }
 
-        isLeftGripCaptured = false;
         AttachLeft(character, item, false);
         character.refs.afflictions?.UpdateWeight();
         items.RefreshAllCharacterCarryWeight();
@@ -302,7 +305,7 @@ internal class VRHandItems : MonoBehaviour
 
         isLeftPickExpected = false;
         Log($"moving the expected pick '{held.name}' to the left hand");
-        MoveRightToLeft(character, held, false);
+        MovePickToLeft(character, held);
         isLeftPickReequip = isLeftPickFromHeld && leftPickSlot.IsSome;
     }
 
@@ -315,6 +318,19 @@ internal class VRHandItems : MonoBehaviour
             return instance.leftItem != null || instance.leftPending != null;
 
         return instance.isRightGripped || instance.isRightSliding || instance.rightPending != null;
+    }
+
+    public static bool IsPicking(bool isLeft)
+    {
+        if (instance == null)
+            return false;
+
+        if (isLeft)
+            return instance.leftPending != null || instance.isLeftDeferred
+                || (instance.isLeftTakeExpected && Time.time - instance.leftTakeSince <= ArrivalTimeout)
+                || (instance.isLeftPickExpected && Time.time - instance.leftPickSince <= ArrivalTimeout);
+
+        return instance.rightPending != null || instance.isRightRequested || instance.isRightPackExpected;
     }
 
     public static bool IsSliding(bool isLeft)
@@ -1204,7 +1220,19 @@ internal class VRHandItems : MonoBehaviour
 
         isLeftDeferred = false;
         Log($"moving picked '{held.name}' to the left hand");
-        MoveRightToLeft(character, held, false);
+        MovePickToLeft(character, held);
+    }
+
+    private void MovePickToLeft(Character character, Item item)
+    {
+        if (VRGripProfiles.TryGetHandPose(item, true, out leftGripDir, out leftGripRot))
+        {
+            isLeftGripCaptured = true;
+            MoveRightToLeft(character, item, true);
+            return;
+        }
+
+        MoveRightToLeft(character, item, false);
     }
 
     private static bool Incapacitated(Character character)
