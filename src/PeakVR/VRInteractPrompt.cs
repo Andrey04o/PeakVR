@@ -94,7 +94,7 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
         UpdateLeft(gui, isRefresh, isQuiet);
     }
 
-    private static bool IsQuiet()
+    internal static bool IsQuiet()
     {
         Character local = Character.localCharacter;
         return local != null && local.data != null && Time.time - local.data.lastConsumedItem < ConsumeQuietTime;
@@ -289,6 +289,10 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
             isSecondary = local != null && character.IsSecondaryInteractible(local);
             if (isSecondary && prompt.SecondaryText != null)
                 prompt.SecondaryText.text = character.GetSecondaryInteractionText();
+        }
+        else if (target is VRBackpackStashTarget)
+        {
+            isName = false;
         }
         else if (target != null)
         {

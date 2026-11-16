@@ -26,6 +26,12 @@ internal static class VRItemUse
     private static RaycastHit spikeHit;
     private static GameObject spikePreview;
     private static readonly Dictionary<ushort, bool> RopeCache = new Dictionary<ushort, bool>();
+    private static readonly Dictionary<ushort, bool> HookCache = new Dictionary<ushort, bool>();
+    private static readonly AccessTools.FieldRef<RescueHook, bool> HookPullingRef =
+        AccessTools.FieldRefAccess<RescueHook, bool>("isPulling");
+    private static readonly AccessTools.FieldRef<RescueHook, Character> HookTargetRef =
+        AccessTools.FieldRefAccess<RescueHook, Character>("targetPlayer");
+    private static readonly MethodInfo LetGoMethod = AccessTools.Method(typeof(RescueHook), "RPCA_LetGo");
     private static Item ropeItem;
     private static bool isRopePressed;
 
@@ -93,7 +99,7 @@ internal static class VRItemUse
 
     public static void StepLeft(Character local, InputAction action, bool isAllowed)
     {
-        StepClearLater();
+        StepClearLater(local);
 
         Item item = VRHandItems.LeftItem;
         RopeTier tier = item != null && IsLeftOwnItem(local) ? GetRope(item) : null;
@@ -133,6 +139,8 @@ internal static class VRItemUse
             StopUse();
             return;
         }
+
+        RefreshHook(local, item);
 
         bool isWasPressed = action.WasPressedThisFrame();
         bool isPressed = action.IsPressed();
@@ -193,6 +201,12 @@ internal static class VRItemUse
         StopUse();
         StopSpike();
         StopRope();
+    }
+
+    public static void StepIdle(Character local)
+    {
+        Stop();
+        StepClearLater(local);
     }
 
     public static bool IsSpike(Item item)
@@ -394,13 +408,13 @@ internal static class VRItemUse
         item.holderCharacter = savedHolder;
         SetUseAnimation(local, item, false);
 
-        if (item.consuming && item.gameObject.activeInHierarchy)
+        if (IsHolderKept(item))
             clearLater = item;
         else
             item.overrideHolderCharacter = null;
     }
 
-    private static void StepClearLater()
+    private static void StepClearLater(Character local)
     {
         if (clearLater == null)
         {
@@ -408,11 +422,68 @@ internal static class VRItemUse
             return;
         }
 
-        if (clearLater.consuming && clearLater.gameObject.activeInHierarchy)
+        RescueHook hook = GetHook(clearLater);
+        if (hook != null && HookPullingRef(hook) && !IsInHand(local, clearLater))
+        {
+            Log($"'{clearLater.name}' left the hand while pulling - letting go");
+            LetGo(hook);
+        }
+
+        if (IsHolderKept(clearLater))
             return;
 
         clearLater.overrideHolderCharacter = null;
         clearLater = null;
+    }
+
+    private static bool IsHolderKept(Item item)
+    {
+        if (item.consuming && item.gameObject.activeInHierarchy)
+            return true;
+
+        RescueHook hook = GetHook(item);
+        return hook != null && HookPullingRef(hook);
+    }
+
+    private static bool IsInHand(Character local, Item item)
+    {
+        return item == VRHandItems.LeftItem || (local != null && local.data != null && item == local.data.currentItem);
+    }
+
+    private static RescueHook GetHook(Item item)
+    {
+        if (item == null)
+            return null;
+
+        if (!HookCache.TryGetValue(item.itemID, out bool isHook))
+        {
+            isHook = item.GetComponent<RescueHook>() != null;
+            HookCache[item.itemID] = isHook;
+        }
+
+        return isHook ? item.GetComponent<RescueHook>() : null;
+    }
+
+    private static void RefreshHook(Character local, Item item)
+    {
+        RescueHook hook = GetHook(item);
+        if (hook == null || item.overrideHolderCharacter == local)
+            return;
+
+        Character savedHolder = item.trueHolderCharacter;
+        item.holderCharacter = local;
+        ItemAim.ActiveItem = item;
+        hook.Update();
+        ItemAim.ActiveItem = null;
+        item.holderCharacter = savedHolder;
+    }
+
+    private static void LetGo(RescueHook hook)
+    {
+        if (HookTargetRef(hook) != null && hook.photonView != null)
+            hook.photonView.RPC("RPCA_LetGo", RpcTarget.All);
+        else if (LetGoMethod != null)
+            LetGoMethod.Invoke(hook, null);
     }
 
     public static void ApplyUseAnimation(Character character)

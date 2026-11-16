@@ -6,36 +6,88 @@ using Zorro.Core;
 
 namespace PeakVR;
 
+internal struct BackpackZone
+{
+    public BackpackVisuals Visuals;
+    public BackpackReference Reference;
+    public Backpack Item;
+    public CharacterBackpackHandler Handler;
+    public int SlotCount;
+    public float Reach;
+    public string Name;
+}
+
+internal struct BackpackSlotTarget
+{
+    public bool IsFound;
+    public bool IsStash;
+    public bool IsLine;
+    public BackpackZone Zone;
+    public byte Slot;
+    public Item Held;
+    public Item SlotItem;
+    public Vector3 Probe;
+
+    public Transform SlotTransform => Zone.Visuals.backpackSlots[Slot];
+}
+
+internal struct BackpackMark
+{
+    public Vector3 Position;
+    public float Radius;
+    public bool IsTarget;
+    public Transform Slot;
+    public Item Ghost;
+}
+
 internal static class VRBackpackHands
 {
-    private const float ReachOwn = 0.3f;
     private const float ReachWorn = 0.18f;
-    private const float ReachGround = 0.22f;
+    private const float ReachPack = 0.2f;
+    private const float SlotTouch = 0.12f;
+    private const float LineStashRadius = 0.2f;
+    private const float LineStashSpread = 0.12f;
+    private const float LineTakeRadius = 0.1f;
+    private const float LineTakeSpread = 0.07f;
+    private const float LineRange = 3f;
+    private const float TakeOffBehind = 0.02f;
+    private const float TakeOffAbove = 0.1f;
+    private const float TakeOffWidth = 0.35f;
+    private const float ShowRange = 0.6f;
     private const float SearchRange = 3f;
     private const float GroundRefresh = 0.5f;
     private const float PendingTimeout = 3f;
+    private const float ShoulderBehind = -0.05f;
+    private const float ShoulderBelow = -0.15f;
+    private const float ShoulderWidth = 0.45f;
+    private const float ShoulderRange = 0.7f;
+    private const byte WornSlot = 3;
 
-    private struct Zone
-    {
-        public BackpackVisuals Visuals;
-        public BackpackReference Reference;
-        public Backpack Item;
-        public CharacterBackpackHandler Handler;
-        public int SlotCount;
-        public float Reach;
-        public string Name;
-    }
-
-    private static readonly List<Zone> Zones = new List<Zone>();
+    private static readonly List<BackpackZone> Zones = new List<BackpackZone>();
     private static readonly List<Backpack> GroundPacks = new List<Backpack>();
+    private static readonly List<Collider> HeldColliders = new List<Collider>();
+    private static readonly Collider[] OverlapBuffer = new Collider[32];
+    private static Bounds heldBounds;
+
+    private const float IgnoreNear = 0.15f;
+    private const float IgnoreClear = 0.02f;
+    private static readonly List<Collider> ItemBuffer = new List<Collider>();
+    private static readonly List<Collider> PackBuffer = new List<Collider>();
+    private static readonly List<Item> IgnoredItems = new List<Item>();
+    private static readonly List<Backpack> IgnoredPacks = new List<Backpack>();
     private static int zonesFrame = -1;
     private static float groundTime = -1f;
+
+    private static BackpackSlotTarget rightTarget;
+    private static BackpackSlotTarget leftTarget;
+    private static int rightFrame = -1;
+    private static int leftFrame = -1;
 
     private static VRBackpackStashTarget rightStash;
     private static VRBackpackStashTarget leftStash;
 
     private static bool isPending;
-    private static Zone pendingZone;
+    private static BackpackZone pendingZone;
     private static byte pendingSlot;
     private static ushort pendingItemId;
     private static float pendingSince;
@@ -52,28 +104,50 @@ internal static class VRBackpackHands
 
     public static IInteractible FindTarget(Character local, bool isRight)
     {
-        if (!Enabled || local == null || local.data == null)
-            return null;
+        BackpackSlotTarget target = default;
+        if (Enabled && local != null && local.data != null)
+            target = Find(local, isRight, GetHeld(local, isRight));
 
-        Transform hand = isRight ? VRHands.Right : VRHands.Left;
-        if (hand == null)
-            return null;
-
-        Item held = GetHeld(local, isRight);
-        if (held != null)
+        if (isRight)
         {
-            if (!TryFindStash(local, isRight, held, out Zone zone, out byte slot))
-                return null;
-
-            VRBackpackStashTarget target = GetStashTarget(isRight);
-            target.Set(zone.Name, held, zone.Visuals.backpackSlots[slot]);
-            return target;
+            rightTarget = target;
+            rightFrame = Time.frameCount;
+        }
+        else
+        {
+            leftTarget = target;
+            leftFrame = Time.frameCount;
         }
 
-        if (VRHandItems.IsBusy(local, !isRight))
+        if (!target.IsFound)
             return null;
 
-        return FindSlotItem(local, hand.position);
+        if (!target.IsStash)
+            return target.SlotItem;
+
+        VRBackpackStashTarget stash = GetStashTarget(isRight);
+        stash.Set(target.Zone.Name, target.Held, target.SlotTransform);
+        return stash;
+    }
+
+    public static bool TryGetLineEnd(bool isRight, out Vector3 end)
+    {
+        end = Vector3.zero;
+        BackpackSlotTarget target = GetTarget(isRight);
+        if (!target.IsFound || !target.IsLine)
+            return false;
+
+        end = target.SlotTransform.position;
+        return true;
+    }
+
+    public static void CollectMarks(Character local, List<BackpackMark> marks)
+    {
+        if (!Enabled || local == null || local.data == null)
+            return;
+
+        AddMarks(local, true, marks);
+        AddMarks(local, false, marks);
     }
 
     public static bool TryTake(Character local, Item item, bool isLeft)
@@ -95,39 +169,115 @@ internal static class VRBackpackHands
         if (!Enabled || held == null || held != local.data.currentItem || held == VRHandItems.LeftItem)
             return false;
 
-        if (!TryFindStash(local, true, held, out Zone zone, out byte slot))
+        BackpackSlotTarget target = Find(local, true, held);
+        if (!target.IsFound || !target.IsStash)
             return false;
 
-        if (zone.Item != null)
-            zone.Item.Stash(local, slot);
+        if (target.Zone.Item != null)
+            target.Zone.Item.Stash(local, target.Slot);
         else
-            zone.Handler.StashInBackpack(local, slot);
+            target.Zone.Handler.StashInBackpack(local, target.Slot);
 
-        Log($"right stashed '{held.name}' into {zone.Name} slot {slot}");
+        Log($"right stashed '{held.name}' into {target.Zone.Name} slot {target.Slot}{(target.IsLine ? " by line" : "")}");
         return true;
     }
 
-    public static bool TryFindLeftStash(Character local, Item held)
+    public static bool TryGetLeftStash(Character local, Item held, out BackpackSlotTarget target)
     {
-        return Enabled && held != null && held != local.data.currentItem
-            && TryFindStash(local, false, held, out _, out _);
+        target = default;
+        if (!Enabled || held == null || held == local.data.currentItem)
+            return false;
+
+        target = Find(local, false, held);
+        return target.IsFound && target.IsStash;
     }
 
-    public static void StashLeft(Character local, Item item)
+    public static void StashLeft(Character local, Item item, BackpackSlotTarget target)
     {
-        if (!TryFindStash(local, false, item, out Zone zone, out byte slot, true))
-            return;
-
         isPending = true;
-        pendingZone = zone;
-        pendingSlot = slot;
+        pendingZone = target.Zone;
+        pendingSlot = target.Slot;
         pendingItemId = item.itemID;
         pendingSince = Time.time;
 
         VRHandItems.SetBypass(item);
         item.Interact(local);
         VRHandItems.SetBypass(null);
-        Log($"left stashing '{item.name}' into {zone.Name} slot {slot}");
+        Log($"left stashing '{item.name}' into {target.Zone.Name} slot {target.Slot}{(target.IsLine ? " by line" : "")}");
+    }
+
+    public static bool TryWearRight(Character local, Item held)
+    {
+        if (!Enabled || held is not Backpack || held != local.data.currentItem || held == VRHandItems.LeftItem)
+            return false;
+
+        CharacterItems items = local.refs.items;
+        if (items == null || !items.currentSelectedSlot.IsSome || items.currentSelectedSlot.Value != WornSlot
+            || VRHands.Right == null || !IsBehindShoulder(local, VRHands.Right.position))
+            return false;
+
+        items.currentSelectedSlot = Optionable<byte>.None;
+        items.lastEquippedSlotTime = Time.time;
+        local.photonView.RPC("EquipSlotRpc", RpcTarget.All, -1, -1);
+        local.refs.afflictions.UpdateWeight();
+        Log($"right put '{held.name}' on the back");
+        return true;
+    }
+
+    public static bool CanWearLeft(Character local, Item held)
+    {
+        if (!Enabled || held is not Backpack || held == local.data.currentItem || local.player == null
+            || VRHands.Left == null || !IsBehindShoulder(local, VRHands.Left.position))
+            return false;
+
+        if (!local.player.backpackSlot.IsEmpty())
+        {
+            Log($"left does not wear '{held.name}': already wearing a pack");
+            return false;
+        }
+
+        return true;
+    }
+
+    public static void Wear(Character local, Item item)
+    {
+        if (item is not Backpack pack)
+            return;
+
+        VRHandItems.SetBypass(item);
+        pack.Wear(local);
+        VRHandItems.SetBypass(null);
+        Log($"wearing '{item.name}'");
+    }
+
+    public static bool TryTakeOff(Character local, bool isRight)
+    {
+        if (!Enabled || local == null || local.player == null || local.refs == null || local.player.backpackSlot.IsEmpty())
+            return false;
+
+        CharacterItems items = local.refs.items;
+        if (items == null || local.data.currentItem is Backpack)
+            return false;
+
+        Transform hand = isRight ? VRHands.Right : VRHands.Left;
+        if (hand == null || !IsOverShoulder(local, hand.position))
+            return false;
+
+        Item right = local.data.currentItem;
+        if (isRight && right != null)
+            return false;
+
+        if (!isRight && right != null && (right.UIData == null || !right.UIData.canPocket))
+        {
+            Log($"left can't take the pack off: '{right.name}' in the right hand can't be pocketed");
+            return false;
+        }
+
+        if (!isRight)
+            VRHandItems.ExpectLeftPick(local);
+        items.EquipSlot(Optionable<byte>.Some(WornSlot));
+        Log($"{(isRight ? "right" : "left")} takes the pack off the back");
+        return true;
     }
 
     public static bool TryCompleteStash(CharacterItems items, byte slotID)
@@ -160,6 +310,148 @@ internal static class VRBackpackHands
         return true;
     }
 
+    public static void StepCollisions(Character local)
+    {
+        if (!Enabled || local == null || local.data == null)
+        {
+            RestoreCollisions();
+            return;
+        }
+
+        Item right = local.data.currentItem;
+        Item left = VRHandItems.LeftItem;
+
+        for (int i = IgnoredItems.Count - 1; i >= 0; i--)
+        {
+            Item item = IgnoredItems[i];
+            Backpack pack = IgnoredPacks[i];
+            if (item == null || pack == null || item.itemState == ItemState.InBackpack || pack.itemState == ItemState.InBackpack)
+            {
+                RemoveIgnored(i, item != null && pack != null);
+                continue;
+            }
+
+            bool isHeld = item == right || item == left;
+            float gap = Gap(item, pack);
+            if (gap <= (isHeld ? IgnoreNear : IgnoreClear))
+                continue;
+
+            RemoveIgnored(i, true);
+            Log($"'{item.name}' collides with '{pack.name}' again");
+        }
+
+        AddIgnored(local, right);
+        if (left != right)
+            AddIgnored(local, left);
+    }
+
+    private static void AddIgnored(Character local, Item item)
+    {
+        if (item == null || item is Backpack)
+            return;
+
+        List<BackpackZone> zones = GetZones(local);
+        for (int i = 0; i < zones.Count; i++)
+        {
+            Backpack pack = zones[i].Item;
+            if (pack == null || IsIgnored(item, pack) || Gap(item, pack) > IgnoreNear)
+                continue;
+
+            SetIgnored(item, pack, true);
+            IgnoredItems.Add(item);
+            IgnoredPacks.Add(pack);
+            Log($"'{item.name}' passes through '{pack.name}'");
+        }
+    }
+
+    private static bool IsIgnored(Item item, Backpack pack)
+    {
+        for (int i = 0; i < IgnoredItems.Count; i++)
+        {
+            if (IgnoredItems[i] == item && IgnoredPacks[i] == pack)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static void RemoveIgnored(int index, bool isRestore)
+    {
+        if (isRestore)
+            SetIgnored(IgnoredItems[index], IgnoredPacks[index], false);
+
+        IgnoredItems.RemoveAt(index);
+        IgnoredPacks.RemoveAt(index);
+    }
+
+    private static void RestoreCollisions()
+    {
+        for (int i = IgnoredItems.Count - 1; i >= 0; i--)
+            RemoveIgnored(i, IgnoredItems[i] != null && IgnoredPacks[i] != null);
+    }
+
+    private static void SetIgnored(Item item, Backpack pack, bool isIgnored)
+    {
+        item.GetComponentsInChildren(true, ItemBuffer);
+        pack.GetComponentsInChildren(true, PackBuffer);
+        for (int i = 0; i < ItemBuffer.Count; i++)
+        {
+            for (int k = 0; k < PackBuffer.Count; k++)
+            {
+                if (ItemBuffer[i] != null && PackBuffer[k] != null)
+                    Physics.IgnoreCollision(ItemBuffer[i], PackBuffer[k], isIgnored);
+            }
+        }
+
+        ItemBuffer.Clear();
+        PackBuffer.Clear();
+    }
+
+    private static float Gap(Item item, Backpack pack)
+    {
+        if (!TryGetSolidBounds(item, ItemBuffer, out Bounds a) || !TryGetSolidBounds(pack, PackBuffer, out Bounds b))
+            return float.MaxValue;
+
+        float dx = Mathf.Max(0f, Mathf.Max(a.min.x - b.max.x, b.min.x - a.max.x));
+        float dy = Mathf.Max(0f, Mathf.Max(a.min.y - b.max.y, b.min.y - a.max.y));
+        float dz = Mathf.Max(0f, Mathf.Max(a.min.z - b.max.z, b.min.z - a.max.z));
+        return Mathf.Sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    private static bool TryGetSolidBounds(Component owner, List<Collider> buffer, out Bounds bounds)
+    {
+        bounds = default;
+        bool isFound = false;
+        owner.GetComponentsInChildren(false, buffer);
+        for (int i = 0; i < buffer.Count; i++)
+        {
+            Collider col = buffer[i];
+            if (col == null || !col.enabled || col.isTrigger)
+                continue;
+
+            if (!isFound)
+            {
+                bounds = col.bounds;
+                isFound = true;
+            }
+            else
+            {
+                bounds.Encapsulate(col.bounds);
+            }
+        }
+
+        buffer.Clear();
+        return isFound;
+    }
+
+    private static BackpackSlotTarget GetTarget(bool isRight)
+    {
+        if (isRight)
+            return rightFrame == Time.frameCount ? rightTarget : default;
+
+        return leftFrame == Time.frameCount ? leftTarget : default;
+    }
+
     private static Item GetHeld(Character local, bool isRight)
     {
         Item right = local.data.currentItem;
@@ -173,81 +465,272 @@ internal static class VRBackpackHands
         return left;
     }
 
-    private static bool TryFindStash(Character local, bool isRight, Item held, out Zone best, out byte bestSlot,
-        bool isAnyDistance = false)
+    private static bool TryGetProbe(Character local, bool isRight, Item held, out Vector3 probe)
     {
-        best = default;
-        bestSlot = 0;
+        probe = Vector3.zero;
+        if (held != null)
+        {
+            probe = held.Center();
+            return true;
+        }
 
-        if (held == null || held is Backpack)
+        Rigidbody bone = local.GetBodypartRig(isRight ? BodypartType.Hand_R : BodypartType.Hand_L);
+        if (bone == null)
             return false;
 
+        probe = bone.position;
+        return true;
+    }
+
+    private static Vector3 GetController(bool isRight, Vector3 fallback)
+    {
         Transform hand = isRight ? VRHands.Right : VRHands.Left;
-        if (hand == null)
-            return false;
+        return hand != null ? hand.position : fallback;
+    }
 
-        Vector3 point = hand.position;
+    private static BackpackSlotTarget Find(Character local, bool isRight, Item held)
+    {
+        BackpackSlotTarget result = default;
+        if (held is Backpack)
+            return result;
+
+        if (held == null && VRHandItems.IsBusy(local, !isRight))
+            return result;
+
+        if (!TryGetProbe(local, isRight, held, out Vector3 probe))
+            return result;
+
+        Vector3 controller = GetController(isRight, probe);
+        bool isStash = held != null;
+        bool hasSurface = isStash && CollectHeld(held);
+        result.IsStash = isStash;
+        result.Held = held;
+        result.Probe = probe;
+
+        List<BackpackZone> zones = GetZones(local);
         float bestDist = float.MaxValue;
-        bool isFound = false;
-        List<Zone> zones = GetZones(local);
-
         for (int i = 0; i < zones.Count; i++)
         {
-            Zone zone = zones[i];
-            if (zone.Item == held)
-                continue;
-
-            float reach = isAnyDistance ? zone.Reach * 2f : zone.Reach;
-            if (NearestSlot(zone, point) > reach)
+            BackpackZone zone = zones[i];
+            if (!IsAlive(zone) || (zone.Item != null && zone.Item == held))
                 continue;
 
             BackpackData data = zone.Reference.GetData();
             for (int k = 0; k < zone.SlotCount; k++)
             {
-                if (!data.itemSlots[k].IsEmpty())
+                if (!IsUsable(zone, data, k, isStash, out Item slotItem))
                     continue;
 
-                float dist = Vector3.Distance(point, zone.Visuals.backpackSlots[k].position);
-                if (dist >= bestDist)
+                Vector3 slot = zone.Visuals.backpackSlots[k].position;
+                float dist = Vector3.Distance(controller, slot);
+                bool isNear = dist <= zone.Reach;
+                if (isStash)
+                {
+                    bool isTouching = hasSurface ? IsTouching(slot) : Vector3.Distance(probe, slot) <= SlotTouch;
+                    if (isTouching)
+                    {
+                        isNear = true;
+                        dist = Mathf.Min(dist, Vector3.Distance(probe, slot));
+                    }
+                }
+                else
+                {
+                    float bone = Vector3.Distance(probe, slot);
+                    if (bone <= zone.Reach)
+                    {
+                        isNear = true;
+                        dist = Mathf.Min(dist, bone);
+                    }
+                }
+
+                if (!isNear || dist >= bestDist)
                     continue;
 
                 bestDist = dist;
-                best = zone;
-                bestSlot = (byte)k;
+                SetFound(ref result, zone, k, slotItem, false);
+            }
+        }
+
+        if (result.IsFound)
+            return result;
+
+        bool isAimed = isRight ? VRAim.TryRight(out Vector3 origin, out Vector3 dir) : VRAim.TryLeft(out origin, out dir);
+        if (!isAimed)
+            return result;
+
+        float radius = isStash ? LineStashRadius : LineTakeRadius;
+        float spread = isStash ? LineStashSpread : LineTakeSpread;
+        float bestSlope = float.MaxValue;
+        for (int i = 0; i < zones.Count; i++)
+        {
+            BackpackZone zone = zones[i];
+            if (!IsAlive(zone) || (zone.Item != null && zone.Item == held))
+                continue;
+
+            BackpackData data = zone.Reference.GetData();
+            for (int k = 0; k < zone.SlotCount; k++)
+            {
+                if (!IsUsable(zone, data, k, isStash, out Item slotItem))
+                    continue;
+
+                Vector3 toSlot = zone.Visuals.backpackSlots[k].position - origin;
+                float along = Vector3.Dot(toSlot, dir);
+                if (along <= 0.01f || along > LineRange)
+                    continue;
+
+                float off = (toSlot - dir * along).magnitude;
+                float slope = off / along;
+                if (off > Mathf.Max(radius, along * spread) || slope >= bestSlope)
+                    continue;
+
+                bestSlope = slope;
+                SetFound(ref result, zone, k, slotItem, true);
+            }
+        }
+
+        return result;
+    }
+
+    private static bool CollectHeld(Item held)
+    {
+        held.GetComponentsInChildren(false, HeldColliders);
+        bool isFound = false;
+        for (int i = HeldColliders.Count - 1; i >= 0; i--)
+        {
+            Collider col = HeldColliders[i];
+            if (col == null || !col.enabled || col.isTrigger)
+            {
+                HeldColliders.RemoveAt(i);
+                continue;
+            }
+
+            if (!isFound)
+            {
+                heldBounds = col.bounds;
                 isFound = true;
+            }
+            else
+            {
+                heldBounds.Encapsulate(col.bounds);
             }
         }
 
         return isFound;
     }
 
-    private static Item FindSlotItem(Character local, Vector3 point)
+    private static bool IsTouching(Vector3 point)
     {
-        List<Zone> zones = GetZones(local);
-        Item best = null;
-        float bestDist = float.MaxValue;
+        if (heldBounds.SqrDistance(point) > SlotTouch * SlotTouch)
+            return false;
 
-        for (int i = 0; i < zones.Count; i++)
+        int count = Physics.OverlapSphereNonAlloc(point, SlotTouch, OverlapBuffer, ~0, QueryTriggerInteraction.Ignore);
+        for (int i = 0; i < count; i++)
         {
-            Zone zone = zones[i];
-            for (int k = 0; k < zone.SlotCount; k++)
-            {
-                if (!zone.Visuals.TryGetSpawnedItem((byte)k, out Item item) || item.itemState != ItemState.InBackpack)
-                    continue;
-
-                float dist = Vector3.Distance(point, zone.Visuals.backpackSlots[k].position);
-                if (dist > zone.Reach || dist >= bestDist)
-                    continue;
-
-                bestDist = dist;
-                best = item;
-            }
+            if (HeldColliders.Contains(OverlapBuffer[i]))
+                return true;
         }
 
-        return best;
+        return false;
     }
 
-    private static float NearestSlot(Zone zone, Vector3 point)
+    private static bool IsAlive(BackpackZone zone)
+    {
+        return zone.Visuals != null && (zone.Item != null || zone.Handler != null);
+    }
+
+    private static void SetFound(ref BackpackSlotTarget result, BackpackZone zone, int slot, Item slotItem, bool isLine)
+    {
+        result.IsFound = true;
+        result.IsLine = isLine;
+        result.Zone = zone;
+        result.Slot = (byte)slot;
+        result.SlotItem = slotItem;
+    }
+
+    private static bool IsUsable(BackpackZone zone, BackpackData data, int slot, bool isStash, out Item slotItem)
+    {
+        slotItem = null;
+        if (isStash)
+            return data != null && data.itemSlots != null && data.itemSlots[slot].IsEmpty();
+
+        return zone.Visuals.TryGetSpawnedItem((byte)slot, out slotItem) && slotItem.itemState == ItemState.InBackpack;
+    }
+
+    private static void AddMarks(Character local, bool isRight, List<BackpackMark> marks)
+    {
+        BackpackSlotTarget target = GetTarget(isRight);
+        Item held = GetHeld(local, isRight);
+        if (held is Backpack || (held == null && VRHandItems.IsBusy(local, !isRight)))
+            return;
+
+        if (!TryGetProbe(local, isRight, held, out Vector3 probe))
+            return;
+
+        Vector3 controller = GetController(isRight, probe);
+        bool isStash = held != null;
+        List<BackpackZone> zones = GetZones(local);
+        for (int i = 0; i < zones.Count; i++)
+        {
+            BackpackZone zone = zones[i];
+            if (!IsAlive(zone) || (zone.Item != null && zone.Item == held))
+                continue;
+
+            bool isTargetZone = target.IsFound && target.Zone.Visuals == zone.Visuals;
+            if (!isTargetZone && Mathf.Min(NearestSlot(zone, probe), NearestSlot(zone, controller)) > ShowRange)
+                continue;
+
+            BackpackData data = zone.Reference.GetData();
+            for (int k = 0; k < zone.SlotCount; k++)
+            {
+                if (!IsUsable(zone, data, k, isStash, out _))
+                    continue;
+
+                bool isTarget = isTargetZone && target.Slot == k;
+                Transform slot = zone.Visuals.backpackSlots[k];
+                marks.Add(new BackpackMark
+                {
+                    Position = slot.position,
+                    Radius = zone.Reach,
+                    IsTarget = isTarget,
+                    Slot = slot,
+                    Ghost = isTarget && isStash ? held : null
+                });
+            }
+        }
+    }
+
+    private static bool IsBehindShoulder(Character local, Vector3 point)
+    {
+        return IsInShoulderZone(local, point, ShoulderBehind, ShoulderBelow, ShoulderWidth);
+    }
+
+    private static bool IsOverShoulder(Character local, Vector3 point)
+    {
+        return IsInShoulderZone(local, point, TakeOffBehind, TakeOffAbove, TakeOffWidth);
+    }
+
+    private static bool IsInShoulderZone(Character local, Vector3 point, float minBehind, float minAbove, float maxWidth)
+    {
+        Bodypart torso = local.GetBodypart(BodypartType.Torso);
+        if (torso == null)
+            return false;
+
+        Vector3 back = -local.data.lookDirection_Flat;
+        back.y = 0f;
+        if (back.sqrMagnitude < 0.0001f)
+            return false;
+        back.Normalize();
+
+        Vector3 offset = point - torso.transform.position;
+        float behind = Vector3.Dot(offset, back);
+        Vector3 side = offset - back * behind;
+        side.y = 0f;
+
+        return behind > minBehind && offset.y > minAbove && side.magnitude < maxWidth
+            && offset.magnitude < ShoulderRange;
+    }
+
+    private static float NearestSlot(BackpackZone zone, Vector3 point)
     {
         float nearest = float.MaxValue;
         for (int k = 0; k < zone.SlotCount; k++)
@@ -271,7 +754,7 @@ internal static class VRBackpackHands
         return -1;
     }
 
-    private static List<Zone> GetZones(Character local)
+    private static List<BackpackZone> GetZones(Character local)
     {
         if (zonesFrame == Time.frameCount)
             return Zones;
@@ -283,16 +766,18 @@ internal static class VRBackpackHands
         for (int i = 0; i < Character.AllCharacters.Count; i++)
         {
             Character character = Character.AllCharacters[i];
-            if (character == null || character.player == null || character.refs == null
+            if (character == null || character == local || character.player == null || character.refs == null
                 || character.refs.backpackHandler == null || character.data == null || character.data.dead)
                 continue;
 
-            bool isOwn = character == local;
-            if (!isOwn && Vector3.Distance(character.Center, center) > SearchRange)
+            if (Vector3.Distance(character.Center, center) > SearchRange)
                 continue;
 
-            AddWorn(character, isOwn);
+            AddWorn(character);
         }
+
+        if (local.data.currentItem is Backpack held && held.itemState == ItemState.Held)
+            AddPack(held);
 
         RefreshGround();
         for (int i = 0; i < GroundPacks.Count; i++)
@@ -302,25 +787,30 @@ internal static class VRBackpackHands
                 || Vector3.Distance(pack.transform.position, center) > SearchRange)
                 continue;
 
-            ItemBackpackVisuals visuals = pack.GetComponent<ItemBackpackVisuals>();
-            if (visuals == null || visuals.backpackSlots == null)
-                continue;
-
-            Zones.Add(new Zone
-            {
-                Visuals = visuals,
-                Reference = BackpackReference.GetFromBackpackItem(pack),
-                Item = pack,
-                SlotCount = SlotCount(visuals, pack.slotCount, pack.GetData<BackpackData>(DataEntryKey.BackpackData)),
-                Reach = ReachGround,
-                Name = pack.GetItemName()
-            });
+            AddPack(pack);
         }
 
         return Zones;
     }
 
-    private static void AddWorn(Character character, bool isOwn)
+    private static void AddPack(Backpack pack)
+    {
+        ItemBackpackVisuals visuals = pack.GetComponent<ItemBackpackVisuals>();
+        if (visuals == null || visuals.backpackSlots == null)
+            return;
+
+        Zones.Add(new BackpackZone
+        {
+            Visuals = visuals,
+            Reference = BackpackReference.GetFromBackpackItem(pack),
+            Item = pack,
+            SlotCount = SlotCount(visuals, pack.slotCount, pack.GetData<BackpackData>(DataEntryKey.BackpackData)),
+            Reach = ReachPack,
+            Name = pack.GetItemName()
+        });
+    }
+
+    private static void AddWorn(Character character)
     {
         BackpackSlot slot = character.player.backpackSlot;
         if (slot == null || slot.backpackType == BackpackSlot.BackpackType.None
@@ -328,7 +818,7 @@ internal static class VRBackpackHands
             return;
 
         CharacterItems items = character.refs.items;
-        if (items != null && items.currentSelectedSlot.IsSome && items.currentSelectedSlot.Value == 3)
+        if (items != null && items.currentSelectedSlot.IsSome && items.currentSelectedSlot.Value == WornSlot)
             return;
 
         CharacterBackpackHandler handler = character.refs.backpackHandler;
@@ -337,13 +827,13 @@ internal static class VRBackpackHands
             return;
 
         BackpackReference reference = BackpackReference.GetFromEquippedBackpack(character);
-        Zones.Add(new Zone
+        Zones.Add(new BackpackZone
         {
             Visuals = visuals,
             Reference = reference,
             Handler = handler,
             SlotCount = SlotCount(visuals, visuals.slotCount, reference.GetData()),
-            Reach = isOwn ? ReachOwn : ReachWorn,
+            Reach = ReachWorn,
             Name = visuals.GetName()
         });
     }
@@ -439,8 +929,7 @@ internal class VRBackpackStashTarget : MonoBehaviour, IInteractible
 
     public string GetInteractionText()
     {
-        string itemName = held != null ? held.GetItemName() : "";
-        return LocalizedText.GetText("STASHITEM").Replace("#", itemName);
+        return LocalizedText.GetText("STASHITEM").Replace("#", "").Trim();
     }
 
     public string GetName()

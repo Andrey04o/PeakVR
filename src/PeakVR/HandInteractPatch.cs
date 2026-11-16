@@ -105,15 +105,19 @@ internal static class HandInteractPatch
         var show = VRLine.ShouldShow(Plugin.Config.InteractionLine.Value, hovering);
         var aimed = right ? VRAim.TryRight(out var origin, out var dir) : VRAim.TryLeft(out origin, out dir);
         bool busy = VRHandItems.IsBusy(local, !right);
+        bool isPackLine = VRBackpackHands.TryGetLineEnd(right, out Vector3 packEnd);
 
-        if (!show || !aimed || (busy && !hovering) || VRBackpackHands.IsPackTarget(target))
+        if (!show || !aimed || (busy && !hovering) || (VRBackpackHands.IsPackTarget(target) && !isPackLine)
+            || VRInteractPrompt.IsQuiet())
         {
             VRHands.SetInteractRay(right, false, default, default, default);
             return;
         }
 
         Vector3 end;
-        if (hovering && Plugin.Config.AimAtObjectCenter.Value && TryGetCenter(target, origin, out var center))
+        if (isPackLine)
+            end = packEnd;
+        else if (hovering && Plugin.Config.AimAtObjectCenter.Value && TryGetCenter(target, origin, out var center))
             end = center;
         else
             end = origin + dir * RayLength(interaction, local, right);
@@ -169,7 +173,7 @@ internal static class HandInteractPatch
         if (busy && candidate is not CharacterInteractible)
             return false;
 
-        if (candidate is Item item && (item == local.data.currentItem || item == VRHandItems.LeftItem))
+        if (candidate is Item item && (item == local.data.currentItem || item == VRHandItems.LeftItem || item.consuming))
             return false;
 
         if (!candidate.IsInteractible(local))
@@ -210,7 +214,7 @@ internal static class HandInteractPatch
             return null;
 
         Item other = right ? VRHandItems.LeftItem : local.data.currentItem;
-        if (other == null)
+        if (other == null || other.consuming || other is Backpack)
             return null;
 
         Item own = right ? local.data.currentItem : VRHandItems.LeftItem;
@@ -285,7 +289,11 @@ internal static class HandInteractPatch
             if (!ValidHandTarget(h, local, busy, out var candidate))
                 continue;
             bool overlap = h.distance <= MinHitDistance;
-            Vector3 point = overlap ? h.collider.ClosestPoint(origin) : h.point;
+            Vector3 point = h.point;
+            if (overlap)
+                point = h.collider is MeshCollider mesh && !mesh.convex
+                    ? h.collider.bounds.ClosestPoint(origin)
+                    : h.collider.ClosestPoint(origin);
             var angle = Vector3.Angle(point - origin, dir);
             if (angle >= bestAngle)
                 continue;

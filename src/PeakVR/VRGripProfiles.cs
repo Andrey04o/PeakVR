@@ -179,9 +179,13 @@ internal static class VRGripProfiles
 
     public static bool TryGetRotationOffset(Item item, bool isLeft, out Quaternion offset)
     {
+        return TryGetRotationOffset(Get(item), isLeft, out offset);
+    }
+
+    private static bool TryGetRotationOffset(VRGripProfile profile, bool isLeft, out Quaternion offset)
+    {
         offset = Quaternion.identity;
 
-        VRGripProfile profile = Get(item);
         if (profile == null || profile.RotationHand == Vector3.zero)
             return false;
 
@@ -202,7 +206,7 @@ internal static class VRGripProfiles
         if (profile == null || !profile.HasSnapRight || (!profile.IsAimed && !profile.IsDeployable))
             return false;
 
-        Vector3 local = profile.HasBarrelAxis ? profile.BarrelAxis : ControllerForwardLocal(item, profile);
+        Vector3 local = profile.HasBarrelAxis ? profile.BarrelAxis : ControllerForwardLocal(profile);
 
         Transform root = item.transform;
         Vector3 grip = root.position + root.rotation * profile.SnapRightPosition;
@@ -211,9 +215,9 @@ internal static class VRGripProfiles
         return true;
     }
 
-    private static Vector3 ControllerForwardLocal(Item item, VRGripProfile profile)
+    private static Vector3 ControllerForwardLocal(VRGripProfile profile)
     {
-        TryGetRotationOffset(item, false, out Quaternion offset);
+        TryGetRotationOffset(profile, false, out Quaternion offset);
         Quaternion controllerLocal = profile.SnapRightRotation * Quaternion.Inverse(offset)
             * Quaternion.Inverse(VRArmIKPatch.HandRotationOffset);
         return controllerLocal * Vector3.forward;
@@ -245,7 +249,7 @@ internal static class VRGripProfiles
         if (size[longest] < second * BarrelAspect)
             return false;
 
-        Vector3 forward = ControllerForwardLocal(item, profile);
+        Vector3 forward = ControllerForwardLocal(profile);
         axis[longest] = forward[longest] >= 0f ? 1f : -1f;
         return Vector3.Angle(axis, forward) <= BarrelMaxAngle;
     }
@@ -399,7 +403,7 @@ internal static class VRGripProfiles
         {
             profile.HasBarrelAxis = TryBuildBarrelAxis(item, profile, bounds, out profile.BarrelAxis);
             Log($"barrel '{item.name}' axis={profile.HasBarrelAxis} {profile.BarrelAxis} "
-                + $"controller={ControllerForwardLocal(item, profile)}");
+                + $"controller={ControllerForwardLocal(profile)}");
         }
 
         profile.HasLine = hasBounds && !profile.IsAimed && TryBuildLine(bounds, profile);

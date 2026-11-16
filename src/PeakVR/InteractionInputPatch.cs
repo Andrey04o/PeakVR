@@ -142,7 +142,7 @@ internal static class InteractionInputPatch
         }
         else
         {
-            VRItemUse.Stop();
+            VRItemUse.StepIdle(local);
             bool isTwoHand = VRHandItems.Enabled && VRHandItems.LeftItem != null;
             InjectUse(__instance, VRControls.LeftTrigger,
                 VRGripProfiles.IsUseAllowed(local, true) && !VRControllerHud.LeftTriggerConsumed,

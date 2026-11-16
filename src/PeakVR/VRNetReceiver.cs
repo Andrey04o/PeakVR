@@ -43,6 +43,7 @@ internal class VRNetReceiver : MonoBehaviour
 
     private readonly Dictionary<int, Smooth> smoothing = new();
     private readonly List<int> stale = new();
+    private readonly List<int> actors = new();
     private static readonly Dictionary<Character, IkWeights> IkOriginals = new();
     private static readonly Dictionary<Character, Smooth> Poses = new();
     public static readonly Dictionary<Character, float> RemoteRolls = new();
@@ -98,27 +99,31 @@ internal class VRNetReceiver : MonoBehaviour
         stale.Clear();
         var t = Time.deltaTime * SmoothSpeed;
 
-        foreach (var kv in VRNetworking.Remotes)
+        actors.Clear();
+        actors.AddRange(VRNetworking.Remotes.Keys);
+
+        for (int i = 0; i < actors.Count; i++)
         {
-            var pose = kv.Value;
+            int actor = actors[i];
+            VRNetworking.RemotePose pose = VRNetworking.Remotes[actor];
             pose.sinceReceived += Time.deltaTime;
-            VRNetworking.Remotes[kv.Key] = pose;
+            VRNetworking.Remotes[actor] = pose;
 
             if (pose.sinceReceived > VRNetworking.StaleTime)
             {
-                stale.Add(kv.Key);
+                stale.Add(actor);
                 continue;
             }
 
-            if (!PlayerHandler.TryGetCharacter(kv.Key, out var character))
+            if (!PlayerHandler.TryGetCharacter(actor, out Character character))
                 continue;
             if (character == null || character == local || character.refs.head == null)
                 continue;
 
-            if (!smoothing.TryGetValue(kv.Key, out var s))
+            if (!smoothing.TryGetValue(actor, out Smooth s))
             {
                 s = new Smooth();
-                smoothing[kv.Key] = s;
+                smoothing[actor] = s;
             }
 
             s.hasShoulders = pose.hasShoulders;

@@ -81,6 +81,34 @@ internal static class CarriedBreakablePatch
     }
 }
 
+[HarmonyPatch(typeof(Item), "SetState")]
+internal static class GroundMassPatch
+{
+    private static readonly AccessTools.FieldRef<CenterOfMass, Rigidbody> BodyRef =
+        AccessTools.FieldRefAccess<CenterOfMass, Rigidbody>("rb");
+
+    private static readonly AccessTools.FieldRef<CenterOfMass, Item> ItemRef =
+        AccessTools.FieldRefAccess<CenterOfMass, Item>("item");
+
+    [HarmonyPostfix]
+    private static void Postfix(Item __instance, ItemState setState)
+    {
+        if (setState != ItemState.Ground || __instance.rig == null)
+            return;
+
+        CenterOfMass mass = __instance.GetComponent<CenterOfMass>();
+        if (mass == null || BodyRef(mass) != null)
+            return;
+
+        BodyRef(mass) = __instance.rig;
+        ItemRef(mass) = __instance;
+        __instance.rig.centerOfMass = mass.centerOfMassTransform != null
+            ? mass.centerOfMassTransform.localPosition
+            : mass.localCenterOfMass;
+        __instance.rig.angularDamping = mass.angularDamping;
+    }
+}
+
 [HarmonyPatch(typeof(Item), "UpdateCollisionDetectionMode")]
 internal static class HeldItemCollisionPatch
 {
