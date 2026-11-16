@@ -128,7 +128,7 @@ internal static class VRGripProfiles
 
         foreach (Collider col in item.GetComponentsInChildren<Collider>(true))
         {
-            if (col == null || !col.enabled || col.isTrigger)
+            if (col == null || !col.enabled || col.isTrigger || !col.gameObject.activeInHierarchy)
                 continue;
 
             Vector3 candidate = col is MeshCollider mesh && !mesh.convex

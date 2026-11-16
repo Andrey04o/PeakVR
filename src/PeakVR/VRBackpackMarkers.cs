@@ -7,116 +7,72 @@ namespace PeakVR;
 [DefaultExecutionOrder(5000)]
 internal class VRBackpackMarkers : MonoBehaviour
 {
-    private const int RingPoints = 24;
-    private const float RingRadius = 0.06f;
-    private const float TargetRadius = 0.08f;
-    private const float RingWidth = 0.003f;
-    private const float TargetWidth = 0.006f;
     private const float GhostAlpha = 0.35f;
-
-    private static readonly Color RingColor = new Color(0.9f, 0.9f, 0.95f);
+    private const float InPackScale = 0.5f;
 
     private readonly List<BackpackMark> marks = new List<BackpackMark>();
-    private readonly List<LineRenderer> rings = new List<LineRenderer>();
-    private readonly Vector3[] points = new Vector3[RingPoints];
+    private readonly List<Item> outlined = new List<Item>();
+    private readonly List<Item> outlineNext = new List<Item>();
 
-    private Material ringMaterial;
-    private Material targetMaterial;
     private Material ghostMaterial;
     private GameObject ghost;
     private Item ghostItem;
 
     private void OnDisable()
     {
-        HideFrom(0);
+        outlineNext.Clear();
+        SetOutlines();
         DestroyGhost();
     }
 
     private void LateUpdate()
     {
         marks.Clear();
-        Camera cam = Camera.main;
-        if (cam != null)
+        outlineNext.Clear();
+        if (Camera.main != null)
             VRBackpackHands.CollectMarks(Character.localCharacter, marks);
-
-        if (marks.Count == 0)
-        {
-            HideFrom(0);
-            SetGhost(null, null);
-            return;
-        }
-
-        EnsureMaterials();
-        Color color = VRLine.CharacterColor();
-        SetColor(targetMaterial, color);
 
         BackpackMark ghostMark = default;
         for (int i = 0; i < marks.Count; i++)
         {
             BackpackMark mark = marks[i];
-            Draw(GetRing(i), mark, cam.transform.position);
             if (mark.Ghost != null)
+            {
                 ghostMark = mark;
+                continue;
+            }
+
+            if (mark.Outline != null && !outlineNext.Contains(mark.Outline))
+                outlineNext.Add(mark.Outline);
         }
 
-        HideFrom(marks.Count);
+        SetOutlines();
         SetGhost(ghostMark.Ghost, ghostMark.Slot);
-        if (ghostMaterial != null)
+        if (ghostMark.Ghost != null && ghostMaterial != null)
+        {
+            Color color = VRLine.CharacterColor();
             SetColor(ghostMaterial, new Color(color.r, color.g, color.b, GhostAlpha));
+        }
     }
 
-    private void Draw(LineRenderer ring, BackpackMark mark, Vector3 eye)
+    private void SetOutlines()
     {
-        Vector3 normal = mark.Position - eye;
-        if (normal.sqrMagnitude < 0.0001f)
-            normal = Vector3.forward;
-        normal.Normalize();
-
-        Vector3 right = Vector3.Cross(normal, Vector3.up);
-        if (right.sqrMagnitude < 0.0001f)
-            right = Vector3.Cross(normal, Vector3.forward);
-        right.Normalize();
-        Vector3 up = Vector3.Cross(right, normal);
-
-        float radius = mark.IsTarget ? TargetRadius : RingRadius;
-        for (int k = 0; k < RingPoints; k++)
+        for (int i = 0; i < outlined.Count; i++)
         {
-            float angle = k * Mathf.PI * 2f / RingPoints;
-            points[k] = mark.Position + (right * Mathf.Cos(angle) + up * Mathf.Sin(angle)) * radius;
+            Item item = outlined[i];
+            if (item != null && !outlineNext.Contains(item))
+                item.HoverExit();
         }
 
-        ring.SetPositions(points);
-        ring.widthMultiplier = mark.IsTarget ? TargetWidth : RingWidth;
-        ring.sharedMaterial = mark.IsTarget ? targetMaterial : ringMaterial;
-        ring.enabled = true;
-    }
-
-    private LineRenderer GetRing(int index)
-    {
-        while (rings.Count <= index)
+        outlined.Clear();
+        for (int i = 0; i < outlineNext.Count; i++)
         {
-            GameObject go = new GameObject("PeakVR Backpack Slot Ring");
-            go.transform.SetParent(transform, false);
-            LineRenderer ring = go.AddComponent<LineRenderer>();
-            ring.useWorldSpace = true;
-            ring.loop = true;
-            ring.positionCount = RingPoints;
-            ring.shadowCastingMode = ShadowCastingMode.Off;
-            ring.receiveShadows = false;
-            ring.enabled = false;
-            VRLayers.HideFromMirror(go);
-            rings.Add(ring);
-        }
+            Item item = outlineNext[i];
+            if (item == null)
+                continue;
 
-        return rings[index];
-    }
-
-    private void HideFrom(int index)
-    {
-        for (int i = index; i < rings.Count; i++)
-        {
-            if (rings[i] != null)
-                rings[i].enabled = false;
+            item.HoverEnter();
+            outlined.Add(item);
         }
     }
 
@@ -142,8 +98,7 @@ internal class VRBackpackMarkers : MonoBehaviour
         DestroyGhost();
         ghostItem = item;
         ghost = new GameObject("PeakVR Backpack Stash Ghost");
-        ghost.transform.SetParent(transform, false);
-        ghost.transform.localScale = item.transform.lossyScale;
+        ghost.transform.localScale = item.forceScale ? Vector3.one * InPackScale : item.transform.lossyScale;
         EnsureGhostMaterial();
 
         Transform root = item.transform;
@@ -199,17 +154,6 @@ internal class VRBackpackMarkers : MonoBehaviour
             Destroy(ghost);
         ghost = null;
         ghostItem = null;
-    }
-
-    private void EnsureMaterials()
-    {
-        if (ringMaterial != null)
-            return;
-
-        Shader shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
-        ringMaterial = new Material(shader);
-        SetColor(ringMaterial, RingColor);
-        targetMaterial = new Material(shader);
     }
 
     private void EnsureGhostMaterial()

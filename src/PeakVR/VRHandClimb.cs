@@ -819,6 +819,8 @@ internal static class VRHandClimb
             return true;
         if (!IsHoldingObject && !CanStart(c))
             return false;
+        if (VRHandItems.HasNearTarget(c, hand == Left))
+            return false;
 
         Vector3 palmDirection = GetPalmDirection(hand);
         Vector3 toPalm = palm - shoulder;

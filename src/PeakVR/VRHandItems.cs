@@ -161,6 +161,9 @@ internal class VRHandItems : MonoBehaviour
     private bool isLeftPickFromHeld;
     private bool isLeftPickRightGripped;
     private int leftPickItemId = -1;
+    private bool isLeftTakeExpected;
+    private float leftTakeSince;
+    private int leftTakeItemId = -1;
     private bool isRightPackExpected;
     private float rightPackSince;
 
@@ -198,6 +201,73 @@ internal class VRHandItems : MonoBehaviour
         instance.isLeftPickRightGripped = instance.isRightGripped;
         instance.leftPickSlot = character.refs.items.currentSelectedSlot;
         instance.isLeftPickReequip = false;
+    }
+
+    public static void ExpectLeftTake(Character character, Item item)
+    {
+        if (instance == null || !Enabled || character == null || item == null
+            || instance.leftItem != null || instance.leftPending != null)
+            return;
+
+        instance.isLeftTakeExpected = true;
+        instance.leftTakeSince = Time.time;
+        instance.leftTakeItemId = item.isSecretlyOtherItemPrefab != null ? item.isSecretlyOtherItemPrefab.itemID : item.itemID;
+    }
+
+    public static bool TryCompleteLeftTake(CharacterItems items, byte slotID)
+    {
+        if (instance == null || !instance.isLeftTakeExpected)
+            return false;
+
+        instance.isLeftTakeExpected = false;
+        Character character = Character.localCharacter;
+        if (character == null || items.character != character || character.player == null || slotID == WornSlot
+            || Time.time - instance.leftTakeSince > ArrivalTimeout || instance.leftItem != null
+            || instance.leftPending != null)
+            return false;
+
+        ItemSlot slot = character.player.GetItemSlot(slotID);
+        if (slot == null || slot.IsEmpty() || slot.prefab == null || slot.prefab.itemID != instance.leftTakeItemId)
+            return false;
+
+        return instance.SpawnLeft(character, items, slotID, slot);
+    }
+
+    private bool SpawnLeft(Character character, CharacterItems items, byte slotID, ItemSlot slot)
+    {
+        Rigidbody bone = character.GetBodypartRig(BodypartType.Hand_L);
+        if (bone == null)
+            return false;
+
+        GameObject spawned = PhotonNetwork.Instantiate("0_Items/" + slot.GetPrefabName(), bone.position, bone.rotation, 0);
+        Item item = spawned != null ? spawned.GetComponent<Item>() : null;
+        if (item == null || item.photonView == null)
+            return false;
+
+        item.photonView.RPC("SetItemInstanceDataRPC", RpcTarget.All, slot.data);
+        character.player.EmptySlot(Optionable<byte>.Some(slotID));
+
+        Vector3 offset = item.Center() - item.transform.position;
+        Vector3 position = bone.position - offset;
+        item.transform.position = position;
+        if (item.rig != null)
+            item.rig.position = position;
+
+        isLeftGripCaptured = false;
+        AttachLeft(character, item, false);
+        character.refs.afflictions?.UpdateWeight();
+        items.RefreshAllCharacterCarryWeight();
+        Log($"left took '{item.name}' straight from slot {slotID}");
+        return true;
+    }
+
+    public static bool IsLeftPickItem(Item item)
+    {
+        if (instance == null || item == null || !instance.isLeftPickExpected || item == instance.leftPickFrom
+            || Time.time - instance.leftPickSince > ArrivalTimeout)
+            return false;
+
+        return instance.leftPickItemId < 0 || item.itemID == instance.leftPickItemId;
     }
 
     private void StepLeftPick(Character character)
@@ -703,6 +773,19 @@ internal class VRHandItems : MonoBehaviour
         return target is Item item && item != null && item.isSecretlyOtherItemPrefab == null;
     }
 
+    public static bool HasNearTarget(Character character, bool isLeft)
+    {
+        if (instance == null || !Enabled || character == null || character.data == null || IsBusy(character, isLeft)
+            || !HandInteractPatch.IsRecent)
+            return false;
+
+        IInteractible target = isLeft ? HandInteractPatch.LeftTarget : HandInteractPatch.RightTarget;
+        if (VRBackpackHands.IsPackTarget(target))
+            return true;
+
+        return target is Item item && item != null && IsGrabbable(item);
+    }
+
     private static bool IsNear(Character character, Item item, bool isLeft)
     {
         Rigidbody bone = character.GetBodypartRig(isLeft ? BodypartType.Hand_L : BodypartType.Hand_R);
@@ -806,7 +889,7 @@ internal class VRHandItems : MonoBehaviour
         if (character.player == null || !character.player.HasEmptySlot(item.itemID))
             return;
 
-        if (VRGripProfiles.TryGetLine(item, out _, out _))
+        if (item is not Backpack && VRGripProfiles.TryGetLine(item, out _, out _))
             Capture(item);
         else
             CaptureExact(character, item);
@@ -1142,6 +1225,17 @@ internal class VRHandItems : MonoBehaviour
         if (bone == null)
             return;
 
+        Transform handle = item is Backpack ? item.transform.Find("Hand_L") : null;
+        if (handle != null)
+        {
+            Quaternion inv = Quaternion.Inverse(item.transform.rotation);
+            leftGripDir = inv * (handle.position - item.transform.position);
+            leftGripRot = inv * handle.rotation;
+            isLeftGripCaptured = true;
+            Log($"left takes '{item.name}' by its handle");
+            return;
+        }
+
         string mode = VRGripProfiles.Capture(item, true, bone.transform.position, bone.transform.rotation,
             out leftGripDir, out leftGripRot);
         isLeftGripCaptured = true;
@@ -1327,6 +1421,14 @@ internal class VRHandItems : MonoBehaviour
 
     private static void PlayGrabSound(Character character, Item item)
     {
+        if (item.TryGetComponent<BackPackAudio>(out BackPackAudio packAudio) && packAudio.holdSFX != null
+            && packAudio.holdSFX.Length > 0)
+        {
+            foreach (SFX_Instance sfx in packAudio.holdSFX)
+                sfx?.Play(item.transform.position);
+            return;
+        }
+
         if (item.TryGetComponent<ItemUseFeedback>(out ItemUseFeedback feedback) && feedback.equip != null
             && feedback.equip.Length > 0)
         {
@@ -1483,12 +1585,6 @@ internal class VRHandItems : MonoBehaviour
         Rigidbody bone = character.GetBodypartRig(BodypartType.Hand_R);
         if (bone == null)
             return;
-
-        if (target is Backpack)
-        {
-            captured = false;
-            return;
-        }
 
         Quaternion inv = Quaternion.Inverse(target.transform.rotation);
         SetCaptured(target, inv * (bone.transform.position - target.transform.position), inv * bone.transform.rotation);

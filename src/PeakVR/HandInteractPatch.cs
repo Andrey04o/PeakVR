@@ -16,6 +16,7 @@ internal static class HandInteractPatch
     private const float LineStartOffset = 0.1f;
     private const float MinHitDistance = 0.0001f;
     private const float TouchRange = 0.12f;
+    private const float PackYieldRange = 0.2f;
 
     // Contact point of whichever cast acquired the current target, so the line can end exactly where
     // we touched it rather than at the object's centre.
@@ -29,6 +30,8 @@ internal static class HandInteractPatch
     public static IInteractible LeftTarget { get; private set; }
 
     public static bool IsFresh => targetFrame == Time.frameCount;
+
+    public static bool IsRecent => Time.frameCount - targetFrame <= 1;
 
     public static IInteractible LeftHover => IsFresh ? LeftTarget : null;
 
@@ -214,7 +217,7 @@ internal static class HandInteractPatch
             return null;
 
         Item other = right ? VRHandItems.LeftItem : local.data.currentItem;
-        if (other == null || other.consuming || other is Backpack)
+        if (other == null || other.consuming)
             return null;
 
         Item own = right ? local.data.currentItem : VRHandItems.LeftItem;
@@ -245,12 +248,40 @@ internal static class HandInteractPatch
 
         bool busy = VRHandItems.IsBusy(local, !right);
         Item touched = busy ? null : TouchedOtherHandItem(local, right);
-        if (touched != null)
+        if (touched != null && touched is not Backpack)
         {
             Remember(touched, Vector3.zero, false);
             return touched;
         }
 
+        IInteractible found = FindAimed(interaction, local, origin, dir, busy);
+        if (touched != null && !IsNearer(local, right, found, touched))
+        {
+            Remember(touched, Vector3.zero, false);
+            return touched;
+        }
+
+        return found;
+    }
+
+    private static bool IsNearer(Character local, bool right, IInteractible aimed, Item touched)
+    {
+        if (aimed is not Item item || item == null || item == touched)
+            return false;
+
+        Rigidbody bone = local.GetBodypartRig(right ? BodypartType.Hand_R : BodypartType.Hand_L);
+        if (bone == null)
+            return false;
+
+        Vector3 hand = bone.transform.position;
+        float itemGap = Vector3.Distance(VRGripProfiles.ClosestPoint(item, hand), hand);
+        float touchedGap = Vector3.Distance(VRGripProfiles.ClosestPoint(touched, hand), hand);
+        return itemGap <= Mathf.Max(touchedGap, PackYieldRange);
+    }
+
+    private static IInteractible FindAimed(Interaction interaction, Character local, Vector3 origin, Vector3 dir,
+        bool busy)
+    {
         var distance = DistanceField != null ? (float)DistanceField.GetValue(interaction) : 3f;
         var mask = (int)HelperFunctions.GetMask(HelperFunctions.LayerType.AllPhysical);
 

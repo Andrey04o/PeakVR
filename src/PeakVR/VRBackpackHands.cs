@@ -33,11 +33,9 @@ internal struct BackpackSlotTarget
 
 internal struct BackpackMark
 {
-    public Vector3 Position;
-    public float Radius;
-    public bool IsTarget;
     public Transform Slot;
     public Item Ghost;
+    public Item Outline;
 }
 
 internal static class VRBackpackHands
@@ -47,16 +45,16 @@ internal static class VRBackpackHands
     private const float SlotTouch = 0.12f;
     private const float LineStashRadius = 0.2f;
     private const float LineStashSpread = 0.12f;
-    private const float LineTakeRadius = 0.1f;
-    private const float LineTakeSpread = 0.07f;
+    private const float LineTakeRadius = 0.25f;
+    private const float LineTakeSpread = 0.15f;
     private const float LineRange = 3f;
     private const float TakeOffBehind = 0.02f;
     private const float TakeOffAbove = 0.1f;
     private const float TakeOffWidth = 0.35f;
-    private const float ShowRange = 0.6f;
     private const float SearchRange = 3f;
     private const float GroundRefresh = 0.5f;
     private const float PendingTimeout = 3f;
+    private const float TakeCooldown = 0.3f;
     private const float ShoulderBehind = -0.05f;
     private const float ShoulderBelow = -0.15f;
     private const float ShoulderWidth = 0.45f;
@@ -155,11 +153,19 @@ internal static class VRBackpackHands
         if (!Enabled || item == null || item.itemState != ItemState.InBackpack)
             return false;
 
+        CharacterItems items = local.refs != null ? local.refs.items : null;
+        float lastEquip = items != null ? items.lastEquippedSlotTime : 0f;
+        if (items != null && lastEquip <= Time.time)
+            items.lastEquippedSlotTime = Mathf.Min(lastEquip, Time.time - TakeCooldown);
+
         VRHandItems.SetBypass(item);
         if (isLeft)
-            VRHandItems.ExpectLeftPick(local);
+            VRHandItems.ExpectLeftTake(local, item);
         item.Interact(local);
         VRHandItems.SetBypass(null);
+
+        if (items != null)
+            items.lastEquippedSlotTime = lastEquip;
         Log($"{(isLeft ? "left" : "right")} takes '{item.name}' from a backpack");
         return true;
     }
@@ -494,9 +500,6 @@ internal static class VRBackpackHands
         if (held is Backpack)
             return result;
 
-        if (held == null && VRHandItems.IsBusy(local, !isRight))
-            return result;
-
         if (!TryGetProbe(local, isRight, held, out Vector3 probe))
             return result;
 
@@ -659,44 +662,15 @@ internal static class VRBackpackHands
     private static void AddMarks(Character local, bool isRight, List<BackpackMark> marks)
     {
         BackpackSlotTarget target = GetTarget(isRight);
-        Item held = GetHeld(local, isRight);
-        if (held is Backpack || (held == null && VRHandItems.IsBusy(local, !isRight)))
+        if (!target.IsFound || !IsAlive(target.Zone))
             return;
 
-        if (!TryGetProbe(local, isRight, held, out Vector3 probe))
-            return;
-
-        Vector3 controller = GetController(isRight, probe);
-        bool isStash = held != null;
-        List<BackpackZone> zones = GetZones(local);
-        for (int i = 0; i < zones.Count; i++)
+        marks.Add(new BackpackMark
         {
-            BackpackZone zone = zones[i];
-            if (!IsAlive(zone) || (zone.Item != null && zone.Item == held))
-                continue;
-
-            bool isTargetZone = target.IsFound && target.Zone.Visuals == zone.Visuals;
-            if (!isTargetZone && Mathf.Min(NearestSlot(zone, probe), NearestSlot(zone, controller)) > ShowRange)
-                continue;
-
-            BackpackData data = zone.Reference.GetData();
-            for (int k = 0; k < zone.SlotCount; k++)
-            {
-                if (!IsUsable(zone, data, k, isStash, out _))
-                    continue;
-
-                bool isTarget = isTargetZone && target.Slot == k;
-                Transform slot = zone.Visuals.backpackSlots[k];
-                marks.Add(new BackpackMark
-                {
-                    Position = slot.position,
-                    Radius = zone.Reach,
-                    IsTarget = isTarget,
-                    Slot = slot,
-                    Ghost = isTarget && isStash ? held : null
-                });
-            }
-        }
+            Slot = target.SlotTransform,
+            Ghost = target.IsStash ? target.Held : null,
+            Outline = target.IsStash ? null : target.SlotItem
+        });
     }
 
     private static bool IsBehindShoulder(Character local, Vector3 point)
@@ -728,19 +702,6 @@ internal static class VRBackpackHands
 
         return behind > minBehind && offset.y > minAbove && side.magnitude < maxWidth
             && offset.magnitude < ShoulderRange;
-    }
-
-    private static float NearestSlot(BackpackZone zone, Vector3 point)
-    {
-        float nearest = float.MaxValue;
-        for (int k = 0; k < zone.SlotCount; k++)
-        {
-            float dist = Vector3.Distance(point, zone.Visuals.backpackSlots[k].position);
-            if (dist < nearest)
-                nearest = dist;
-        }
-
-        return nearest;
     }
 
     private static int FirstEmpty(BackpackData data, int slotCount)
@@ -938,12 +899,30 @@ internal class VRBackpackStashTarget : MonoBehaviour, IInteractible
     }
 }
 
+[HarmonyPatch(typeof(Backpack), "Update")]
+internal static class LeftBackpackMeshPatch
+{
+    [HarmonyPostfix]
+    private static void Postfix(Backpack __instance)
+    {
+        if (__instance != VRHandItems.LeftItem || __instance.backpackType == BackpackSlot.BackpackType.Rocketpack
+            || __instance.groundMesh == null || __instance.heldMesh == null)
+            return;
+
+        __instance.groundMesh.SetActive(false);
+        __instance.heldMesh.SetActive(true);
+    }
+}
+
 [HarmonyPatch(typeof(CharacterItems), nameof(CharacterItems.OnPickupAccepted))]
 internal static class BackpackStashPickupPatch
 {
     [HarmonyPrefix]
     private static bool Prefix(CharacterItems __instance, byte slotID)
     {
-        return !VRBackpackHands.TryCompleteStash(__instance, slotID);
+        if (VRBackpackHands.TryCompleteStash(__instance, slotID))
+            return false;
+
+        return !VRHandItems.TryCompleteLeftTake(__instance, slotID);
     }
 }

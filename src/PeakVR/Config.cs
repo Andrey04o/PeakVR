@@ -144,7 +144,6 @@ public class Config
         TriggerGrab = file.Bind("Immersive", "Trigger Grab And Slide", false,
             "Also pick items up with the trigger, and keep holding the trigger after letting go of the grip to "
             + "let a long item slide through your hand. Off means only the grip picks items up.");
-
         SmoothTurn =file.Bind("Comfort", "Smooth Turn", false,
             "Turn smoothly with the right stick instead of snapping by a fixed angle.");
         SnapTurnAngle = file.Bind("Comfort", "Snap Turn Angle", 45f,

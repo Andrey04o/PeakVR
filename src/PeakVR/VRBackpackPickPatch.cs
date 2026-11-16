@@ -29,7 +29,7 @@ internal static class VRBackpackPickPatch
             return;
 
         VRHandItems.SetBypass(item);
-        VRHandItems.ExpectLeftPick(Character.localCharacter);
+        VRHandItems.ExpectLeftTake(Character.localCharacter, item);
     }
 
     [HarmonyPatch(nameof(BackpackWheel.Choose))]

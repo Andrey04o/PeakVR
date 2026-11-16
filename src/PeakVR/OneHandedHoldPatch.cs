@@ -58,14 +58,27 @@ internal static class OneHandedHoldPatch
         if (item == null || !ShouldApply(items))
             return false;
 
-        Rigidbody handR = items.character.GetBodypartRig(BodypartType.Hand_R);
+        if (IsLocalVR(items) && IsLeftOnly(items, item))
+        {
+            pos = item.transform.position;
+            rot = item.transform.rotation;
+            return true;
+        }
+
+        bool isLeftPick = IsLocalVR(items) && VRHandItems.IsLeftPickItem(item);
+        Rigidbody handR = items.character.GetBodypartRig(isLeftPick ? BodypartType.Hand_L : BodypartType.Hand_R);
         if (handR == null)
             return false;
 
         Quaternion gripLocalRot;
         Vector3 gripLocalDir;
 
-        if (IsLocalVR(items) && VRHandItems.TryGripOffset(item, out Vector3 grabbedDir, out Quaternion grabbedRot))
+        if (isLeftPick)
+        {
+            gripLocalRot = Quaternion.identity;
+            gripLocalDir = Quaternion.Inverse(item.transform.rotation) * (item.Center() - item.transform.position);
+        }
+        else if (IsLocalVR(items) && VRHandItems.TryGripOffset(item, out Vector3 grabbedDir, out Quaternion grabbedRot))
         {
             gripLocalRot = grabbedRot;
             gripLocalDir = grabbedDir;
@@ -93,6 +106,9 @@ internal static class OneHandedHoldPatch
     {
         if (!ShouldApply(__instance) || item == null || GetPosRight == null || GetRotRight == null)
             return true;
+
+        if (IsLocalVR(__instance) && IsLeftOnly(__instance, item))
+            return false;
 
         Rigidbody handR = __instance.character.GetBodypartRig(BodypartType.Hand_R);
         if (handR == null)
@@ -165,6 +181,11 @@ internal static class OneHandedHoldPatch
             return true;
 
         return VRNetworking.IsActiveRemote(items.character);
+    }
+
+    private static bool IsLeftOnly(CharacterItems items, Item item)
+    {
+        return item == VRHandItems.LeftItem && item != items.character.data.currentItem;
     }
 
     private static bool IsLocalVR(CharacterItems items)
