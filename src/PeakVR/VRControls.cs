@@ -84,12 +84,12 @@ internal static class VRControls
     }
 
     public static string PosePositionPath(string hand) =>
-        OpenVRBackend.Active
+        OpenVRBackend.Active || VRSimulation.Active
             ? $"<XRController>{{{hand}}}/devicePosition"
             : $"<XRController>{{{hand}}}/pointer/position";
 
     public static string PoseRotationPath(string hand) =>
-        OpenVRBackend.Active
+        OpenVRBackend.Active || VRSimulation.Active
             ? $"<XRController>{{{hand}}}/deviceRotation"
             : $"<XRController>{{{hand}}}/pointer/rotation";
 

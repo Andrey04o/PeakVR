@@ -26,6 +26,11 @@ internal static class VRSession
         return true;
     }
 
+    public static void StartSimulated()
+    {
+        ApplyRenderSetup();
+    }
+
     public static bool Start()
     {
         if (Plugin.VrEnabled)

@@ -46,8 +46,9 @@ public partial class Plugin : BaseUnityPlugin
         //Config.File.SettingChanged += (_, _) => Config.SerializeToES3();
 
         var args = Environment.GetCommandLineArgs();
-        var disableVr = args.Contains("--disable-vr", StringComparer.OrdinalIgnoreCase)
-            || !Config.StartInVR.Value;
+        bool isSimulated = VRSimulation.IsRequested(args);
+        var disableVr = !isSimulated && (args.Contains("--disable-vr", StringComparer.OrdinalIgnoreCase)
+            || !Config.StartInVR.Value);
         DebugButtons = args.Contains("-vr-debugbuttons", StringComparer.OrdinalIgnoreCase);
 
         VRNetworking.CreateReceiver();
@@ -70,7 +71,12 @@ public partial class Plugin : BaseUnityPlugin
 
         VRSessionWatch.Install();
 
-        if (disableVr)
+        if (isSimulated)
+        {
+            VRSimulation.Start();
+            VRSession.StartSimulated();
+        }
+        else if (disableVr)
         {
             VrEnabled = false;
             Log.LogWarning("[PeakVR] Starting in flat (non-VR) mode ('--disable-vr' or the 'Start In VR' setting). Switch to VR from the VR Settings page or the mode hotkey.");

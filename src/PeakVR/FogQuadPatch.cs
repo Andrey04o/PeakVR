@@ -13,7 +13,7 @@ internal static class FogQuadPatch
     [HarmonyPrefix]
     private static bool Prefix(CameraQuad __instance)
     {
-        if (!Plugin.VrEnabled)
+        if (!Plugin.VrEnabled || VRSimulation.Active)
             return true;
 
         var cam = MainCamera.instance != null ? MainCamera.instance.cam : null;

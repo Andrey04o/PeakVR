@@ -49,7 +49,7 @@ internal class VRStereoCulling : MonoBehaviour
 
     private void OnBeginCameraBody(ScriptableRenderContext ctx, Camera rendering)
     {
-        if (rendering != cam)
+        if (rendering != cam || VRSimulation.Active)
             return;
 
         // Occlusion culling runs from each eye's own position, so a small object / rock near an

@@ -36,6 +36,8 @@ internal class VRGripProfile
     public bool HasBounds;
     public Vector3 BoundsCenter;
     public Vector3 BoundsExtents;
+    public bool HasBarrelAxis;
+    public Vector3 BarrelAxis;
 }
 
 internal static class VRGripProfiles
@@ -49,6 +51,8 @@ internal static class VRGripProfiles
     private const float LineAspect = 2.2f;
     private const float LineInset = 0.05f;
     private const float MaxPalmToLine = 0.12f;
+    private const float BarrelAspect = 1.4f;
+    private const float BarrelMaxAngle = 50f;
 
     private static readonly Dictionary<ushort, VRGripProfile> Cache = new Dictionary<ushort, VRGripProfile>();
     private static readonly List<Collider> AimColliders = new List<Collider>();
@@ -198,16 +202,52 @@ internal static class VRGripProfiles
         if (profile == null || !profile.HasSnapRight || (!profile.IsAimed && !profile.IsDeployable))
             return false;
 
-        TryGetRotationOffset(item, false, out Quaternion offset);
-        Quaternion controllerLocal = profile.SnapRightRotation * Quaternion.Inverse(offset)
-            * Quaternion.Inverse(VRArmIKPatch.HandRotationOffset);
-        Vector3 local = controllerLocal * Vector3.forward;
+        Vector3 local = profile.HasBarrelAxis ? profile.BarrelAxis : ControllerForwardLocal(item, profile);
 
         Transform root = item.transform;
         Vector3 grip = root.position + root.rotation * profile.SnapRightPosition;
         direction = root.rotation * local;
         origin = grip + direction * FrontDistance(item, grip, direction, profile.Radius * 2f + 0.1f);
         return true;
+    }
+
+    private static Vector3 ControllerForwardLocal(Item item, VRGripProfile profile)
+    {
+        TryGetRotationOffset(item, false, out Quaternion offset);
+        Quaternion controllerLocal = profile.SnapRightRotation * Quaternion.Inverse(offset)
+            * Quaternion.Inverse(VRArmIKPatch.HandRotationOffset);
+        return controllerLocal * Vector3.forward;
+    }
+
+    private static bool TryBuildBarrelAxis(Item item, VRGripProfile profile, Bounds bounds, out Vector3 axis)
+    {
+        axis = Vector3.zero;
+        if (!profile.HasBounds || !profile.HasSnapRight)
+            return false;
+
+        if (item.GetComponentInChildren<Action_ShowBinocularOverlay>(true) != null)
+            return false;
+
+        Vector3 size = bounds.size;
+        int longest = 0;
+        if (size.y > size[longest])
+            longest = 1;
+        if (size.z > size[longest])
+            longest = 2;
+
+        float second = 0f;
+        for (int i = 0; i < 3; i++)
+        {
+            if (i != longest && size[i] > second)
+                second = size[i];
+        }
+
+        if (size[longest] < second * BarrelAspect)
+            return false;
+
+        Vector3 forward = ControllerForwardLocal(item, profile);
+        axis[longest] = forward[longest] >= 0f ? 1f : -1f;
+        return Vector3.Angle(axis, forward) <= BarrelMaxAngle;
     }
 
     private static float FrontDistance(Item item, Vector3 grip, Vector3 direction, float reach)
@@ -354,6 +394,13 @@ internal static class VRGripProfiles
         profile.HasBounds = hasBounds;
         profile.BoundsCenter = bounds.center;
         profile.BoundsExtents = bounds.extents;
+
+        if (profile.IsAimed)
+        {
+            profile.HasBarrelAxis = TryBuildBarrelAxis(item, profile, bounds, out profile.BarrelAxis);
+            Log($"barrel '{item.name}' axis={profile.HasBarrelAxis} {profile.BarrelAxis} "
+                + $"controller={ControllerForwardLocal(item, profile)}");
+        }
 
         profile.HasLine = hasBounds && !profile.IsAimed && TryBuildLine(bounds, profile);
 
