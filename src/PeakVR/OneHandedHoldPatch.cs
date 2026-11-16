@@ -109,6 +109,14 @@ internal static class OneHandedHoldPatch
             item.rig.linearVelocity = Vector3.zero;
             item.rig.angularVelocity = Vector3.zero;
         }
+        else if (second && VRHandItems.TryGripOffset(item, out Vector3 secondDir, out Quaternion secondRot))
+        {
+            Vector3 handPos = item.transform.position + item.transform.rotation * secondDir;
+            Quaternion handRot = item.transform.rotation * secondRot;
+            handR.transform.SetPositionAndRotation(handPos, handRot);
+            handR.position = handPos;
+            handR.rotation = handRot;
+        }
         else if (!second)
         {
             if (IsLocalVR(__instance) && VRHandItems.TryGripOffset(item, out Vector3 grabbedDir, out Quaternion grabbedRot))
@@ -145,12 +153,7 @@ internal static class OneHandedHoldPatch
 
     private static void DestroyHandJoint(CharacterItems items, BodypartType part)
     {
-        var rig = items.character.GetBodypartRig(part);
-        if (rig == null)
-            return;
-
-        if (rig.gameObject.TryGetComponent<FixedJoint>(out var joint))
-            Object.Destroy(joint);
+        VRHandJoint.DestroyItemJoints(items.character.GetBodypartRig(part));
     }
 
     private static bool ShouldApply(CharacterItems items)

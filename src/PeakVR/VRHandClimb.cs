@@ -228,7 +228,7 @@ internal static class VRHandClimb
         {
             hand.IsGripHeld = true;
             hand.AutoGrabLeft = AutoGrabTime;
-            hand.IsInputConsumed = TryGrab(c, hand);
+            hand.IsInputConsumed = !VRHandItems.IsSliding(hand == Left) && TryGrab(c, hand);
         }
         else if (hand.IsGripHeld && !pressed)
         {
@@ -434,7 +434,6 @@ internal static class VRHandClimb
 
         if (wasWall)
             SendStop(c);
-        c.refs.items.EquipSlot(Optionable<byte>.None);
 
         if (hand.IsRope)
         {
@@ -1371,7 +1370,6 @@ internal static class VRHandClimb
     {
         if (c.data.isClimbing)
             c.data.isClimbing = false;
-        c.refs.items.EquipSlot(Optionable<byte>.None);
         Vector3 normal = GetBodyNormal(c);
         c.data.climbNormal = normal;
         c.data.climbPos = c.TorsoPos() - normal * BodyNormalDistance;

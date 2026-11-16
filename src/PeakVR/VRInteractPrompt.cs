@@ -13,6 +13,8 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
 
     private Canvas canvas;
     private RectTransform canvasRt;
+    private Canvas progressCanvas;
+    private RectTransform progressCanvasRt;
     private int frame;
 
     private Transform interactName;
@@ -62,18 +64,22 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
         restore.Record(nameT);
         restore.Record(promptsT);
 
-        Adopt(ref progress, progressT, new Vector2(0f, 155f));
-        Adopt(ref interactName, nameT, new Vector2(0f, 70f));
-        Adopt(ref interactPrompts, promptsT, new Vector2(0f, -70f));
+        Adopt(ref progress, progressT, new Vector2(0f, 155f), progressCanvasRt);
+        Adopt(ref interactName, nameT, new Vector2(0f, 70f), canvasRt);
+        Adopt(ref interactPrompts, promptsT, new Vector2(0f, -70f), canvasRt);
 
         bool isRefresh = ++frame % RefreshInterval == 0;
         if (isRefresh)
         {
             UIOverlay.SweepForegroundLayer(canvas);
             UIOverlay.MakeAlwaysVisible(canvas, true);
+            UIOverlay.SweepForegroundLayer(progressCanvas);
+            UIOverlay.MakeAlwaysVisible(progressCanvas, true);
         }
 
         PlaceCanvas(canvasRt, VRHands.Right);
+        bool isLeftUse = VRItemUse.IsProgressLeft(Character.localCharacter) && VRHands.Left != null;
+        PlaceCanvas(progressCanvasRt, isLeftUse ? VRHands.Left : VRHands.Right);
         UpdateLeft(gui, isRefresh);
     }
 
@@ -259,28 +265,41 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
 
     private void EnsureCanvas()
     {
-        if (canvas != null)
-            return;
+        if (canvas == null)
+        {
+            canvas = CreateCanvas("PeakVR Interact Prompt");
+            canvasRt = (RectTransform)canvas.transform;
+        }
 
-        var go = new GameObject("PeakVR Interact Prompt");
-        canvas = go.AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.WorldSpace;
-        canvas.worldCamera = MainCamera.instance != null ? MainCamera.instance.cam : Camera.main;
-        canvas.sortingOrder = 50;
-
-        canvasRt = (RectTransform)go.transform;
-        canvasRt.sizeDelta = new Vector2(500f, 400f);
-        canvasRt.localScale = Vector3.one * Scale;
+        if (progressCanvas == null)
+        {
+            progressCanvas = CreateCanvas("PeakVR Use Progress");
+            progressCanvasRt = (RectTransform)progressCanvas.transform;
+        }
     }
 
-    private void Adopt(ref Transform held, Transform target, Vector2 anchoredPos)
+    private static Canvas CreateCanvas(string name)
     {
-        if (target == null)
+        GameObject go = new GameObject(name);
+        Canvas created = go.AddComponent<Canvas>();
+        created.renderMode = RenderMode.WorldSpace;
+        created.worldCamera = MainCamera.instance != null ? MainCamera.instance.cam : Camera.main;
+        created.sortingOrder = 50;
+
+        RectTransform rt = (RectTransform)go.transform;
+        rt.sizeDelta = new Vector2(500f, 400f);
+        rt.localScale = Vector3.one * Scale;
+        return created;
+    }
+
+    private void Adopt(ref Transform held, Transform target, Vector2 anchoredPos, RectTransform parent)
+    {
+        if (target == null || parent == null)
             return;
 
-        if (target.parent != canvasRt)
+        if (target.parent != parent)
         {
-            target.SetParent(canvasRt, false);
+            target.SetParent(parent, false);
             if (target is RectTransform rt)
             {
                 rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
@@ -319,6 +338,11 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
             Destroy(canvas.gameObject);
         canvas = null;
         canvasRt = null;
+
+        if (progressCanvas != null)
+            Destroy(progressCanvas.gameObject);
+        progressCanvas = null;
+        progressCanvasRt = null;
 
         if (count > 0)
             Plugin.Log.LogInfo($"[PeakVR] Interaction prompts returned to the screen ({count})");

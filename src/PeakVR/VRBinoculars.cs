@@ -6,19 +6,12 @@ using UnityEngine.Rendering;
 
 namespace PeakVR;
 
-[DefaultExecutionOrder(1150)]
+[DefaultExecutionOrder(1160)]
 internal class VRBinoculars : MonoBehaviour
 {
     private const float Distance = 0.3f;
     private const float Size = 0.8f;
     private const float EyeOffset = 0.06f;
-    private const float ItemForward = 0.06f;
-    private const float ItemUp = 0f;
-    private const float SmoothRate = 8f;
-
-    private bool smoothing;
-    private Vector3 smoothPos;
-    private Quaternion smoothRot = Quaternion.identity;
     private const int RenderQueue = 4000;
     private const int TextureSize = 1024;
     private const float MinFov = 1f;
@@ -39,7 +32,13 @@ internal class VRBinoculars : MonoBehaviour
         if (over == null)
         {
             SetActive(false);
-            smoothing = false;
+            return;
+        }
+
+        Item owner = over.GetComponentInParent<Item>();
+        if (CloseIfDropped(over, owner))
+        {
+            SetActive(false);
             return;
         }
 
@@ -47,49 +46,9 @@ internal class VRBinoculars : MonoBehaviour
             return;
 
         SetActive(true);
-        ResolveFeature();
+        ResolveFeature(owner);
 
-        var hand = VRHands.Right;
-        var aim = AimTransform();
-
-        if (aim != null && hand != null)
-        {
-            Vector3 wantPos;
-            Quaternion wantRot;
-
-            if (hasRig)
-            {
-                wantRot = hand.rotation * Quaternion.Inverse(gripRot);
-                wantPos = hand.position - wantRot * gripPos;
-            }
-            else
-            {
-                wantPos = hand.position + hand.forward * ItemForward + hand.up * ItemUp;
-                wantRot = hand.rotation;
-            }
-
-            var frame = transform.parent != null ? transform.parent : transform;
-            var localWantPos = frame.InverseTransformPoint(wantPos);
-            var localWantRot = Quaternion.Inverse(frame.rotation) * wantRot;
-
-            if (!smoothing)
-            {
-                smoothPos = localWantPos;
-                smoothRot = localWantRot;
-                smoothing = true;
-            }
-            else
-            {
-                var t = 1f - Mathf.Exp(-SmoothRate * Time.deltaTime);
-                smoothPos = Vector3.Lerp(smoothPos, localWantPos, t);
-                smoothRot = Quaternion.Slerp(smoothRot, localWantRot, t);
-            }
-
-            aim.position = frame.TransformPoint(smoothPos);
-            aim.rotation = frame.rotation * smoothRot;
-        }
-
-        var view = aim != null ? aim : transform;
+        var view = owner != null ? owner.transform : transform;
 
         scopeCam.transform.SetPositionAndRotation(over.transform.position, view.rotation);
         scopeCam.fieldOfView = Mathf.Clamp(over.fov, MinFov, MaxFov);
@@ -99,12 +58,12 @@ internal class VRBinoculars : MonoBehaviour
         scopeCam.nearClipPlane = mainCam.nearClipPlane;
         scopeCam.farClipPlane = mainCam.farClipPlane;
 
-        PlaceQuad(view);
+        PlaceQuad(view, VRFollowHold.IsLeftHeld(owner));
         EnsureFog();
         UpdateFog();
     }
 
-    private void PlaceQuad(Transform view)
+    private void PlaceQuad(Transform view, bool isLeft)
     {
         if (quad == null)
             return;
@@ -113,8 +72,8 @@ internal class VRBinoculars : MonoBehaviour
 
         if (hasRig)
         {
-            t.position = view.TransformPoint(scopePos);
-            t.rotation = view.rotation * scopeRot;
+            t.position = view.TransformPoint(isLeft ? VRFollowHold.MirrorX(scopePos) : scopePos);
+            t.rotation = view.rotation * (isLeft ? VRFollowHold.MirrorX(scopeRot) : scopeRot);
             t.localScale = scopeScale;
             return;
         }
@@ -128,8 +87,6 @@ internal class VRBinoculars : MonoBehaviour
     private Vector3 scopePos;
     private Quaternion scopeRot = Quaternion.identity;
     private Vector3 scopeScale = Vector3.one;
-    private Vector3 gripPos;
-    private Quaternion gripRot = Quaternion.identity;
 
     private void LoadRig()
     {
@@ -140,33 +97,39 @@ internal class VRBinoculars : MonoBehaviour
         scopePos = BinocularRig.ScopePos;
         scopeRot = BinocularRig.ScopeRot;
         scopeScale = BinocularRig.ScopeScale;
-        gripPos = BinocularRig.GripPos;
-        gripRot = BinocularRig.GripRot;
         hasRig = true;
     }
 
-    private static Transform AimTransform()
+    private static bool CloseIfDropped(CameraOverride_Binoculars over, Item owner)
     {
-        var ch = Character.localCharacter;
-        var item = ch != null && ch.data != null ? ch.data.currentItem : null;
-        return item != null ? item.transform : null;
+        Character ch = Character.localCharacter;
+        Item held = ch != null && ch.data != null ? ch.data.currentItem : null;
+        if (owner != null && (owner == held || owner == VRHandItems.LeftItem))
+            return false;
+
+        Action_ShowBinocularOverlay overlay = VRFollowHold.GetOverlay(owner);
+
+        if (overlay != null && overlay.binocularsActive)
+            overlay.RunAction();
+        else if (MainCamera.instance != null)
+            MainCamera.instance.SetCameraOverride(null);
+
+        return true;
     }
 
     private object feature;
     private MethodInfo featureSetActive;
     private bool hooked;
 
-    private void ResolveFeature()
+    private void ResolveFeature(Item item)
     {
         if (feature != null)
             return;
 
-        var ch = Character.localCharacter;
-        var item = ch != null && ch.data != null ? ch.data.currentItem : null;
         if (item == null)
             return;
 
-        var overlay = item.GetComponentInChildren<Action_ShowBinocularOverlay>(true);
+        var overlay = VRFollowHold.GetOverlay(item);
         if (overlay == null || overlay.featureManager == null)
             return;
 

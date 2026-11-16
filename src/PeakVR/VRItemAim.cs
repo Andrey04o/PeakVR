@@ -11,20 +11,27 @@ internal class VRItemAim : MonoBehaviour
     private const float ReticlePadding = 0.03f;
     private const float ReticleAngularScale = 0.022f;
 
-    private LineRenderer line;
+    private class AimView
+    {
+        public LineRenderer Line;
+        public SpriteRenderer Reticle;
+    }
+
     private Material lineMat;
-    private SpriteRenderer reticle;
-    private bool reticleSpriteSet;
+    private Sprite reticleSprite;
+    private AimView right;
+    private AimView left;
 
     private void Awake()
     {
-        CreateLine();
-        CreateReticle();
+        CreateMaterial();
+        right = CreateView("Right");
+        left = CreateView("Left");
     }
 
     private void Update()
     {
-        var kb = Keyboard.current;
+        Keyboard kb = Keyboard.current;
         if (kb == null)
             return;
 
@@ -56,99 +63,106 @@ internal class VRItemAim : MonoBehaviour
 
     private void LateUpdate()
     {
-        var character = Character.localCharacter;
-        var item = character != null ? character.data.currentItem : null;
+        Character character = Character.localCharacter;
+        bool canShow = ItemAim.Enabled && VRPointer.Canvas == null && character != null && character.data != null;
 
-        var shootable = item != null && item.UIData.isShootable;
+        Item rightItem = canShow ? character.data.currentItem : null;
+        Item leftItem = canShow && VRHandItems.Enabled ? VRHandItems.LeftItem : null;
+        if (leftItem == rightItem)
+            leftItem = null;
 
-        if (!ItemAim.Enabled || VRHands.Right == null || VRPointer.Canvas != null
-            || item == null || !(shootable || IsPlacementItem(item)))
+        bool isShootable = Show(right, rightItem, true);
+        isShootable |= Show(left, leftItem, VRItemUse.IsSpike(leftItem));
+
+        if (isShootable)
+            HideGameReticle();
+    }
+
+    private bool Show(AimView view, Item item, bool isPlacementAllowed)
+    {
+        bool isShootable = item != null && item.UIData.isShootable;
+        bool isPlacement = isPlacementAllowed && item != null && IsPlacementItem(item);
+
+        if (!(isShootable || isPlacement) || !ItemAim.TryGetAim(item, out Vector3 origin, out Vector3 direction))
         {
-            Hide();
-            return;
+            Hide(view);
+            return false;
         }
 
-        if (shootable)
-            HideGameReticle();
+        int mask = HelperFunctions.LayerType.TerrainMap.ToLayerMask();
+        bool hasHit = Physics.Raycast(origin, direction, out RaycastHit lineHit, MaxDist, mask,
+            QueryTriggerInteraction.Ignore);
+        Vector3 end = hasHit ? lineHit.point : origin + direction * MaxDist;
 
-        var ray = ItemAim.GetMiddleScreenRay();
-        var mask = HelperFunctions.LayerType.TerrainMap.ToLayerMask();
-        var lineHasHit = Physics.Raycast(ray, out var lineHit, MaxDist, mask, QueryTriggerInteraction.Ignore);
+        view.Line.enabled = true;
+        view.Line.SetPosition(0, origin);
+        view.Line.SetPosition(1, end);
 
-        var end = lineHasHit ? lineHit.point : ray.origin + ray.direction * MaxDist;
-
-        line.enabled = true;
-        line.SetPosition(0, ray.origin);
-        line.SetPosition(1, end);
-
-        if (shootable && item.CanUsePrimary() && TryGetReachHit(item, out var reachHit))
+        if (isShootable && item.CanUsePrimary() && TryGetReachHit(item, origin, direction, out RaycastHit reachHit))
         {
-            EnsureReticleSprite();
-            var head = MainCamera.instance != null ? MainCamera.instance.cam.transform : null;
-            var dist = head != null ? Vector3.Distance(head.position, reachHit.point) : 1f;
-            reticle.gameObject.SetActive(true);
-            reticle.transform.position = reachHit.point + reachHit.normal * ReticlePadding;
-            reticle.transform.rotation = head != null ? head.rotation : Quaternion.LookRotation(reachHit.normal);
-            reticle.transform.localScale = Vector3.one * (ReticleAngularScale * dist);
+            EnsureReticleSprite(view);
+            Transform head = MainCamera.instance != null ? MainCamera.instance.cam.transform : null;
+            float dist = head != null ? Vector3.Distance(head.position, reachHit.point) : 1f;
+            view.Reticle.gameObject.SetActive(true);
+            view.Reticle.transform.position = reachHit.point + reachHit.normal * ReticlePadding;
+            view.Reticle.transform.rotation = head != null ? head.rotation : Quaternion.LookRotation(reachHit.normal);
+            view.Reticle.transform.localScale = Vector3.one * (ReticleAngularScale * dist);
         }
         else
         {
-            reticle.gameObject.SetActive(false);
+            view.Reticle.gameObject.SetActive(false);
         }
+
+        return isShootable;
     }
 
-    private static bool TryGetReachHit(Item item, out RaycastHit hit)
+    private static bool TryGetReachHit(Item item, Vector3 origin, Vector3 direction, out RaycastHit hit)
     {
-        var rope = item.GetComponentInChildren<RopeShooter>();
+        RopeShooter rope = item.GetComponentInChildren<RopeShooter>();
         if (rope != null)
             return rope.WillAttach(out hit);
 
-        var vine = item.GetComponentInChildren<VineShooter>();
+        VineShooter vine = item.GetComponentInChildren<VineShooter>();
         if (vine != null)
             return vine.WillAttach(out hit);
 
-        var ray = ItemAim.GetMiddleScreenRay();
-        return Physics.Raycast(ray, out hit, MaxDist,
+        return Physics.Raycast(origin, direction, out hit, MaxDist,
             HelperFunctions.LayerType.TerrainMap.ToLayerMask(), QueryTriggerInteraction.Ignore);
     }
 
-    private void Hide()
+    private static void Hide(AimView view)
     {
-        if (line != null && line.enabled)
-            line.enabled = false;
-        if (reticle != null && reticle.gameObject.activeSelf)
-            reticle.gameObject.SetActive(false);
+        if (view.Line != null && view.Line.enabled)
+            view.Line.enabled = false;
+        if (view.Reticle != null && view.Reticle.gameObject.activeSelf)
+            view.Reticle.gameObject.SetActive(false);
     }
 
     private static void HideGameReticle()
     {
-        var gui = GUIManager.instance;
+        GUIManager gui = GUIManager.instance;
         if (gui != null && gui.reticleShoot != null && gui.reticleShoot.activeSelf)
             gui.reticleShoot.SetActive(false);
     }
 
-    private void EnsureReticleSprite()
+    private void EnsureReticleSprite(AimView view)
     {
-        if (reticleSpriteSet)
-            return;
-
-        var gui = GUIManager.instance;
-        if (gui != null && gui.reticleShoot != null)
+        if (reticleSprite == null)
         {
-            var img = gui.reticleShoot.GetComponentInChildren<Image>(true);
-            if (img != null && img.sprite != null)
+            GUIManager gui = GUIManager.instance;
+            if (gui != null && gui.reticleShoot != null)
             {
-                reticle.sprite = img.sprite;
-                reticleSpriteSet = true;
-                return;
+                Image img = gui.reticleShoot.GetComponentInChildren<Image>(true);
+                if (img != null && img.sprite != null)
+                    reticleSprite = img.sprite;
             }
+
+            if (reticleSprite == null)
+                reticleSprite = PeakAssets.Reticle;
         }
 
-        if (PeakAssets.Reticle != null)
-        {
-            reticle.sprite = PeakAssets.Reticle;
-            reticleSpriteSet = true;
-        }
+        if (reticleSprite != null && view.Reticle.sprite != reticleSprite)
+            view.Reticle.sprite = reticleSprite;
     }
 
     private static bool IsPlacementItem(Item item)
@@ -158,34 +172,36 @@ internal class VRItemAim : MonoBehaviour
             || item.GetComponentInChildren<RopeTier>() != null;
     }
 
-    private void CreateLine()
+    private void CreateMaterial()
     {
-        var obj = new GameObject("PeakVR ItemAim Line");
-        obj.transform.SetParent(transform, false);
-
-        line = obj.AddComponent<LineRenderer>();
-        line.useWorldSpace = true;
-        line.widthMultiplier = 0.006f;
-        line.numCapVertices = 4;
-        line.positionCount = 2;
-        line.textureMode = LineTextureMode.Stretch;
-
-        var shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
         lineMat = new Material(shader);
         if (lineMat.HasProperty("_BaseColor"))
             lineMat.SetColor("_BaseColor", Color.white);
         else
             lineMat.color = Color.white;
-        line.material = lineMat;
-        line.enabled = false;
     }
 
-    private void CreateReticle()
+    private AimView CreateView(string side)
     {
-        var obj = new GameObject("PeakVR ItemAim Reticle");
-        obj.transform.SetParent(transform, false);
+        GameObject lineObj = new GameObject($"PeakVR ItemAim Line {side}");
+        lineObj.transform.SetParent(transform, false);
 
-        reticle = obj.AddComponent<SpriteRenderer>();
+        LineRenderer line = lineObj.AddComponent<LineRenderer>();
+        line.useWorldSpace = true;
+        line.widthMultiplier = 0.006f;
+        line.numCapVertices = 4;
+        line.positionCount = 2;
+        line.textureMode = LineTextureMode.Stretch;
+        line.material = lineMat;
+        line.enabled = false;
+
+        GameObject reticleObj = new GameObject($"PeakVR ItemAim Reticle {side}");
+        reticleObj.transform.SetParent(transform, false);
+
+        SpriteRenderer reticle = reticleObj.AddComponent<SpriteRenderer>();
         reticle.gameObject.SetActive(false);
+
+        return new AimView { Line = line, Reticle = reticle };
     }
 }

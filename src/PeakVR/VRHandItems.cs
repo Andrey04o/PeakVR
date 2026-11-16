@@ -128,6 +128,9 @@ internal class VRHandItems : MonoBehaviour
     private bool isRightGripped;
     private bool isRightActing;
     private bool isRightRequested;
+    private bool isRightSliding;
+    private bool isRightSlideRequested;
+    private bool isLeftSliding;
     private int rightActingReleasedFrame = -1;
     private Item rightAtPress;
     private Item rightLast;
@@ -149,6 +152,11 @@ internal class VRHandItems : MonoBehaviour
     private bool isLeftSnapped;
     private float rightAutoLeft;
     private float leftAutoLeft;
+    private bool isLeftPickExpected;
+    private float leftPickSince;
+    private Item leftPickFrom;
+    private Optionable<byte> leftPickSlot = Optionable<byte>.None;
+    private bool isLeftPickReequip;
 
     public static bool Enabled => Plugin.Config != null && Plugin.Config.ImmersiveHands.Value;
 
@@ -160,6 +168,56 @@ internal class VRHandItems : MonoBehaviour
 
     public static bool IsLeftSnapped => instance != null && instance.isLeftSnapped;
 
+    public static void SetBypass(Item item)
+    {
+        bypass = item;
+    }
+
+    public static void ExpectLeftPick(Character character)
+    {
+        if (instance == null || !Enabled || character == null || character.data == null
+            || instance.leftItem != null || instance.leftPending != null)
+            return;
+
+        instance.isLeftPickExpected = true;
+        instance.leftPickSince = Time.time;
+        instance.leftPickFrom = character.data.currentItem;
+        instance.leftPickSlot = character.refs.items.currentSelectedSlot;
+        instance.isLeftPickReequip = false;
+    }
+
+    private void StepLeftPick(Character character)
+    {
+        if (isLeftPickReequip)
+        {
+            isLeftPickReequip = false;
+            CharacterItems items = character.refs.items;
+            if (leftPickSlot.IsSome && character.data.currentItem == null
+                && !character.player.GetItemSlot(leftPickSlot.Value).IsEmpty())
+                items.EquipSlot(leftPickSlot);
+            leftPickSlot = Optionable<byte>.None;
+            return;
+        }
+
+        if (!isLeftPickExpected)
+            return;
+
+        if (leftItem != null || leftPending != null || Time.time - leftPickSince > ArrivalTimeout)
+        {
+            isLeftPickExpected = false;
+            return;
+        }
+
+        Item held = character.data.currentItem;
+        if (held == null || held == leftPickFrom || held.itemState != ItemState.Held)
+            return;
+
+        isLeftPickExpected = false;
+        Log($"moving backpack pick '{held.name}' to the left hand");
+        MoveRightToLeft(character, held, false);
+        isLeftPickReequip = leftPickFrom != null && leftPickSlot.IsSome;
+    }
+
     public static bool IsHolding(bool isLeft)
     {
         if (instance == null)
@@ -168,7 +226,15 @@ internal class VRHandItems : MonoBehaviour
         if (isLeft)
             return instance.leftItem != null || instance.leftPending != null;
 
-        return instance.isRightGripped || instance.rightPending != null;
+        return instance.isRightGripped || instance.isRightSliding || instance.rightPending != null;
+    }
+
+    public static bool IsSliding(bool isLeft)
+    {
+        if (instance == null)
+            return false;
+
+        return isLeft ? instance.isLeftSliding : instance.isRightSliding;
     }
 
     public static bool IsBusy(Character character, bool isLeft)
@@ -201,7 +267,7 @@ internal class VRHandItems : MonoBehaviour
         if (instance == null || item == null)
             return false;
 
-        if (instance.leftItem == item)
+        if (instance.leftItem == item && !instance.isLeftSliding)
             return true;
 
         return instance.isRightGripped && character != null && character.data != null
@@ -262,7 +328,30 @@ internal class VRHandItems : MonoBehaviour
 
         TickRight(character);
         TickLeft(character);
+        StepJoints(character);
         StepIgnore(character);
+    }
+
+    private void StepJoints(Character character)
+    {
+        Item held = character.data.currentItem;
+        if (held != null)
+            VRHandJoint.Ensure(character.GetBodypartRig(BodypartType.Hand_R), held, isRightSliding);
+
+        if (leftItem == null)
+            return;
+
+        Joint joint = VRHandJoint.Ensure(character.GetBodypartRig(BodypartType.Hand_L), leftItem, isLeftSliding);
+        if (joint != null)
+            leftJoint = joint;
+    }
+
+    private static bool IsTriggerBlocked(bool isLeft)
+    {
+        if (isLeft)
+            return VRControllerHud.LeftTriggerConsumed || VRControllerHud.LeftPointing;
+
+        return VREmoteWheel.RightTriggerConsumed || VRChatButton.RightTriggerConsumed;
     }
 
     private void StepIgnore(Character character)
@@ -331,6 +420,8 @@ internal class VRHandItems : MonoBehaviour
     private void ClearRight()
     {
         isRightGripped = false;
+        isRightSliding = false;
+        isRightSlideRequested = false;
         isRightActing = false;
         isRightRequested = false;
         rightPending = null;
@@ -343,6 +434,7 @@ internal class VRHandItems : MonoBehaviour
     {
         isLeftActing = false;
         isLeftDeferred = false;
+        isLeftSliding = false;
         leftPending = null;
         if (ActingHand == false)
             ActingHand = isRightActing ? true : null;
@@ -352,18 +444,29 @@ internal class VRHandItems : MonoBehaviour
     {
         Item held = character.data.currentItem;
         UnityEngine.InputSystem.InputAction grip = VRControls.RightGrip;
+        UnityEngine.InputSystem.InputAction trigger = VRControls.RightTrigger;
 
         if (held != rightLast)
         {
             bool isArrival = held != null && isRightRequested && grip.IsPressed() && held != rightAtPress;
+            bool isSlideArrival = held != null && isRightSlideRequested && trigger != null && trigger.IsPressed()
+                && !grip.IsPressed();
             if (held != gripItem)
                 gripItem = null;
 
             isRightGripped = isArrival;
+            isRightSliding = isSlideArrival && !isArrival;
             if (isArrival)
             {
                 isRightRequested = false;
                 Log($"right holds '{held.name}'");
+            }
+
+            if (isRightSliding)
+            {
+                isRightRequested = false;
+                isRightSlideRequested = false;
+                Log($"right slide-holds '{held.name}'");
             }
 
             rightLast = held;
@@ -386,7 +489,8 @@ internal class VRHandItems : MonoBehaviour
 
         if (grip.WasReleasedThisFrame())
         {
-            rightPending = null;
+            if (!isRightSlideRequested)
+                rightPending = null;
             isRightRequested = false;
             rightAutoLeft = 0f;
             StopActingRight();
@@ -394,16 +498,76 @@ internal class VRHandItems : MonoBehaviour
             if (isRightGripped)
             {
                 isRightGripped = false;
+                if (held != null && IsSlideKept(false, held))
+                {
+                    isRightSliding = true;
+                    Log($"right slides '{held.name}'");
+                }
+                else if (held != null)
+                {
+                    ReleaseRight(character, held);
+                }
+            }
+        }
+
+        if (trigger == null)
+            return;
+
+        if (trigger.WasPressedThisFrame() && !grip.IsPressed() && !IsTriggerBlocked(false))
+            PressRightTrigger(character, held);
+
+        if (trigger.WasReleasedThisFrame())
+        {
+            if (isRightSlideRequested)
+            {
+                isRightSlideRequested = false;
+                isRightRequested = false;
+                rightPending = null;
+            }
+
+            if (isRightSliding && !grip.IsPressed())
+            {
+                isRightSliding = false;
                 if (held != null)
                     ReleaseRight(character, held);
             }
         }
     }
 
+    private bool IsSlideKept(bool isLeft, Item item)
+    {
+        UnityEngine.InputSystem.InputAction trigger = isLeft ? VRControls.LeftTrigger : VRControls.RightTrigger;
+        return trigger != null && trigger.IsPressed() && !IsTriggerBlocked(isLeft) && VRGripProfiles.CanSlide(item);
+    }
+
+    private void PressRightTrigger(Character character, Item held)
+    {
+        if (held != null || rightPending != null || VRHandClimb.IsConsumed(false))
+            return;
+
+        if (HandInteractPatch.RightTarget is not Item item || item == null || !IsGrabbable(item))
+            return;
+
+        if (!TryGrabRight(character, item))
+            return;
+
+        isRightSlideRequested = true;
+        rightAtPress = null;
+        Log($"right trigger grab '{item.name}'");
+    }
+
     private void PressRight(Character character, Item held)
     {
         IInteractible target = HandInteractPatch.RightTarget;
         Item item = target as Item;
+
+        if (held != null && isRightSliding)
+        {
+            isRightSliding = false;
+            isRightGripped = true;
+            Log($"right locks '{held.name}'");
+            return;
+        }
 
         if (held != null && !isRightGripped)
         {
@@ -569,7 +733,10 @@ internal class VRHandItems : MonoBehaviour
         if (character.player == null || !character.player.HasEmptySlot(item.itemID))
             return;
 
-        CaptureExact(character, item);
+        if (VRGripProfiles.TryGetLine(item, out _, out _))
+            Capture(item);
+        else
+            CaptureExact(character, item);
         isRightRequested = true;
         VRLeftSlot.Empty(character);
         Equip(character, item);
@@ -613,7 +780,8 @@ internal class VRHandItems : MonoBehaviour
     {
         UnityEngine.InputSystem.InputAction grip = VRControls.LeftGrip;
 
-        if (leftItem == null && !ReferenceEquals(leftItem, null))
+        if ((leftItem == null && !ReferenceEquals(leftItem, null))
+            || (leftItem != null && !leftItem.gameObject.activeInHierarchy))
             DropLeftState(character);
 
         if (leftItem != null && Incapacitated(character))
@@ -628,6 +796,7 @@ internal class VRHandItems : MonoBehaviour
 
         StepLeftPending(character);
         StepLeftDeferred(character, grip);
+        StepLeftPick(character);
 
         if (grip.WasPressedThisFrame())
         {
@@ -643,18 +812,69 @@ internal class VRHandItems : MonoBehaviour
 
         if (grip.WasReleasedThisFrame())
         {
-            leftPending = null;
+            if (!isLeftSliding)
+                leftPending = null;
             isLeftDeferred = false;
             leftAutoLeft = 0f;
             StopActingLeft();
 
+            if (leftItem != null && !isLeftSliding && IsSlideKept(true, leftItem))
+            {
+                isLeftSliding = true;
+                Log($"left slides '{leftItem.name}'");
+            }
+            else if (leftItem != null && !isLeftSliding)
+            {
+                ReleaseLeft(character, ThrowVelocity(character, velocityLeft));
+            }
+        }
+
+        UnityEngine.InputSystem.InputAction trigger = VRControls.LeftTrigger;
+        if (trigger == null)
+            return;
+
+        if (trigger.WasPressedThisFrame() && !grip.IsPressed() && !IsTriggerBlocked(true))
+            PressLeftTrigger(character);
+
+        if (trigger.WasReleasedThisFrame() && isLeftSliding && !grip.IsPressed())
+        {
+            isLeftSliding = false;
+            leftPending = null;
             if (leftItem != null)
                 ReleaseLeft(character, ThrowVelocity(character, velocityLeft));
         }
     }
 
+    private void PressLeftTrigger(Character character)
+    {
+        if (leftItem != null || leftPending != null || VRHandClimb.IsConsumed(true))
+            return;
+
+        if (HandInteractPatch.LeftTarget is not Item item || item == null || !IsGrabbable(item))
+            return;
+
+        isLeftSliding = true;
+        if (!TryGrabLeft(character, item))
+        {
+            isLeftSliding = false;
+            return;
+        }
+
+        if (leftItem == null && leftPending == null)
+            isLeftSliding = false;
+        else
+            Log($"left trigger grab '{item.name}'");
+    }
+
     private void PressLeft(Character character)
     {
+        if (leftItem != null && isLeftSliding)
+        {
+            isLeftSliding = false;
+            Log($"left locks '{leftItem.name}'");
+            return;
+        }
+
         if (leftItem != null || leftPending != null)
             return;
 
@@ -691,7 +911,7 @@ internal class VRHandItems : MonoBehaviour
 
         if (item == character.data.currentItem)
         {
-            if (!isRightGripped && !VRControls.RightGrip.IsPressed() && IsGrabbable(item))
+            if (!isRightGripped && !isRightSliding && !VRControls.RightGrip.IsPressed() && IsGrabbable(item))
                 MoveRightToLeft(character, item, false);
             else
                 AttachLeft(character, item, true);
@@ -777,6 +997,8 @@ internal class VRHandItems : MonoBehaviour
         {
             Log($"left ownership of '{leftPending.name}' timed out");
             leftPending = null;
+            if (leftItem == null)
+                isLeftSliding = false;
             return;
         }
 
@@ -788,6 +1010,9 @@ internal class VRHandItems : MonoBehaviour
 
         if (item.itemState == ItemState.Ground)
             AttachLeft(character, item, false);
+
+        if (leftItem == null)
+            isLeftSliding = false;
     }
 
     private void StepLeftDeferred(Character character, UnityEngine.InputSystem.InputAction grip)
@@ -862,6 +1087,17 @@ internal class VRHandItems : MonoBehaviour
             item.rig.useGravity = false;
         }
 
+        if (isSecond && VRGripProfiles.TryGetLine(item, out _, out _))
+        {
+            VRGripProfiles.Capture(item, true, bone.transform.position, bone.transform.rotation,
+                out Vector3 lineDir, out Quaternion lineRot);
+            Vector3 handPos = item.rig.position + item.rig.rotation * lineDir;
+            Quaternion handRot = item.rig.rotation * lineRot;
+            bone.transform.SetPositionAndRotation(handPos, handRot);
+            bone.position = handPos;
+            bone.rotation = handRot;
+        }
+
         bool isSnapped = false;
         if (VRGripProfiles.TryGetRotationOffset(item, true, out Quaternion handOffset))
         {
@@ -903,6 +1139,7 @@ internal class VRHandItems : MonoBehaviour
     {
         leftItem = null;
         isLeftSnapped = false;
+        isLeftSliding = false;
         if (leftJoint != null)
             Destroy(leftJoint);
         leftJoint = null;

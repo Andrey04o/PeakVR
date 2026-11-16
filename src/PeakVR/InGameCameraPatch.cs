@@ -78,7 +78,7 @@ internal static class InGameCameraPatch
         go.AddComponent<VRItemAim>();
         go.AddComponent<VRHandItems>();
         go.AddComponent<VRItemCollision>();
-        go.AddComponent<VRBazookaHold>();
+        go.AddComponent<VRFollowHold>();
         go.AddComponent<VRNetSync>();
         go.AddComponent<VRControllerHud>();
         go.AddComponent<VREmoteWheel>();

@@ -26,6 +26,16 @@ internal class VRGripProfile
     public Vector3 RotationHand;
     public float Radius;
     public float Mass;
+    public bool HasLine;
+    public bool HasLineRight;
+    public bool HasLineLeft;
+    public Vector3 FistAxisRight;
+    public Vector3 FistAxisLeft;
+    public Vector3 PalmToLineRight;
+    public Vector3 PalmToLineLeft;
+    public bool HasBounds;
+    public Vector3 BoundsCenter;
+    public Vector3 BoundsExtents;
 }
 
 internal static class VRGripProfiles
@@ -38,8 +48,10 @@ internal static class VRGripProfiles
     private const float LineMinLength = 0.3f;
     private const float LineAspect = 2.2f;
     private const float LineInset = 0.05f;
+    private const float MaxPalmToLine = 0.12f;
 
     private static readonly Dictionary<ushort, VRGripProfile> Cache = new Dictionary<ushort, VRGripProfile>();
+    private static readonly List<Collider> AimColliders = new List<Collider>();
 
     public static VRGripProfile Get(Item item)
     {
@@ -80,8 +92,18 @@ internal static class VRGripProfiles
             return "snap";
         }
 
-        if (profile.Type == VRGripType.Line)
+        if (profile.HasLine)
         {
+            if (TryGetLineHand(profile, isLeft, out Vector3 fistAxis, out Vector3 palmToLine))
+            {
+                Vector3 axis = (profile.LineEnd - profile.LineStart).normalized;
+                Vector3 current = rot * fistAxis;
+                Vector3 target = Vector3.Dot(current, axis) >= 0f ? axis : -axis;
+                rot = Quaternion.FromToRotation(current, target) * rot;
+                dir = ClosestOnLine(profile, handLocal) - rot * palmToLine;
+                return isFar ? "line far fist" : "line fist";
+            }
+
             dir = ClampToLine(profile, handLocal);
             return isFar ? "line far" : "line";
         }
@@ -167,6 +189,47 @@ internal static class VRGripProfiles
         return true;
     }
 
+    public static bool TryGetAim(Item item, out Vector3 origin, out Vector3 direction)
+    {
+        origin = Vector3.zero;
+        direction = Vector3.forward;
+
+        VRGripProfile profile = Get(item);
+        if (profile == null || !profile.HasSnapRight || (!profile.IsAimed && !profile.IsDeployable))
+            return false;
+
+        TryGetRotationOffset(item, false, out Quaternion offset);
+        Quaternion controllerLocal = profile.SnapRightRotation * Quaternion.Inverse(offset)
+            * Quaternion.Inverse(VRArmIKPatch.HandRotationOffset);
+        Vector3 local = controllerLocal * Vector3.forward;
+
+        Transform root = item.transform;
+        Vector3 grip = root.position + root.rotation * profile.SnapRightPosition;
+        direction = root.rotation * local;
+        origin = grip + direction * FrontDistance(item, grip, direction, profile.Radius * 2f + 0.1f);
+        return true;
+    }
+
+    private static float FrontDistance(Item item, Vector3 grip, Vector3 direction, float reach)
+    {
+        Ray back = new Ray(grip + direction * reach, -direction);
+        float front = 0f;
+
+        item.GetComponentsInChildren(false, AimColliders);
+        for (int i = 0; i < AimColliders.Count; i++)
+        {
+            Collider col = AimColliders[i];
+            if (col == null || !col.enabled || col.isTrigger)
+                continue;
+
+            if (col.Raycast(back, out RaycastHit hit, reach))
+                front = Mathf.Max(front, reach - hit.distance);
+        }
+
+        AimColliders.Clear();
+        return front;
+    }
+
     private static bool TryGetSnap(VRGripProfile profile, bool isLeft, out Vector3 pos, out Quaternion rot)
     {
         if (isLeft && profile.HasSnapLeft)
@@ -179,6 +242,69 @@ internal static class VRGripProfiles
         pos = profile.SnapRightPosition;
         rot = profile.SnapRightRotation;
         return profile.HasSnapRight;
+    }
+
+    public static bool CanSlide(Item item)
+    {
+        VRGripProfile profile = Get(item);
+        return profile != null && !profile.IsAimed;
+    }
+
+    public static bool TryGetLine(Item item, out Vector3 start, out Vector3 end)
+    {
+        VRGripProfile profile = Get(item);
+        start = Vector3.zero;
+        end = Vector3.zero;
+        if (profile == null || !profile.HasLine)
+            return false;
+
+        start = profile.LineStart;
+        end = profile.LineEnd;
+        return (end - start).sqrMagnitude > 1e-6f;
+    }
+
+    private static bool TryGetLineHand(VRGripProfile profile, bool isLeft, out Vector3 fistAxis, out Vector3 palmToLine)
+    {
+        if (isLeft)
+        {
+            fistAxis = profile.FistAxisLeft;
+            palmToLine = profile.PalmToLineLeft;
+            return profile.HasLineLeft;
+        }
+
+        fistAxis = profile.FistAxisRight;
+        palmToLine = profile.PalmToLineRight;
+        return profile.HasLineRight;
+    }
+
+    private static Vector3 ClosestOnLine(VRGripProfile profile, Vector3 local)
+    {
+        Vector3 line = profile.LineEnd - profile.LineStart;
+        float length = line.magnitude;
+        if (length < 1e-4f)
+            return profile.LineStart;
+
+        Vector3 axis = line / length;
+        float along = Mathf.Clamp(Vector3.Dot(local - profile.LineStart, axis), 0f, length);
+        return profile.LineStart + axis * along;
+    }
+
+    private static bool BuildLineHand(VRGripProfile profile, Vector3 snapPos, Quaternion snapRot,
+        out Vector3 fistAxis, out Vector3 palmToLine)
+    {
+        fistAxis = Vector3.zero;
+        palmToLine = Vector3.zero;
+
+        Vector3 axis = (profile.LineEnd - profile.LineStart).normalized;
+        Vector3 onLine = profile.LineStart + axis * Vector3.Dot(snapPos - profile.LineStart, axis);
+        Vector3 toLine = onLine - snapPos;
+        if (toLine.magnitude > MaxPalmToLine)
+            return false;
+
+        Quaternion inverse = Quaternion.Inverse(snapRot);
+        fistAxis = inverse * axis;
+        palmToLine = inverse * toLine;
+        return true;
     }
 
     private static Vector3 ClampToLine(VRGripProfile profile, Vector3 local)
@@ -225,11 +351,27 @@ internal static class VRGripProfiles
 
         bool hasBounds = TryGetLocalBounds(item, inv, out Bounds bounds);
         profile.Radius = hasBounds ? bounds.extents.magnitude : 0f;
+        profile.HasBounds = hasBounds;
+        profile.BoundsCenter = bounds.center;
+        profile.BoundsExtents = bounds.extents;
+
+        profile.HasLine = hasBounds && !profile.IsAimed && TryBuildLine(bounds, profile);
 
         if ((profile.IsAimed || profile.IsDeployable) && profile.HasSnapRight)
             profile.Type = VRGripType.Snap;
-        else if (hasBounds && TryBuildLine(bounds, profile))
+        else if (profile.HasLine)
             profile.Type = VRGripType.Line;
+
+        if (profile.HasLine)
+        {
+            if (profile.HasSnapRight)
+                profile.HasLineRight = BuildLineHand(profile, profile.SnapRightPosition, profile.SnapRightRotation,
+                    out profile.FistAxisRight, out profile.PalmToLineRight);
+            if (profile.HasSnapLeft)
+                profile.HasLineLeft = BuildLineHand(profile, profile.SnapLeftPosition, profile.SnapLeftRotation,
+                    out profile.FistAxisLeft, out profile.PalmToLineLeft);
+            Log($"line '{item.name}' fist right={profile.HasLineRight} left={profile.HasLineLeft}");
+        }
 
         return profile;
     }
@@ -356,10 +498,13 @@ internal static class VRGripProfiles
             || item.GetComponentInChildren<Action_ConstructableScoutCannonScroll>(true) != null;
     }
 
-    public static bool IsUseAllowed(Character character)
+    public static bool IsUseAllowed(Character character, bool isLeft)
     {
         if (!VRHandItems.Enabled || character == null || character.data == null)
             return true;
+
+        if (VRHandItems.IsSliding(isLeft))
+            return false;
 
         Item item = character.data.currentItem;
         if (item == null)

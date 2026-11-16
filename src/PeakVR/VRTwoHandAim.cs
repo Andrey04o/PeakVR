@@ -26,9 +26,13 @@ internal static class VRTwoHandAim
 
         if (isTwoHand && held != item)
             Capture(c, held);
+        else if (isTwoHand && (VRHandItems.IsSliding(false) || VRHandItems.IsSliding(true)))
+            Refresh(c, held);
 
         if (!isTwoHand)
             item = null;
+
+        float pin = VRHandItems.IsSliding(true) ? 0f : 1f;
 
         if (!isTwoHand || !isValid)
         {
@@ -38,7 +42,7 @@ internal static class VRTwoHandAim
             weight = Mathf.MoveTowards(weight, 0f, Time.deltaTime / BlendTime);
             rightRot = Quaternion.Slerp(rightRot, lastRight, weight);
             leftRot = Quaternion.Slerp(leftRot, lastLeft, weight);
-            targetLeft = Vector3.Lerp(targetLeft, targetRight + lastOffsetLeft, weight);
+            targetLeft = Vector3.Lerp(targetLeft, targetRight + lastOffsetLeft, weight * pin);
             return;
         }
 
@@ -56,18 +60,25 @@ internal static class VRTwoHandAim
 
         rightRot = Quaternion.Slerp(rightRot, lastRight, weight);
         leftRot = Quaternion.Slerp(leftRot, lastLeft, weight);
-        targetLeft = Vector3.Lerp(targetLeft, targetRight + lastOffsetLeft, weight);
+        targetLeft = Vector3.Lerp(targetLeft, targetRight + lastOffsetLeft, weight * pin);
     }
 
     private static void Capture(Character c, Item held)
     {
         item = held;
         isValid = false;
+        Refresh(c, held);
+    }
 
+    private static void Refresh(Character c, Item held)
+    {
         Rigidbody handRight = c.GetBodypartRig(BodypartType.Hand_R);
         Rigidbody handLeft = c.GetBodypartRig(BodypartType.Hand_L);
         if (handRight == null || handLeft == null)
+        {
+            isValid = false;
             return;
+        }
 
         Quaternion inverse = Quaternion.Inverse(held.rig.rotation);
         Vector3 origin = held.rig.position;

@@ -18,8 +18,12 @@ internal static class InteractionInputPatch
     private static float scrollTickTime;
     private static bool crouchToggle;
     private static int pageDir;
-    private static bool primaryActive;
-    private static bool secondaryActive;
+    private const int ModeNone = 0;
+    private const int ModePrimary = 1;
+    private const int ModeSecondary = 2;
+
+    private static int rightMode;
+    private static int leftMode;
 
     [HarmonyPostfix]
     private static void Postfix(CharacterInput __instance, bool playerMovementActive)
@@ -121,15 +125,29 @@ internal static class InteractionInputPatch
         if (!playerMovementActive)
             return;
 
-        bool isUseAllowed = VRGripProfiles.IsUseAllowed(local);
+        bool isRightFriend = VRHandItems.Enabled && VRItemUse.RightFriend != null;
+        InjectUse(__instance, VRControls.RightTrigger,
+            VRGripProfiles.IsUseAllowed(local, false) && !VREmoteWheel.RightTriggerConsumed
+            && !VRChatButton.RightTriggerConsumed && !VRItemUse.IsLeftBusy,
+            isRightFriend, ref rightMode);
 
-        InjectUse(VRControls.RightTrigger,
-            isUseAllowed && !VREmoteWheel.RightTriggerConsumed && !VRChatButton.RightTriggerConsumed,
-            ref primaryActive, ref __instance.usePrimaryWasPressed, ref __instance.usePrimaryIsPressed,
-            ref __instance.usePrimaryWasReleased);
-        InjectUse(VRControls.LeftTrigger, isUseAllowed && !VRControllerHud.LeftTriggerConsumed,
-            ref secondaryActive, ref __instance.useSecondaryWasPressed, ref __instance.useSecondaryIsPressed,
-            ref __instance.useSecondaryWasReleased);
+        if (VRHandItems.Enabled && VRItemUse.IsLeftOwnItem(local))
+        {
+            Release(__instance, leftMode);
+            leftMode = ModeNone;
+            bool isRightBusy = rightMode != ModeNone && local.data.currentItem != null;
+            VRItemUse.StepLeft(local, VRControls.LeftTrigger,
+                !VRControllerHud.LeftTriggerConsumed && !isRightBusy
+                && VRHandItems.IsGripHolding(local, VRHandItems.LeftItem));
+        }
+        else
+        {
+            VRItemUse.Stop();
+            bool isTwoHand = VRHandItems.Enabled && VRHandItems.LeftItem != null;
+            InjectUse(__instance, VRControls.LeftTrigger,
+                VRGripProfiles.IsUseAllowed(local, true) && !VRControllerHud.LeftTriggerConsumed,
+                !isTwoHand || isRightFriend, ref leftMode);
+        }
 
         // Sprint (left-stick click). Inject the edge too so climbing lunge (RPCA_ClimbJump) arms —
         // it needs sprintWasPressed to set sprintHasBeenPressedSinceClimb, not just sprintIsPressed.
@@ -223,19 +241,41 @@ internal static class InteractionInputPatch
             || item.OnScrollForwardHeld != null || item.OnScrollBackwardHeld != null;
     }
 
-    private static void InjectUse(InputAction action, bool isAllowed, ref bool active, ref bool wasPressed,
-        ref bool isPressed, ref bool wasReleased)
+    private static void InjectUse(CharacterInput input, InputAction action, bool isAllowed, bool isSecondary,
+        ref int mode)
     {
         if (!isAllowed)
         {
-            if (active)
-                wasReleased = true;
-            active = false;
+            Release(input, mode);
+            mode = ModeNone;
             return;
         }
 
-        Inject(action, ref wasPressed, ref isPressed, ref wasReleased);
-        active = action.IsPressed();
+        if (mode == ModeNone)
+        {
+            if (!action.WasPressedThisFrame())
+                return;
+
+            mode = isSecondary ? ModeSecondary : ModePrimary;
+        }
+
+        if (mode == ModePrimary)
+            Inject(action, ref input.usePrimaryWasPressed, ref input.usePrimaryIsPressed,
+                ref input.usePrimaryWasReleased);
+        else
+            Inject(action, ref input.useSecondaryWasPressed, ref input.useSecondaryIsPressed,
+                ref input.useSecondaryWasReleased);
+
+        if (!action.IsPressed())
+            mode = ModeNone;
+    }
+
+    private static void Release(CharacterInput input, int mode)
+    {
+        if (mode == ModePrimary)
+            input.usePrimaryWasReleased = true;
+        else if (mode == ModeSecondary)
+            input.useSecondaryWasReleased = true;
     }
 
     private static void Inject(InputAction action, ref bool wasPressed, ref bool isPressed, ref bool wasReleased)

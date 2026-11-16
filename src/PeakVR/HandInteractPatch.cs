@@ -325,5 +325,9 @@ internal static class HandHoverPatch
             hover = null;
 
         __instance.currentHovered = hover;
+
+        Character local = Character.localCharacter;
+        if (local != null)
+            VRItemUse.UpdateFriends(__instance, local);
     }
 }
