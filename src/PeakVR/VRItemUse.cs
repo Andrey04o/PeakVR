@@ -38,8 +38,6 @@ internal static class VRItemUse
     public static CharacterInteractible RightFriend { get; private set; }
     public static CharacterInteractible LeftFriend { get; private set; }
 
-    public static bool IsLeftBusy => leftUsing != null || spikeItem != null || (ropeItem != null && isRopePressed);
-
     public static float LeftProgress
     {
         get

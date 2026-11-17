@@ -176,7 +176,8 @@ internal static class HandInteractPatch
         if (busy && candidate is not CharacterInteractible)
             return false;
 
-        if (candidate is Item item && (item == local.data.currentItem || item == VRHandItems.LeftItem || item.consuming))
+        if (candidate is Item item && (item == local.data.currentItem || item == VRHandItems.LeftItem
+            || item == VRHandItems.RightLoose || item.consuming))
             return false;
 
         if (!candidate.IsInteractible(local))
@@ -216,11 +217,12 @@ internal static class HandInteractPatch
         if (!VRHandItems.Enabled || local.data == null)
             return null;
 
-        Item other = right ? VRHandItems.LeftItem : local.data.currentItem;
+        Item rightHeld = local.data.currentItem != null ? local.data.currentItem : VRHandItems.RightLoose;
+        Item other = right ? VRHandItems.LeftItem : rightHeld;
         if (other == null || other.consuming)
             return null;
 
-        Item own = right ? local.data.currentItem : VRHandItems.LeftItem;
+        Item own = right ? rightHeld : VRHandItems.LeftItem;
         if (other == own)
             return null;
 

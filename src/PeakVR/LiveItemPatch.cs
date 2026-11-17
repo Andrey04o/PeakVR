@@ -118,7 +118,8 @@ internal static class HeldItemCollisionPatch
         if (!VRHandItems.Enabled || __instance.rig == null || __instance.rig.isKinematic)
             return;
 
-        if (__instance.holderCharacter != Character.localCharacter && VRHandItems.LeftItem != __instance)
+        if (__instance.holderCharacter != Character.localCharacter && VRHandItems.LeftItem != __instance
+            && VRHandItems.RightLoose != __instance)
             return;
 
         __instance.rig.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;

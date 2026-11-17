@@ -166,6 +166,10 @@ internal class VRHandItems : MonoBehaviour
     private int leftTakeItemId = -1;
     private bool isRightPackExpected;
     private float rightPackSince;
+    private Item rightLoose;
+    private Item rightLoosePending;
+    private float rightLoosePendingSince;
+    private Joint rightLooseJoint;
 
     public static bool Enabled => Plugin.Config != null && Plugin.Config.ImmersiveHands.Value;
 
@@ -174,6 +178,8 @@ internal class VRHandItems : MonoBehaviour
     public static bool? ActingHand { get; private set; }
 
     public static Item LeftItem => instance != null ? instance.leftItem : null;
+
+    public static Item RightLoose => instance != null ? instance.rightLoose : null;
 
     public static bool IsLeftSnapped => instance != null && instance.isLeftSnapped;
 
@@ -317,7 +323,8 @@ internal class VRHandItems : MonoBehaviour
         if (isLeft)
             return instance.leftItem != null || instance.leftPending != null;
 
-        return instance.isRightGripped || instance.isRightSliding || instance.rightPending != null;
+        return instance.isRightGripped || instance.isRightSliding || instance.rightPending != null
+            || instance.rightLoose != null || instance.rightLoosePending != null;
     }
 
     public static bool IsPicking(bool isLeft)
@@ -330,7 +337,8 @@ internal class VRHandItems : MonoBehaviour
                 || (instance.isLeftTakeExpected && Time.time - instance.leftTakeSince <= ArrivalTimeout)
                 || (instance.isLeftPickExpected && Time.time - instance.leftPickSince <= ArrivalTimeout);
 
-        return instance.rightPending != null || instance.isRightRequested || instance.isRightPackExpected;
+        return instance.rightPending != null || instance.isRightRequested || instance.isRightPackExpected
+            || instance.rightLoosePending != null;
     }
 
     public static bool IsSliding(bool isLeft)
@@ -349,7 +357,7 @@ internal class VRHandItems : MonoBehaviour
         if (isLeft)
             return instance.leftItem != null || instance.leftPending != null;
 
-        if (instance.rightPending != null)
+        if (instance.rightPending != null || instance.rightLoose != null || instance.rightLoosePending != null)
             return true;
 
         return character != null && character.data != null && character.data.currentItem != null;
@@ -371,7 +379,7 @@ internal class VRHandItems : MonoBehaviour
         if (instance == null || item == null)
             return false;
 
-        if (instance.leftItem == item && !instance.isLeftSliding)
+        if ((instance.leftItem == item && !instance.isLeftSliding) || instance.rightLoose == item)
             return true;
 
         return instance.isRightGripped && character != null && character.data != null
@@ -384,6 +392,8 @@ internal class VRHandItems : MonoBehaviour
     {
         if (leftItem != null)
             ReleaseLeft(Character.localCharacter, Vector3.zero);
+        if (rightLoose != null)
+            ReleaseRightLoose(Character.localCharacter, false);
 
         ClearRight();
         ClearLeftInput();
@@ -422,6 +432,8 @@ internal class VRHandItems : MonoBehaviour
         {
             if (leftItem != null)
                 ReleaseLeft(character, Vector3.zero);
+            if (rightLoose != null)
+                ReleaseRightLoose(character, false);
             ClearRight();
             ClearLeftInput();
             VRBackpackHands.StepCollisions(null);
@@ -462,7 +474,7 @@ internal class VRHandItems : MonoBehaviour
 
     private void StepIgnore(Character character)
     {
-        Item right = character.data.currentItem;
+        Item right = character.data.currentItem != null ? character.data.currentItem : rightLoose;
         Item left = leftItem;
         bool isRefresh = ++ignoreFrame % IgnoreRefreshFrames == 0;
 
@@ -580,6 +592,7 @@ internal class VRHandItems : MonoBehaviour
 
         StepRightPending(character);
         StepRightPack(character);
+        StepRightLoose(character);
 
         if (grip.WasPressedThisFrame())
         {
@@ -616,6 +629,10 @@ internal class VRHandItems : MonoBehaviour
                     ReleaseRight(character, held);
                 }
             }
+
+            rightLoosePending = null;
+            if (rightLoose != null)
+                ReleaseRightLoose(character, true);
         }
 
         if (trigger == null)
@@ -672,6 +689,9 @@ internal class VRHandItems : MonoBehaviour
         IInteractible target = HandInteractPatch.RightTarget;
         Item item = target as Item;
 
+        if (rightLoose != null || rightLoosePending != null)
+            return;
+
         if (held != null && isRightSliding)
         {
             isRightSliding = false;
@@ -717,7 +737,7 @@ internal class VRHandItems : MonoBehaviour
             }
             else if (item is Backpack)
             {
-                Log($"right can't hold '{item.name}': already wearing a pack");
+                Log($"right can't hold '{item.name}'");
             }
             return;
         }
@@ -730,6 +750,9 @@ internal class VRHandItems : MonoBehaviour
 
     private bool TryGrabRight(Character character, Item item)
     {
+        if (item is Backpack && character.player != null && !character.player.HasEmptySlot(item.itemID))
+            return TryGrabRightLoose(character, item);
+
         if (item == leftItem)
         {
             GrabFromLeft(character, item);
@@ -750,7 +773,8 @@ internal class VRHandItems : MonoBehaviour
 
         rightAutoLeft -= Time.deltaTime;
 
-        if (!grip.IsPressed() || isRightGripped || rightPending != null || character.data.currentItem != null)
+        if (!grip.IsPressed() || isRightGripped || rightPending != null || character.data.currentItem != null
+            || rightLoose != null || rightLoosePending != null)
         {
             rightAutoLeft = 0f;
             return;
@@ -900,6 +924,192 @@ internal class VRHandItems : MonoBehaviour
         Log("equipping the picked pack into the right hand");
     }
 
+    private bool TryGrabRightLoose(Character character, Item item)
+    {
+        if (rightLoose != null || rightLoosePending != null || character.data.currentItem != null
+            || !VRControls.RightGrip.IsPressed() || item.photonView == null || item.rig == null
+            || item.itemState != ItemState.Ground)
+            return false;
+
+        if (item.photonView.IsMine)
+        {
+            AttachRightLoose(character, item, false);
+            return true;
+        }
+
+        if (!item.IsInteractible(character))
+            return false;
+
+        rightLoosePending = item;
+        rightLoosePendingSince = Time.time;
+        item.photonView.RequestOwnership();
+        Log($"right requesting ownership of '{item.name}' to hold it outside the inventory");
+        return true;
+    }
+
+    private void StepRightLoose(Character character)
+    {
+        if (rightLoosePending == null)
+        {
+            rightLoosePending = null;
+        }
+        else if (Time.time - rightLoosePendingSince > OwnershipTimeout)
+        {
+            Log($"right ownership of '{rightLoosePending.name}' timed out");
+            rightLoosePending = null;
+        }
+        else if (rightLoosePending.photonView.IsMine)
+        {
+            Item pending = rightLoosePending;
+            rightLoosePending = null;
+            if (pending.itemState == ItemState.Ground && character.data.currentItem == null)
+                AttachRightLoose(character, pending, false);
+        }
+
+        if (ReferenceEquals(rightLoose, null))
+            return;
+
+        if (rightLoose == null || !rightLoose.gameObject.activeInHierarchy || rightLoose.itemState != ItemState.Ground)
+        {
+            DropRightLooseState(character);
+            return;
+        }
+
+        bool isPickPassing = isLeftPickExpected || isLeftDeferred;
+        if (Incapacitated(character) || (character.data.currentItem != null && !isPickPassing))
+        {
+            Log($"right forced release of '{rightLoose.name}'");
+            ReleaseRightLoose(character, false);
+            return;
+        }
+
+        if (rightLooseJoint != null)
+            return;
+
+        Rigidbody bone = character.GetBodypartRig(BodypartType.Hand_R);
+        if (bone != null)
+            rightLooseJoint = VRHandJoint.AttachRigid(bone, rightLoose);
+    }
+
+    private void AttachRightLoose(Character character, Item item, bool isKeepPose)
+    {
+        Rigidbody bone = character.GetBodypartRig(BodypartType.Hand_R);
+        if (bone == null || item == null || item.rig == null)
+            return;
+
+        bool isShared = item == leftItem;
+        if (!isKeepPose && !isShared)
+        {
+            Quaternion wantRot = item.transform.rotation;
+            Vector3 wantPos = item.transform.position;
+            Transform handle = item.transform.Find("Hand_R");
+            if (handle != null)
+            {
+                Quaternion inv = Quaternion.Inverse(item.transform.rotation);
+                Vector3 dir = inv * (handle.position - item.transform.position);
+                Quaternion rot = inv * handle.rotation;
+                wantRot = bone.transform.rotation * Quaternion.Inverse(rot);
+                wantPos = bone.transform.position - wantRot * dir;
+            }
+
+            if (item.rig.isKinematic)
+                item.SetKinematicNetworked(false, wantPos, wantRot);
+
+            item.transform.SetPositionAndRotation(wantPos, wantRot);
+            item.rig.position = wantPos;
+            item.rig.rotation = wantRot;
+            item.rig.linearVelocity = Vector3.zero;
+            item.rig.angularVelocity = Vector3.zero;
+        }
+
+        item.rig.useGravity = false;
+
+        if (rightLooseJoint != null)
+            Destroy(rightLooseJoint);
+        rightLooseJoint = VRHandJoint.AttachRigid(bone, item);
+        rightLoose = item;
+
+        if (!isShared)
+            VRLeftSlot.FillLoose(character, item);
+
+        PlayGrabSound(character, item);
+        Log($"right holds '{item.name}' outside the inventory{(isShared ? " with the left hand" : "")}");
+    }
+
+    private void ReleaseRightLoose(Character character, bool isWear)
+    {
+        Item item = rightLoose;
+        DropRightLooseState(character);
+
+        if (item == null)
+            return;
+
+        if (item == leftItem)
+        {
+            VRLeftSlot.Fill(character, item);
+            Log($"right let go of '{item.name}', left keeps it");
+            return;
+        }
+
+        if (item.rig != null)
+            item.rig.useGravity = true;
+
+        if (isWear && character != null && VRBackpackHands.CanWearLoose(character, item, false, out bool isSwap)
+            && !isSwap)
+        {
+            VRBackpackHands.Wear(character, item);
+            return;
+        }
+
+        if (character != null && GameUtils.instance != null)
+            GameUtils.instance.IgnoreCollisions(character, item, 0.5f);
+
+        if (item.rig != null && character != null && character.data != null)
+        {
+            Vector3 velocity = ThrowVelocity(character, velocityRight);
+            if (!float.IsNaN(velocity.sqrMagnitude) && !float.IsInfinity(velocity.sqrMagnitude))
+                item.rig.linearVelocity = velocity;
+        }
+
+        item.GetComponent<ItemPhysicsSyncer>()?.ForceSyncForFrames();
+        Log($"right released '{item.name}' from outside the inventory");
+    }
+
+    private void DropRightLooseState(Character character)
+    {
+        rightLoose = null;
+        rightLoosePending = null;
+        if (rightLooseJoint != null)
+            Destroy(rightLooseJoint);
+        rightLooseJoint = null;
+        VRLeftSlot.EmptyLoose(character);
+    }
+
+    private void LoosenRight(Character character)
+    {
+        Item item = character.data.currentItem;
+        CharacterItems items = character.refs != null ? character.refs.items : null;
+        if (item == null || item.rig == null || items == null || character.player == null
+            || !items.currentSelectedSlot.IsSome)
+            return;
+
+        byte slotId = items.currentSelectedSlot.Value;
+        items.currentSelectedSlot = Optionable<byte>.None;
+
+        SuppressStashDestroy = true;
+        character.photonView.RPC("EquipSlotRpc", RpcTarget.All, -1, -1);
+        SuppressStashDestroy = false;
+
+        character.player.EmptySlot(Optionable<byte>.Some(slotId));
+        item.SetState(ItemState.Ground);
+
+        isRightGripped = false;
+        isRightSliding = false;
+        isRightRequested = false;
+        AttachRightLoose(character, item, true);
+        Log($"right keeps '{item.name}' outside the inventory to free slot {slotId}");
+    }
+
     private void GrabFromLeft(Character character, Item item)
     {
         if (character.player == null || !character.player.HasEmptySlot(item.itemID))
@@ -996,10 +1206,13 @@ internal class VRHandItems : MonoBehaviour
                 isLeftSliding = true;
                 Log($"left slides '{leftItem.name}'");
             }
-            else if (leftItem != null && !isLeftSliding && VRBackpackHands.CanWearLeft(character, leftItem))
+            else if (leftItem != null && !isLeftSliding && leftItem != rightLoose
+                && VRBackpackHands.CanWearLoose(character, leftItem, true, out bool isSwap))
             {
                 Item worn = leftItem;
                 ReleaseLeft(character, Vector3.zero);
+                if (isSwap)
+                    LoosenRight(character);
                 VRBackpackHands.Wear(character, worn);
             }
             else if (leftItem != null && !isLeftSliding
@@ -1103,6 +1316,12 @@ internal class VRHandItems : MonoBehaviour
                 MoveRightToLeft(character, item, false);
             else
                 AttachLeft(character, item, true);
+            return true;
+        }
+
+        if (item == rightLoose)
+        {
+            AttachLeft(character, item, true);
             return true;
         }
 
@@ -1387,6 +1606,13 @@ internal class VRHandItems : MonoBehaviour
             return;
         }
 
+        if (item == rightLoose)
+        {
+            VRLeftSlot.FillLoose(character, item);
+            Log($"left let go of '{item.name}', right keeps it outside the inventory");
+            return;
+        }
+
         if (GameUtils.instance != null && character != null)
             GameUtils.instance.IgnoreCollisions(character, item, 0.5f);
 
@@ -1409,6 +1635,7 @@ internal class VRHandItems : MonoBehaviour
             return;
 
         byte slotId = items.currentSelectedSlot.Value;
+        items.currentSelectedSlot = Optionable<byte>.None;
 
         if (!isKeepPose)
             CaptureLeft(character, item);
@@ -1535,6 +1762,7 @@ internal class VRHandItems : MonoBehaviour
     private static void ThrowLive(Character character, CharacterItems items, Item item, Vector3 velocity, float charge)
     {
         byte slotId = items.currentSelectedSlot.Value;
+        items.currentSelectedSlot = Optionable<byte>.None;
 
         SuppressStashDestroy = true;
         character.photonView.RPC("EquipSlotRpc", RpcTarget.All, -1, -1);

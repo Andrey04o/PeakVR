@@ -128,17 +128,15 @@ internal static class InteractionInputPatch
         bool isRightFriend = VRHandItems.Enabled && VRItemUse.RightFriend != null;
         InjectUse(__instance, VRControls.RightTrigger,
             VRGripProfiles.IsUseAllowed(local, false) && !VREmoteWheel.RightTriggerConsumed
-            && !VRChatButton.RightTriggerConsumed && !VRItemUse.IsLeftBusy,
+            && !VRChatButton.RightTriggerConsumed,
             isRightFriend, ref rightMode);
 
         if (VRHandItems.Enabled && VRItemUse.IsLeftOwnItem(local))
         {
             Release(__instance, leftMode);
             leftMode = ModeNone;
-            bool isRightBusy = rightMode != ModeNone && local.data.currentItem != null;
             VRItemUse.StepLeft(local, VRControls.LeftTrigger,
-                !VRControllerHud.LeftTriggerConsumed && !isRightBusy
-                && VRHandItems.IsGripHolding(local, VRHandItems.LeftItem));
+                !VRControllerHud.LeftTriggerConsumed && VRHandItems.IsGripHolding(local, VRHandItems.LeftItem));
         }
         else
         {

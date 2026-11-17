@@ -8,6 +8,7 @@ internal static class VRLeftSlot
 
     private static ItemSlot slot;
     private static Player owner;
+    private static int looseWeight;
 
     public static ItemSlot For(Player player)
     {
@@ -17,7 +18,26 @@ internal static class VRLeftSlot
         return slot;
     }
 
-    public static int Weight => slot != null && slot.prefab != null ? slot.prefab.CarryWeight : 0;
+    public static int Weight => (slot != null && slot.prefab != null ? slot.prefab.CarryWeight : 0) + looseWeight;
+
+    public static void FillLoose(Character character, Item item)
+    {
+        if (character == null || item == null || !ItemDatabase.TryGetItem(item.itemID, out Item prefab))
+            return;
+
+        looseWeight = prefab.CarryWeight;
+        character.refs.afflictions?.UpdateWeight();
+    }
+
+    public static void EmptyLoose(Character character)
+    {
+        if (looseWeight == 0)
+            return;
+
+        looseWeight = 0;
+        if (character != null && character.refs != null)
+            character.refs.afflictions?.UpdateWeight();
+    }
 
     public static void Fill(Character character, Item item)
     {

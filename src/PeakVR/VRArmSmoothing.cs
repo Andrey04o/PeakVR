@@ -78,6 +78,10 @@ internal static class VRArmSmoothing
         Item left = VRHandItems.LeftItem;
         if (left != null && left.rig != null && left != right)
             Add(left.rig);
+
+        Item loose = VRHandItems.RightLoose;
+        if (loose != null && loose.rig != null && loose != left)
+            Add(loose.rig);
     }
 
     private static void Add(Rigidbody rig)

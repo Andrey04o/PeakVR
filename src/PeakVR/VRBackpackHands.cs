@@ -230,25 +230,35 @@ internal static class VRBackpackHands
         return true;
     }
 
-    public static bool CanWearLeft(Character local, Item held)
+    public static bool CanWearLoose(Character local, Item held, bool isLeft, out bool isSwap)
     {
+        isSwap = false;
+        Transform hand = isLeft ? VRHands.Left : VRHands.Right;
         if (!Enabled || held is not Backpack || held == local.data.currentItem || local.player == null
-            || VRHands.Left == null || !IsBehindShoulder(local, VRHands.Left.position))
+            || local.refs == null || hand == null || !IsBehindShoulder(local, hand.position))
             return false;
 
-        if (!local.player.backpackSlot.IsEmpty())
-        {
-            Log($"left does not wear '{held.name}': already wearing a pack");
-            return false;
-        }
+        if (local.player.backpackSlot.IsEmpty())
+            return true;
 
-        return true;
+        CharacterItems items = local.refs.items;
+        isSwap = isLeft && local.data.currentItem is Backpack && items != null && items.currentSelectedSlot.IsSome
+            && items.currentSelectedSlot.Value == WornSlot;
+        if (!isSwap)
+            Log($"{(isLeft ? "left" : "right")} does not wear '{held.name}': already wearing a pack");
+
+        return isSwap;
     }
 
     public static void Wear(Character local, Item item)
     {
         if (item is not Backpack pack)
             return;
+
+        CharacterItems items = local.refs != null ? local.refs.items : null;
+        if (items != null && local.data.currentItem == null && items.currentSelectedSlot.IsSome
+            && items.currentSelectedSlot.Value == WornSlot)
+            items.currentSelectedSlot = Optionable<byte>.None;
 
         VRHandItems.SetBypass(item);
         pack.Wear(local);
@@ -465,8 +475,11 @@ internal static class VRBackpackHands
         if (right != null && right == left)
             return null;
 
+        if (isRight && right == null)
+            return VRHandItems.RightLoose;
+
         if (isRight)
-            return right != null && VRHandItems.IsGripHolding(local, right) ? right : null;
+            return VRHandItems.IsGripHolding(local, right) ? right : null;
 
         return left;
     }
@@ -905,7 +918,8 @@ internal static class LeftBackpackMeshPatch
     [HarmonyPostfix]
     private static void Postfix(Backpack __instance)
     {
-        if (__instance != VRHandItems.LeftItem || __instance.backpackType == BackpackSlot.BackpackType.Rocketpack
+        if ((__instance != VRHandItems.LeftItem && __instance != VRHandItems.RightLoose)
+            || __instance.backpackType == BackpackSlot.BackpackType.Rocketpack
             || __instance.groundMesh == null || __instance.heldMesh == null)
             return;
 
