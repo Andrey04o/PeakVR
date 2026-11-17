@@ -250,7 +250,10 @@ internal static class VRHandClimb
         {
             hand.IsGripHeld = true;
             hand.AutoGrabLeft = VRHandItems.HasNearTarget(c, hand == Left) ? 0f : AutoGrabTime;
-            hand.IsInputConsumed = !VRHandItems.IsSliding(hand == Left) && !VRHandItems.IsBusy(c, hand == Left)
+            bool isHelp = VRFriendHelp.IsTargeting(hand == Left);
+            if (isHelp)
+                hand.AutoGrabLeft = 0f;
+            hand.IsInputConsumed = !isHelp && !VRHandItems.IsSliding(hand == Left) && !VRHandItems.IsBusy(c, hand == Left)
                 && TryGrab(c, hand);
         }
         else if (hand.IsGripHeld && !pressed)
@@ -1675,6 +1678,7 @@ internal static class HandClimbGripPatch
         if (local == null || local.input != __instance || VRControls.RightGrip == null)
             return;
 
+        VRFriendHelp.Tick(local, playerMovementActive);
         VRHandClimb.UpdateGrips(local, playerMovementActive);
     }
 }
@@ -1889,6 +1893,41 @@ internal static class HandClimbSoundPatch
     {
         if (__state)
             ___character.data.isClimbing = false;
+    }
+}
+
+[HarmonyPatch]
+internal static class HandClimbKeepItemPatch
+{
+    public static bool IsKeepItem { get; private set; }
+
+    private static IEnumerable<System.Reflection.MethodBase> TargetMethods()
+    {
+        yield return AccessTools.Method(typeof(RopeSegment), nameof(RopeSegment.Interact));
+        yield return AccessTools.Method(typeof(JungleVine), nameof(JungleVine.Interact));
+    }
+
+    [HarmonyPrefix]
+    private static void Prefix(Character interactor)
+    {
+        IsKeepItem = Plugin.VrEnabled && VRHandClimb.Enabled && VRHandItems.Enabled && interactor != null
+            && interactor == Character.localCharacter && VRHandItems.ActingHand == false;
+    }
+
+    [HarmonyFinalizer]
+    private static void Finalizer()
+    {
+        IsKeepItem = false;
+    }
+}
+
+[HarmonyPatch(typeof(CharacterItems), nameof(CharacterItems.EquipSlot))]
+internal static class HandClimbKeepItemEquipPatch
+{
+    [HarmonyPrefix]
+    private static bool Prefix(Optionable<byte> slotID)
+    {
+        return !HandClimbKeepItemPatch.IsKeepItem || slotID.IsSome;
     }
 }
 

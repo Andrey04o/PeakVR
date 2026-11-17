@@ -105,6 +105,13 @@ internal static class HandInteractPatch
     {
         var hovering = target != null && !(target is ClimbHandle);
 
+        if (VRFriendHelp.TryGetLine(right, out Vector3 helpStart, out Vector3 helpEnd, out Color helpColor)
+            && VRLine.ShouldShow(Plugin.Config.InteractionLine.Value, true) && !VRInteractPrompt.IsQuiet())
+        {
+            VRHands.SetInteractRay(right, true, helpStart, helpEnd, helpColor);
+            return;
+        }
+
         var show = VRLine.ShouldShow(Plugin.Config.InteractionLine.Value, hovering);
         var aimed = right ? VRAim.TryRight(out var origin, out var dir) : VRAim.TryLeft(out origin, out dir);
         bool busy = VRHandItems.IsBusy(local, !right);

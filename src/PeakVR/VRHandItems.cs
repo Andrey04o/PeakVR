@@ -1219,6 +1219,7 @@ internal class VRHandItems : MonoBehaviour
         if (character != null && GameUtils.instance != null)
             GameUtils.instance.IgnoreCollisions(character, item, 0.5f);
 
+        PlayReleaseSound(character);
         if (item.rig != null && character != null && character.data != null)
         {
             Vector3 velocity = ReleaseVelocity(item, ThrowVelocity(character, velocityRight));
@@ -1775,6 +1776,7 @@ internal class VRHandItems : MonoBehaviour
         if (GameUtils.instance != null && character != null)
             GameUtils.instance.IgnoreCollisions(character, item, 0.5f);
 
+        PlayReleaseSound(character);
         velocity = ReleaseVelocity(item, velocity);
         if (item.rig != null)
         {
@@ -1858,6 +1860,19 @@ internal class VRHandItems : MonoBehaviour
 
         foreach (SFX_Instance sfx in audio.switchGeneric)
             sfx?.Play(item.transform.position);
+    }
+
+    private static void PlayReleaseSound(Character character)
+    {
+        if (character == null)
+            return;
+
+        ItemAudioManager audio = character.GetComponentInChildren<ItemAudioManager>(true);
+        if (audio == null || audio.switchGeneric == null)
+            return;
+
+        foreach (SFX_Instance sfx in audio.switchGeneric)
+            sfx?.Play(audio.transform.position);
     }
 
     private Vector3 ThrowVelocity(Character character, VRHandVelocity velocity)
@@ -2093,8 +2108,23 @@ internal class VRHandItems : MonoBehaviour
         if (slot == null || slot.IsEmpty())
             return false;
 
+        if (instance != null && instance.CanTakeLeft(local, slotID.Value, slot) && instance.SpawnLeft(local, items, slotID.Value, slot))
+        {
+            Log($"slot {slotID.Value} went to the left hand - the right hand is climbing");
+            return true;
+        }
+
         Log($"slot {slotID.Value} not equipped - the right hand is climbing");
         return true;
+    }
+
+    private bool CanTakeLeft(Character character, byte slotID, ItemSlot slot)
+    {
+        if (slotID == WornSlot || slot.prefab == null || leftItem != null || leftPending != null
+            || VRHandClimb.IsGripping(true) || Incapacitated(character))
+            return false;
+
+        return slot.prefab is not Backpack;
     }
 
     private static readonly System.Reflection.MethodInfo LockedGetter =
