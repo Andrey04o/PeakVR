@@ -9,6 +9,7 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
     private const float ForwardOffset = 0.05f;
     private const float UpOffset = 0.07f;
     private const float ConsumeQuietTime = 0.35f;
+    private const float ProgressPopTime = 0.25f;
 
     private const int RefreshInterval = 30;
 
@@ -35,6 +36,12 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
     private Transform interactPrompts;
     private Transform progress;
     private UI_UseItemProgress progressComp;
+    private Canvas leftProgressCanvas;
+    private RectTransform leftProgressCanvasRt;
+    private GameObject leftProgress;
+    private UnityEngine.UI.Image leftFill;
+    private UnityEngine.UI.Image leftEmpty;
+    private float leftProgressScale;
 
     private readonly VRRestore restore = new();
     private bool reticleHidden;
@@ -86,12 +93,92 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
         }
 
         PlaceCanvas(canvasRt, VRHands.Right);
-        bool isLeftUse = VRItemUse.IsProgressLeft(Character.localCharacter) && VRHands.Left != null;
-        PlaceCanvas(progressCanvasRt, isLeftUse ? VRHands.Left : VRHands.Right);
+        bool isLeftInteract = VRHandItems.ActingHand == false && VRHands.Left != null && !IsRightItemProgress();
+        PlaceCanvas(progressCanvasRt, isLeftInteract ? VRHands.Left : VRHands.Right);
+        UpdateLeftProgress(progressT, isRefresh);
 
         bool isQuiet = IsQuiet();
         UpdateRight(gui, isRefresh, isQuiet);
         UpdateLeft(gui, isRefresh, isQuiet);
+    }
+
+    private static bool IsRightItemProgress()
+    {
+        Character local = Character.localCharacter;
+        Item right = local != null && local.data != null ? local.data.currentItem : null;
+        return right != null && right.shouldShowCastProgress && right.progress > 0f;
+    }
+
+    private void UpdateLeftProgress(Transform source, bool isRefresh)
+    {
+        float amount = VRItemUse.LeftProgress;
+        bool isShown = amount > 0f && VRHands.Left != null;
+        if (!isShown && leftProgress == null)
+            return;
+
+        if (!EnsureLeftProgress(source))
+            return;
+
+        if (isShown && !leftFill.enabled)
+            leftProgressScale = 0f;
+        leftProgressScale = Mathf.MoveTowards(leftProgressScale, 1f, Time.deltaTime / ProgressPopTime);
+        leftProgress.transform.localScale = Vector3.one * Mathf.SmoothStep(0f, 1f, leftProgressScale);
+
+        if (isShown)
+            leftFill.fillAmount = amount;
+        leftFill.enabled = isShown;
+        if (leftEmpty != null)
+            leftEmpty.enabled = isShown;
+
+        if (!isShown)
+            return;
+
+        if (isRefresh)
+        {
+            UIOverlay.SweepForegroundLayer(leftProgressCanvas);
+            UIOverlay.MakeAlwaysVisible(leftProgressCanvas, true);
+        }
+
+        PlaceCanvas(leftProgressCanvasRt, VRHands.Left);
+    }
+
+    private bool EnsureLeftProgress(Transform source)
+    {
+        if (leftProgress != null && leftFill != null)
+            return true;
+
+        if (source == null || progressComp == null || progressComp.fill == null)
+            return false;
+
+        if (leftProgressCanvas == null)
+        {
+            leftProgressCanvas = CreateCanvas("PeakVR Use Progress Left");
+            leftProgressCanvasRt = (RectTransform)leftProgressCanvas.transform;
+        }
+
+        leftProgress = Clone(source, new Vector2(0f, 155f), leftProgressCanvasRt);
+        UI_UseItemProgress copy = leftProgress.GetComponent<UI_UseItemProgress>();
+        if (copy != null)
+            Destroy(copy);
+
+        leftFill = FindCopy<UnityEngine.UI.Image>(source, leftProgress.transform, progressComp.fill);
+        leftEmpty = FindCopy<UnityEngine.UI.Image>(source, leftProgress.transform, progressComp.empty);
+        if (leftFill == null)
+        {
+            Destroy(leftProgressCanvas.gameObject);
+            leftProgressCanvas = null;
+            leftProgressCanvasRt = null;
+            leftProgress = null;
+            return false;
+        }
+
+        leftFill.enabled = false;
+        if (leftEmpty != null)
+            leftEmpty.enabled = false;
+
+        UIOverlay.SweepForegroundLayer(leftProgressCanvas);
+        UIOverlay.MakeAlwaysVisible(leftProgressCanvas, true);
+        return true;
     }
 
     internal static bool IsQuiet()
@@ -413,6 +500,14 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
             Destroy(progressCanvas.gameObject);
         progressCanvas = null;
         progressCanvasRt = null;
+
+        if (leftProgressCanvas != null)
+            Destroy(leftProgressCanvas.gameObject);
+        leftProgressCanvas = null;
+        leftProgressCanvasRt = null;
+        leftProgress = null;
+        leftFill = null;
+        leftEmpty = null;
 
         if (count > 0)
             Plugin.Log.LogInfo($"[PeakVR] Interaction prompts returned to the screen ({count})");

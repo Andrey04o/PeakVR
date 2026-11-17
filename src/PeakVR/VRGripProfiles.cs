@@ -582,15 +582,27 @@ internal static class VRGripProfiles
             return true;
 
         if (!VRHandItems.IsGripHolding(character, item))
+        {
+            snapRight = null;
             return false;
+        }
 
         VRGripProfile profile = Get(item);
         if (profile == null || !profile.IsDeployable)
             return true;
 
+        if (snapRight == item)
+            return true;
+
         Rigidbody hand = character.GetBodypartRig(BodypartType.Hand_R);
-        return hand != null && IsAtSnap(item, hand.transform, false);
+        if (hand == null || !IsAtSnap(item, hand.transform, false))
+            return false;
+
+        snapRight = item;
+        return true;
     }
+
+    private static Item snapRight;
 
     private static void Log(string message)
     {

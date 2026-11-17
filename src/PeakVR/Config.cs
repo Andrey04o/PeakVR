@@ -32,6 +32,7 @@ public class Config
     public ConfigEntry<bool> ImmersiveHands { get; }
     public ConfigEntry<float> ThrowStrength { get; }
     public ConfigEntry<bool> TriggerGrab { get; }
+    public ConfigEntry<bool> ThrowableBackpack { get; }
 
     public ConfigEntry<bool> SmoothTurn { get; }
     public ConfigEntry<float> SnapTurnAngle { get; }
@@ -144,6 +145,12 @@ public class Config
         TriggerGrab = file.Bind("Immersive", "Trigger Grab And Slide", false,
             "Also pick items up with the trigger, and keep holding the trigger after letting go of the grip to "
             + "let a long item slide through your hand. Off means only the grip picks items up.");
+
+        ThrowableBackpack = file.Bind("Immersive", "Throwable Backpack", false,
+            new ConfigDescription(
+                "Let go of a backpack with a flick of the hand and it flies with the hand speed, like other "
+                + "items. Off means a released backpack just drops, the same as for flat players.",
+                null, "Hidden"));
         SmoothTurn =file.Bind("Comfort", "Smooth Turn", false,
             "Turn smoothly with the right stick instead of snapping by a fixed angle.");
         SnapTurnAngle = file.Bind("Comfort", "Snap Turn Angle", 45f,

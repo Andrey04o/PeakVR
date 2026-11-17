@@ -81,6 +81,45 @@ internal static class CarriedBreakablePatch
     }
 }
 
+[HarmonyPatch(typeof(BananaPeel), "Update")]
+internal static class CarriedPeelPatch
+{
+    private static readonly AccessTools.FieldRef<BananaPeel, Item> ItemRef =
+        AccessTools.FieldRefAccess<BananaPeel, Item>("item");
+
+    [HarmonyPrefix]
+    private static bool Prefix(BananaPeel __instance)
+    {
+        return !VRHandItems.IsHandHeld(ItemRef(__instance));
+    }
+}
+
+[HarmonyPatch(typeof(CloudFungus), "Update")]
+internal static class CarriedFungusPatch
+{
+    private static readonly AccessTools.FieldRef<CloudFungus, Item> ItemRef =
+        AccessTools.FieldRefAccess<CloudFungus, Item>("item");
+
+    [HarmonyPrefix]
+    private static bool Prefix(CloudFungus __instance)
+    {
+        return !VRHandItems.IsHandHeld(ItemRef(__instance));
+    }
+}
+
+[HarmonyPatch(typeof(ShelfShroom), "OnCollisionEnter")]
+internal static class CarriedShroomPatch
+{
+    private static readonly AccessTools.FieldRef<ShelfShroom, Item> ItemRef =
+        AccessTools.FieldRefAccess<ShelfShroom, Item>("item");
+
+    [HarmonyPrefix]
+    private static bool Prefix(ShelfShroom __instance)
+    {
+        return !VRHandItems.IsHandHeld(ItemRef(__instance));
+    }
+}
+
 [HarmonyPatch(typeof(Item), "SetState")]
 internal static class GroundMassPatch
 {

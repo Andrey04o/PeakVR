@@ -9,6 +9,8 @@ internal static class ItemAim
 
     public static Item ActiveItem;
 
+    public const float CastBackoff = 0.35f;
+
     private static readonly Dictionary<int, Item> OwnerCache = new Dictionary<int, Item>();
     private static readonly Dictionary<int, Transform> OriginCache = new Dictionary<int, Transform>();
 
@@ -27,7 +29,7 @@ internal static class ItemAim
             return fallback;
 
         Item item = ResolveItem(self);
-        if (!TryGetAim(item, out Vector3 origin, out Vector3 direction))
+        if (!TryGetCastAim(item, out Vector3 origin, out Vector3 direction))
             return fallback;
 
         if (proxy == null)
@@ -65,6 +67,18 @@ internal static class ItemAim
 
         isLeft = true;
         return item == VRHandItems.LeftItem;
+    }
+
+    public static bool TryGetCastAim(Item item, out Vector3 origin, out Vector3 direction)
+    {
+        if (!TryGetAim(item, out origin, out direction))
+            return false;
+
+        VRGripProfile profile = VRGripProfiles.Get(item);
+        if (profile != null && profile.IsDeployable)
+            origin -= direction * CastBackoff;
+
+        return true;
     }
 
     public static bool TryGetAim(Item item, out Vector3 origin, out Vector3 direction)

@@ -19,7 +19,6 @@ internal static class VRItemUse
     private static Item leftUsing;
     private static bool isLeftSecondary;
     private static Item clearLater;
-    private static bool isProgressLeft;
     private static readonly Dictionary<ushort, bool> SpikeCache = new Dictionary<ushort, bool>();
     private static Item spikeItem;
     private static float spikeTick;
@@ -53,21 +52,6 @@ internal static class VRItemUse
 
             return leftUsing.progress;
         }
-    }
-
-    public static bool IsProgressLeft(Character local)
-    {
-        if (LeftProgress > 0f)
-        {
-            isProgressLeft = true;
-            return true;
-        }
-
-        Item right = local != null && local.data != null ? local.data.currentItem : null;
-        if (right != null && right.shouldShowCastProgress && right.progress > 0f)
-            isProgressLeft = false;
-
-        return isProgressLeft;
     }
 
     public static bool IsLeftOwnItem(Character local)
@@ -214,7 +198,7 @@ internal static class VRItemUse
 
     public static bool IsLeftPlacement(Item item)
     {
-        return IsSpike(item) || GetRope(item) != null;
+        return IsSpike(item) || GetRope(item) != null || IsConstructable(item);
     }
 
     private static RopeTier GetRope(Item item)
@@ -318,8 +302,8 @@ internal static class VRItemUse
                 return;
 
             float startDistance = isClimbing ? spike.climbingSpikeStartDistance : spike.climbingSpikeStartDistanceGrounded;
-            if (!ItemAim.TryGetAim(item, out Vector3 origin, out Vector3 direction)
-                || !Physics.Raycast(origin, direction, out spikeHit, startDistance,
+            if (!ItemAim.TryGetCastAim(item, out Vector3 origin, out Vector3 direction)
+                || !Physics.Raycast(origin, direction, out spikeHit, startDistance + ItemAim.CastBackoff,
                     HelperFunctions.GetMask(HelperFunctions.LayerType.TerrainMap)))
             {
                 Log($"left piton: no wall within {startDistance:F1}m");
@@ -343,8 +327,8 @@ internal static class VRItemUse
 
         float previewDistance = isClimbing ? spike.climbingSpikePreviewDisableDistance
             : spike.climbingSpikePreviewDisableDistanceGrounded;
-        if (!ItemAim.TryGetAim(item, out Vector3 aimOrigin, out _)
-            || Vector3.Distance(aimOrigin, spikeHit.point) > previewDistance)
+        if (!ItemAim.TryGetCastAim(item, out Vector3 aimOrigin, out _)
+            || Vector3.Distance(aimOrigin, spikeHit.point) > previewDistance + ItemAim.CastBackoff)
         {
             StopSpike();
             return;
@@ -527,7 +511,30 @@ internal static class VRItemUse
     private static bool IsLeftUsable(Item item)
     {
         VRGripProfile profile = VRGripProfiles.Get(item);
-        return profile == null || !profile.IsDeployable;
+        return profile == null || !profile.IsDeployable || IsConstructable(item);
+    }
+
+    private static readonly Dictionary<ushort, bool> ConstructCache = new Dictionary<ushort, bool>();
+
+    public static bool IsConstructable(Item item)
+    {
+        if (item == null)
+            return false;
+
+        if (!ConstructCache.TryGetValue(item.itemID, out bool isConstruct))
+        {
+            isConstruct = item.GetComponentInChildren<Constructable>(true) != null;
+            ConstructCache[item.itemID] = isConstruct;
+        }
+
+        return isConstruct;
+    }
+
+    public static bool IsLeftOnly(Item item)
+    {
+        Character local = Character.localCharacter;
+        return item != null && Plugin.VrEnabled && VRHandItems.Enabled && item == VRHandItems.LeftItem
+            && IsLeftOwnItem(local);
     }
 
     private static CharacterInteractible FindFriend(Character local, Item item)
@@ -599,6 +606,34 @@ internal static class LeftUseAnimationPatch
     }
 }
 
+[HarmonyPatch(typeof(Constructable), "Update")]
+internal static class LeftConstructablePatch
+{
+    [HarmonyPrefix]
+    private static void Prefix(Constructable __instance, out Character __state)
+    {
+        __state = null;
+        Item item = __instance.item;
+        if (!VRItemUse.IsLeftOnly(item) || item.overrideHolderCharacter != null)
+            return;
+
+        __state = item.trueHolderCharacter;
+        item.holderCharacter = Character.localCharacter;
+        ItemAim.ActiveItem = item;
+    }
+
+    [HarmonyPostfix]
+    private static void Postfix(Constructable __instance, Character __state)
+    {
+        Item item = __instance.item;
+        if (item == null || ItemAim.ActiveItem != item)
+            return;
+
+        ItemAim.ActiveItem = null;
+        item.holderCharacter = __state;
+    }
+}
+
 [HarmonyPatch(typeof(Rope), nameof(Rope.IsActive))]
 internal static class LeftRopeActivePatch
 {
@@ -610,23 +645,5 @@ internal static class LeftRopeActivePatch
 
         if (__instance.itemSpool == VRHandItems.LeftItem)
             __result = true;
-    }
-}
-
-[HarmonyPatch(typeof(UI_UseItemProgress), "UpdateFillAmount")]
-internal static class LeftUseProgressPatch
-{
-    [HarmonyPostfix]
-    private static void Postfix(UI_UseItemProgress __instance, ref bool __result)
-    {
-        if (__result || __instance.fill == null)
-            return;
-
-        float progress = VRItemUse.LeftProgress;
-        if (progress <= 0f)
-            return;
-
-        __instance.fill.fillAmount = progress;
-        __result = true;
     }
 }

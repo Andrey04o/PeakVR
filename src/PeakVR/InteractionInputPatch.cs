@@ -99,7 +99,10 @@ internal static class InteractionInputPatch
 
         // B (right secondary) = hold / unhold the selected item.
         if (VRControls.RightSecondary.WasPressedThisFrame())
+        {
             __instance.unselectSlotWasPressed = true;
+            VRHandItems.ToggleSlotWhileClimbing(local);
+        }
 
         // Pause ONLY from Y. Clear the game's native pause first so the VD-emulated gamepad's
         // thumbstick-click (our Sprint button) can't accidentally open the pause menu.

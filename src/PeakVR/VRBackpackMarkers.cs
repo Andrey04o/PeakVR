@@ -9,12 +9,14 @@ internal class VRBackpackMarkers : MonoBehaviour
 {
     private const float GhostAlpha = 0.35f;
     private const float InPackScale = 0.5f;
+    private static readonly int RopeCutoff = Shader.PropertyToID("_RopeCutoff");
 
     private readonly List<BackpackMark> marks = new List<BackpackMark>();
     private readonly List<Item> outlined = new List<Item>();
     private readonly List<Item> outlineNext = new List<Item>();
 
     private Material ghostMaterial;
+    private bool isRopeGhost;
     private GameObject ghost;
     private Item ghostItem;
 
@@ -48,7 +50,7 @@ internal class VRBackpackMarkers : MonoBehaviour
 
         SetOutlines();
         SetGhost(ghostMark.Ghost, ghostMark.Slot);
-        if (ghostMark.Ghost != null && ghostMaterial != null)
+        if (ghostMark.Ghost != null && ghostMaterial != null && !isRopeGhost)
         {
             Color color = VRLine.CharacterColor();
             SetColor(ghostMaterial, new Color(color.r, color.g, color.b, GhostAlpha));
@@ -161,6 +163,16 @@ internal class VRBackpackMarkers : MonoBehaviour
         if (ghostMaterial != null)
             return;
 
+        Material rope = FindRopeGhost();
+        if (rope != null)
+        {
+            ghostMaterial = new Material(rope);
+            if (ghostMaterial.HasProperty(RopeCutoff))
+                ghostMaterial.SetFloat(RopeCutoff, 1f);
+            isRopeGhost = true;
+            return;
+        }
+
         Shader shader = Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Sprites/Default");
         ghostMaterial = new Material(shader);
         ghostMaterial.SetFloat("_Surface", 1f);
@@ -173,6 +185,22 @@ internal class VRBackpackMarkers : MonoBehaviour
         ghostMaterial.SetOverrideTag("RenderType", "Transparent");
         ghostMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
         ghostMaterial.renderQueue = (int)RenderQueue.Transparent;
+    }
+
+    private static Material FindRopeGhost()
+    {
+        foreach (Item item in Zorro.Core.SingletonAsset<ItemDatabase>.Instance.itemLookup.Values)
+        {
+            RopeSpool spool = item != null ? item.GetComponent<RopeSpool>() : null;
+            if (spool == null || spool.isAntiRope || spool.ropePrefab == null)
+                continue;
+
+            RopeBoneVisualizer visualizer = spool.ropePrefab.GetComponentInChildren<RopeBoneVisualizer>(true);
+            if (visualizer != null && visualizer.ghostMaterial != null)
+                return visualizer.ghostMaterial;
+        }
+
+        return null;
     }
 
     private static void SetColor(Material material, Color color)

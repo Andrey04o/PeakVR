@@ -1,6 +1,8 @@
+using HarmonyLib;
 using Photon.Pun;
 using UnityEngine;
 using Zorro.Core;
+using Zorro.Core.Serizalization;
 
 namespace PeakVR;
 
@@ -95,6 +97,7 @@ internal class VRHandItems : MonoBehaviour
     private const float CaptureTimeout = 3f;
     private const float OwnershipTimeout = 1.5f;
     private const float ArrivalTimeout = 2f;
+    private const float LeftoverTimeout = 3f;
     private const float RagdollControl = 0.01f;
     private const float EquipCooldown = 0.25f;
     private const float AutoGrabTime = 1f;
@@ -105,9 +108,16 @@ internal class VRHandItems : MonoBehaviour
     private static readonly System.Collections.Generic.List<Collider> ArmBuffer =
         new System.Collections.Generic.List<Collider>();
 
+    private static readonly System.Collections.Generic.List<Collider> ItemBuffer =
+        new System.Collections.Generic.List<Collider>();
+    private static readonly System.Collections.Generic.List<Collider> ClimbBuffer =
+        new System.Collections.Generic.List<Collider>();
+
     private Item ignoredRight;
     private Item ignoredLeft;
     private int ignoreFrame;
+    private readonly Item[] climbItems = new Item[2];
+    private readonly Component[] climbs = new Component[2];
 
     private static VRHandItems instance;
 
@@ -164,6 +174,8 @@ internal class VRHandItems : MonoBehaviour
     private bool isLeftTakeExpected;
     private float leftTakeSince;
     private int leftTakeItemId = -1;
+    private int leftLeftoverId = -1;
+    private float leftLeftoverSince;
     private bool isRightPackExpected;
     private float rightPackSince;
     private Item rightLoose;
@@ -196,7 +208,7 @@ internal class VRHandItems : MonoBehaviour
     public static void ExpectLeftPick(Character character, int itemId)
     {
         if (instance == null || !Enabled || character == null || character.data == null
-            || instance.leftItem != null || instance.leftPending != null)
+            || instance.leftItem != null || instance.leftPending != null || VRHandClimb.IsGripping(true))
             return;
 
         instance.isLeftPickExpected = true;
@@ -212,7 +224,7 @@ internal class VRHandItems : MonoBehaviour
     public static void ExpectLeftTake(Character character, Item item)
     {
         if (instance == null || !Enabled || character == null || item == null
-            || instance.leftItem != null || instance.leftPending != null)
+            || instance.leftItem != null || instance.leftPending != null || VRHandClimb.IsGripping(true))
             return;
 
         instance.isLeftTakeExpected = true;
@@ -374,6 +386,49 @@ internal class VRHandItems : MonoBehaviour
         return instance.isRightActing || instance.rightActingReleasedFrame == Time.frameCount;
     }
 
+    public static bool IsHandHeld(Item item)
+    {
+        if (instance == null || item == null || !Plugin.VrEnabled)
+            return false;
+
+        return item == instance.leftItem || item == instance.rightLoose;
+    }
+
+    public static bool TrySpawnLeftover(Item prefab, Character character)
+    {
+        if (instance == null || !Enabled || prefab == null || character == null || character != Character.localCharacter)
+            return false;
+
+        return instance.SpawnLeftover(prefab, character);
+    }
+
+    private bool SpawnLeftover(Item prefab, Character character)
+    {
+        if (leftLeftoverId < 0 || prefab.itemID != leftLeftoverId)
+            return false;
+
+        leftLeftoverId = -1;
+        if (Time.time - leftLeftoverSince > LeftoverTimeout || leftItem != null || leftPending != null
+            || VRHandClimb.IsGripping(true) || Incapacitated(character))
+            return false;
+
+        Rigidbody bone = character.GetBodypartRig(BodypartType.Hand_L);
+        if (bone == null)
+            return false;
+
+        GameObject spawned = PhotonNetwork.Instantiate("0_Items/" + prefab.gameObject.name, bone.position, bone.rotation, 0);
+        Item item = spawned != null ? spawned.GetComponent<Item>() : null;
+        if (item == null)
+            return false;
+
+        isLeftGripCaptured = VRGripProfiles.TryGetHandPose(item, true, out leftGripDir, out leftGripRot);
+        AttachLeft(character, item, false);
+        character.refs.afflictions?.UpdateWeight();
+        character.refs.items.RefreshAllCharacterCarryWeight();
+        Log($"leftover '{item.name}' spawned in the left hand");
+        return true;
+    }
+
     public static bool IsGripHolding(Character character, Item item)
     {
         if (instance == null || item == null)
@@ -501,6 +556,89 @@ internal class VRHandItems : MonoBehaviour
         {
             IgnoreArmCollisions(character, left);
         }
+
+        StepClimbIgnore(character, right, left, isRefresh);
+    }
+
+    private void StepClimbIgnore(Character character, Item right, Item left, bool isRefresh)
+    {
+        Component climbLeft = VRHandClimb.GetHeldClimbable(true);
+        Component climbRight = VRHandClimb.GetHeldClimbable(false);
+        if (climbLeft == null && climbRight == null)
+        {
+            if (character.data.isRopeClimbing)
+                climbRight = character.data.heldRope;
+            else if (character.data.isVineClimbing)
+                climbRight = character.data.heldVine;
+        }
+
+        if (climbRight == climbLeft)
+            climbRight = null;
+
+        bool isChanged = climbItems[0] != right || climbItems[1] != left || climbs[0] != climbLeft
+            || climbs[1] != climbRight;
+        if (!isChanged && !isRefresh)
+            return;
+
+        for (int i = 0; i < climbItems.Length; i++)
+        {
+            Item old = climbItems[i];
+            if (old == null || old == right || old == left)
+                continue;
+            RestoreClimbCollisions(old, climbs[0]);
+            RestoreClimbCollisions(old, climbs[1]);
+        }
+
+        for (int i = 0; i < climbs.Length; i++)
+        {
+            Component old = climbs[i];
+            if (old == null || old == climbLeft || old == climbRight)
+                continue;
+            RestoreClimbCollisions(right, old);
+            RestoreClimbCollisions(left, old);
+        }
+
+        climbItems[0] = right;
+        climbItems[1] = left;
+        climbs[0] = climbLeft;
+        climbs[1] = climbRight;
+
+        IgnoreClimbCollisions(right, climbLeft);
+        IgnoreClimbCollisions(right, climbRight);
+        if (left != right)
+        {
+            IgnoreClimbCollisions(left, climbLeft);
+            IgnoreClimbCollisions(left, climbRight);
+        }
+    }
+
+    private static void IgnoreClimbCollisions(Item item, Component climb)
+    {
+        if (item == null || climb == null)
+            return;
+
+        item.GetComponentsInChildren(true, ItemBuffer);
+        climb.GetComponentsInChildren(false, ClimbBuffer);
+        for (int i = 0; i < ItemBuffer.Count; i++)
+        {
+            for (int k = 0; k < ClimbBuffer.Count; k++)
+            {
+                if (ItemBuffer[i] != null && ClimbBuffer[k] != null)
+                    Physics.IgnoreCollision(ItemBuffer[i], ClimbBuffer[k], true);
+            }
+        }
+
+        ItemBuffer.Clear();
+        ClimbBuffer.Clear();
+    }
+
+    private static void RestoreClimbCollisions(Item item, Component climb)
+    {
+        if (item == null || climb == null || GameUtils.instance == null)
+            return;
+
+        GameUtils.instance.IgnoreCollisions(item.GetComponentsInChildren<Collider>(true),
+            climb.GetComponentsInChildren<Collider>(false), RestoreDelay);
     }
 
     private static void IgnoreArmCollisions(Character character, Item item)
@@ -668,6 +806,13 @@ internal class VRHandItems : MonoBehaviour
 
     private static bool IsTriggerGrab => Plugin.Config != null && Plugin.Config.TriggerGrab.Value;
 
+    private static bool IsThrowableBackpack => Plugin.Config != null && Plugin.Config.ThrowableBackpack.Value;
+
+    private static Vector3 ReleaseVelocity(Item item, Vector3 velocity)
+    {
+        return item is Backpack && !IsThrowableBackpack ? Vector3.zero : velocity;
+    }
+
     private void PressRightTrigger(Character character, Item held)
     {
         if (!IsTriggerGrab || held != null || rightPending != null || VRHandClimb.IsConsumed(false))
@@ -774,7 +919,7 @@ internal class VRHandItems : MonoBehaviour
         rightAutoLeft -= Time.deltaTime;
 
         if (!grip.IsPressed() || isRightGripped || rightPending != null || character.data.currentItem != null
-            || rightLoose != null || rightLoosePending != null)
+            || rightLoose != null || rightLoosePending != null || VRHandClimb.IsGripping(false))
         {
             rightAutoLeft = 0f;
             return;
@@ -824,6 +969,16 @@ internal class VRHandItems : MonoBehaviour
             return true;
 
         return target is Item item && item != null && IsGrabbable(item);
+    }
+
+    public static bool IsTouchingItem(Character character, bool isLeft)
+    {
+        if (instance == null || !Enabled || character == null || character.data == null || IsBusy(character, isLeft)
+            || !HandInteractPatch.IsRecent)
+            return false;
+
+        IInteractible target = isLeft ? HandInteractPatch.LeftTarget : HandInteractPatch.RightTarget;
+        return target is Item item && item != null && IsGrabbable(item) && IsNear(character, item, isLeft);
     }
 
     private static bool IsNear(Character character, Item item, bool isLeft)
@@ -1066,7 +1221,7 @@ internal class VRHandItems : MonoBehaviour
 
         if (item.rig != null && character != null && character.data != null)
         {
-            Vector3 velocity = ThrowVelocity(character, velocityRight);
+            Vector3 velocity = ReleaseVelocity(item, ThrowVelocity(character, velocityRight));
             if (!float.IsNaN(velocity.sqrMagnitude) && !float.IsInfinity(velocity.sqrMagnitude))
                 item.rig.linearVelocity = velocity;
         }
@@ -1351,7 +1506,8 @@ internal class VRHandItems : MonoBehaviour
 
         leftAutoLeft -= Time.deltaTime;
 
-        if (!grip.IsPressed() || leftItem != null || leftPending != null || isLeftDeferred)
+        if (!grip.IsPressed() || leftItem != null || leftPending != null || isLeftDeferred
+            || VRHandClimb.IsGripping(true))
         {
             leftAutoLeft = 0f;
             return;
@@ -1583,7 +1739,10 @@ internal class VRHandItems : MonoBehaviour
 
         Action_ConsumeAndSpawn spawn = item.GetComponent<Action_ConsumeAndSpawn>();
         if (spawn != null && spawn.itemToSpawn != null)
-            ExpectLeftPick(character, spawn.itemToSpawn.itemID);
+        {
+            leftLeftoverId = spawn.itemToSpawn.itemID;
+            leftLeftoverSince = Time.time;
+        }
 
         bool isDestroy = item.itemState == ItemState.Ground && item.photonView != null && item.photonView.IsMine;
         Log($"left consumed '{item.name}' destroy={isDestroy} leftover={(spawn != null && spawn.itemToSpawn != null ? spawn.itemToSpawn.name : "none")}");
@@ -1616,6 +1775,7 @@ internal class VRHandItems : MonoBehaviour
         if (GameUtils.instance != null && character != null)
             GameUtils.instance.IgnoreCollisions(character, item, 0.5f);
 
+        velocity = ReleaseVelocity(item, velocity);
         if (item.rig != null)
         {
             item.rig.useGravity = true;
@@ -1737,9 +1897,7 @@ internal class VRHandItems : MonoBehaviour
             return;
         }
 
-        Vector3 velocity = hand.normalized * speed + character.data.avarageVelocity;
-        if (item is Backpack)
-            velocity = Vector3.zero;
+        Vector3 velocity = ReleaseVelocity(item, hand.normalized * speed + character.data.avarageVelocity);
 
         if (charge > AnimateChargeAbove)
             Animate(character);
@@ -1879,9 +2037,117 @@ internal class VRHandItems : MonoBehaviour
         return true;
     }
 
+    public static bool TryStashLeft(Character character, byte slotID)
+    {
+        if (instance == null || !Enabled || character == null || character.data == null || character.player == null)
+            return false;
+
+        Item item = instance.leftItem;
+        if (item == null || instance.isLeftSliding || item == character.data.currentItem || item == instance.rightLoose
+            || item.consuming || item.photonView == null || !item.photonView.IsMine)
+            return false;
+
+        ItemSlot slot = character.player.GetItemSlot(slotID);
+        if (slot == null || !slot.IsEmpty())
+            return false;
+
+        if (slotID == WornSlot)
+        {
+            if (item is not Backpack)
+                return false;
+
+            instance.ReleaseLeft(character, Vector3.zero);
+            VRBackpackHands.Wear(character, item);
+            Log($"left wears '{item.name}' from the hotbar");
+            return true;
+        }
+
+        if (item is Backpack || item.UIData == null || !item.UIData.canPocket
+            || slotID >= character.player.itemSlots.Length || !ItemDatabase.TryGetItem(item.itemID, out Item prefab))
+            return false;
+
+        VRItemUse.Stop();
+        item.OnStash();
+        instance.DropLeftState(character);
+        slot.SetItem(prefab, item.data);
+        InventorySyncData sync = new InventorySyncData(character.player.itemSlots, character.player.backpackSlot,
+            character.player.tempFullSlot);
+        character.player.photonView.RPC("SyncInventoryRPC", RpcTarget.All, IBinarySerializable.ToManagedArray(sync), true);
+        character.player.itemsChangedAction?.Invoke(character.player.itemSlots);
+        PlayGrabSound(character, item);
+        PhotonNetwork.Destroy(item.photonView);
+        Log($"left stashed '{item.name}' into slot {slotID}");
+        return true;
+    }
+
+    public static bool IsEquipBlocked(CharacterItems items, Optionable<byte> slotID)
+    {
+        if (!Plugin.VrEnabled || !Enabled || slotID.IsNone || !VRHandClimb.IsGripping(false))
+            return false;
+
+        Character local = Character.localCharacter;
+        if (local == null || items.character != local || local.player == null)
+            return false;
+
+        ItemSlot slot = local.player.GetItemSlot(slotID.Value);
+        if (slot == null || slot.IsEmpty())
+            return false;
+
+        Log($"slot {slotID.Value} not equipped - the right hand is climbing");
+        return true;
+    }
+
+    private static readonly System.Reflection.MethodInfo LockedGetter =
+        AccessTools.PropertyGetter(typeof(CharacterItems), "lockedFromSwitching");
+
+    public static void ToggleSlotWhileClimbing(Character character)
+    {
+        if (!Enabled || character == null || character.data == null || character.refs == null
+            || character.refs.items == null)
+            return;
+
+        CharacterData data = character.data;
+        if (!data.isClimbing && !data.isRopeClimbing)
+            return;
+
+        Item current = data.currentItem;
+        if (current != null && (current.progress > 0f || current.lastFinishedCast + 0.1f > Time.time))
+            return;
+
+        if (data.currentStickyItem != null || !data.fullyConscious || !character.CanDoInput())
+            return;
+
+        CharacterItems items = character.refs.items;
+        if (LockedGetter != null && (bool)LockedGetter.Invoke(items, null))
+            return;
+
+        Log($"B while climbing: {(items.currentSelectedSlot.IsSome ? "put away" : "take back")}");
+        items.EquipSlot(items.currentSelectedSlot.IsSome ? Optionable<byte>.None : items.lastSelectedSlot);
+    }
+
     private static void Log(string message)
     {
         if (Plugin.Config != null && Plugin.Config.EnableVerboseLogging.Value)
             Plugin.Log.LogInfo($"[PeakVR][Hands] {message}");
+    }
+}
+
+[HarmonyPatch(typeof(CharacterItems), nameof(CharacterItems.EquipSlot))]
+internal static class BusyHandEquipPatch
+{
+    [HarmonyPrefix]
+    private static bool Prefix(CharacterItems __instance, Optionable<byte> slotID)
+    {
+        return !VRHandItems.IsEquipBlocked(__instance, slotID);
+    }
+}
+
+[HarmonyPatch(typeof(GameUtils), nameof(GameUtils.InstantiateAndGrab))]
+internal static class LeftLeftoverPatch
+{
+    [HarmonyPrefix]
+    private static bool Prefix(Item item, Character character)
+    {
+        return !VRHandItems.TrySpawnLeftover(item, character);
     }
 }

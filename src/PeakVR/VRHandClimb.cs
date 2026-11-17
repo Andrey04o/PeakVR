@@ -139,6 +139,11 @@ internal static class VRHandClimb
     private const float DynoSpeedMax = 9f;
     private const float DynoStaminaMin = 0.1f;
     private const float DynoStaminaMax = 0.2f;
+    private const float FallSlideDecay = 0.97f;
+    private const float FallSlideDrop = 15f;
+    private const float FallSlideUnit = 0.35f;
+
+    private static float fallSlide;
 
     private static readonly Vector3[] VelocityHistory = new Vector3[5];
     private static int indexVelocity;
@@ -196,6 +201,23 @@ internal static class VRHandClimb
         return (isLeft ? Left : Right).IsInputConsumed;
     }
 
+    public static bool IsGripping(bool isLeft)
+    {
+        return (isLeft ? Left : Right).IsGripping;
+    }
+
+    public static Component GetHeldClimbable(bool isLeft)
+    {
+        VRClimbHand hand = isLeft ? Left : Right;
+        if (!hand.HasAnchor)
+            return null;
+        if (hand.IsRope)
+            return hand.Rope;
+        if (hand.IsVine)
+            return hand.Vine;
+        return null;
+    }
+
     public static void UpdateGrips(Character c, bool playerMovementActive)
     {
         if (Enabled)
@@ -228,7 +250,8 @@ internal static class VRHandClimb
         {
             hand.IsGripHeld = true;
             hand.AutoGrabLeft = VRHandItems.HasNearTarget(c, hand == Left) ? 0f : AutoGrabTime;
-            hand.IsInputConsumed = !VRHandItems.IsSliding(hand == Left) && TryGrab(c, hand);
+            hand.IsInputConsumed = !VRHandItems.IsSliding(hand == Left) && !VRHandItems.IsBusy(c, hand == Left)
+                && TryGrab(c, hand);
         }
         else if (hand.IsGripHeld && !pressed)
         {
@@ -815,11 +838,12 @@ internal static class VRHandClimb
 
         Vector3 shoulder = GetShoulder(c, hand, c.Center);
         Vector3 palm = GetVirtualPalm(hand, shoulder);
-        if (TryGrabRope(c, hand, palm))
+        bool isItemTouched = VRHandItems.IsTouchingItem(c, hand == Left);
+        if (!isItemTouched && TryGrabRope(c, hand, palm))
             return true;
-        if (TryGrabVine(c, hand, palm))
+        if (!isItemTouched && TryGrabVine(c, hand, palm))
             return true;
-        if (TryGrabHandle(c, hand, palm))
+        if (!isItemTouched && TryGrabHandle(c, hand, palm))
             return true;
         if (!IsHoldingObject && !CanStart(c))
             return false;
@@ -854,6 +878,7 @@ internal static class VRHandClimb
         if (!IsHoldingObject && (!Left.IsGripping || !Right.IsGripping))
         {
             StartClimb(c, anchor);
+            StartFallSlide(c);
             PlayWallStartSound(c);
         }
         else if (IsHoldingObject)
@@ -1444,6 +1469,9 @@ internal static class VRHandClimb
         else if (!IsHoldingObject && !HasWallHand)
             SendStop(c);
 
+        if (!HasWallHand)
+            fallSlide = 0f;
+
         if (!IsHoldingAny)
             StartInertia(c);
     }
@@ -1476,6 +1504,7 @@ internal static class VRHandClimb
         surfaceSounds = null;
         VRClimbPose.Clear();
         inertiaLeft = 0f;
+        fallSlide = 0f;
         countVelocity = 0;
         indexVelocity = 0;
         soundOwner = null;
@@ -1490,12 +1519,16 @@ internal static class VRHandClimb
         float dt = Time.fixedDeltaTime;
         c.data.isGrounded = false;
         c.data.sinceClimb = 0f;
+        float slide = StepFallSlide(c, dt);
         if (!c.OutOfStamina())
             c.data.sinceGrounded = 0f;
         else
+            slide += SlideSpeed * dt;
+
+        if (slide > 0f)
         {
-            SlideHand(c, Left, dt);
-            SlideHand(c, Right, dt);
+            SlideHand(c, Left, slide);
+            SlideHand(c, Right, slide);
             if (!IsHolding)
                 return;
         }
@@ -1552,7 +1585,36 @@ internal static class VRHandClimb
         return hand.GetAnchor() - palm - hand.Residual;
     }
 
-    private static void SlideHand(Character c, VRClimbHand hand, float dt)
+    private static void StartFallSlide(Character c)
+    {
+        fallSlide = 0f;
+        CharacterClimbing climbing = c.refs.climbing;
+        float fallSpeed = -c.data.avarageVelocity.y;
+        if (climbing == null || climbing.convertFallVelToSlideCurve == null || fallSpeed <= 0f)
+            return;
+
+        fallSlide = climbing.convertFallVelToSlideCurve.Evaluate(fallSpeed);
+        if (fallSlide > 0f)
+            Log($"fall grab at {fallSpeed:F1} m/s -> slide {fallSlide:F1} ({fallSlide * FallSlideUnit:F2} m/s)");
+    }
+
+    private static float StepFallSlide(Character c, float dt)
+    {
+        if (fallSlide <= 0f)
+            return 0f;
+
+        float distance = fallSlide * FallSlideUnit * dt;
+        fallSlide = Mathf.MoveTowards(fallSlide * FallSlideDecay, 0f, FallSlideDrop * dt);
+        return distance;
+    }
+
+    private static void Log(string message)
+    {
+        if (Plugin.Config != null && Plugin.Config.EnableVerboseLogging.Value)
+            Plugin.Log.LogInfo($"[PeakVR][Climb] {message}");
+    }
+
+    private static void SlideHand(Character c, VRClimbHand hand, float distance)
     {
         if (!hand.IsGripping || hand.GripCollider == null)
             return;
@@ -1561,7 +1623,7 @@ internal static class VRHandClimb
         if (down.sqrMagnitude < 1e-4f)
             return;
 
-        Vector3 anchor = hand.GetAnchor() + down.normalized * (SlideSpeed * dt);
+        Vector3 anchor = hand.GetAnchor() + down.normalized * distance;
         Vector3 origin = anchor + hand.Normal * SlideProbe;
         if (!Physics.Raycast(origin, -hand.Normal, out RaycastHit hit, SlideProbe * 2f,
                 HelperFunctions.terrainMapMask, QueryTriggerInteraction.Ignore))
@@ -1631,9 +1693,12 @@ internal static class HandClimbInputPatch
         if (local == null || local.input != __instance)
             return;
 
-        __instance.usePrimaryWasPressed = false;
-        __instance.usePrimaryIsPressed = false;
-        __instance.usePrimaryWasReleased = false;
+        if (local.data.currentItem == null)
+        {
+            __instance.usePrimaryWasPressed = false;
+            __instance.usePrimaryIsPressed = false;
+            __instance.usePrimaryWasReleased = false;
+        }
         __instance.movementInput = Vector2.zero;
         __instance.crouchIsPressed = false;
 

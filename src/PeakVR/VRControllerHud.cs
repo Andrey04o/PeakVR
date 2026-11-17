@@ -496,6 +496,9 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
         if (ch == null || ch.refs == null || ch.refs.items == null)
             return;
 
+        if (VRHandItems.TryStashLeft(ch, slot))
+            return;
+
         var items = ch.refs.items;
         if (items.currentSelectedSlot.IsSome && items.currentSelectedSlot.Value == slot)
             items.EquipSlot(Optionable<byte>.None);
