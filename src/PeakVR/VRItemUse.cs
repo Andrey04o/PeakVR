@@ -219,7 +219,12 @@ internal static class VRItemUse
     {
         ropeItem = item;
         bool isWasReleased = isRopePressed && !isPressed;
+        bool isWasPressed = !isRopePressed && isPressed;
         isRopePressed = isPressed;
+
+        if (isWasPressed && !tier.releaseCheck && item.TryGetComponent(out ItemUseFeedback feedback)
+            && feedback.sfxUsed != null)
+            feedback.sfxUsed.Play(item.transform.position, item.transform);
 
         RopeSpool spool = item.GetComponent<RopeSpool>();
         CharacterInput input = local.input;
@@ -631,6 +636,25 @@ internal static class LeftConstructablePatch
 
         ItemAim.ActiveItem = null;
         item.holderCharacter = __state;
+    }
+}
+
+[HarmonyPatch(typeof(RopeSpool), "Update")]
+internal static class LooseSpoolRopePatch
+{
+    [HarmonyPostfix]
+    private static void Postfix(RopeSpool __instance)
+    {
+        if (!Plugin.VrEnabled || __instance.ropeInstance == null)
+            return;
+
+        Item item = __instance.item;
+        if (item == null || item.itemState == ItemState.Held || item == VRHandItems.LeftItem || item == VRHandItems.RightLoose
+            || __instance.photonView == null || !__instance.photonView.IsMine)
+            return;
+
+        Plugin.Log.LogInfo($"[PeakVR][ItemUse] '{item.name}' left the hands with its rope out ({item.itemState}) - rope cleared");
+        VRItemUse.ClearRopeHold(item);
     }
 }
 

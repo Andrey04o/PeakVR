@@ -14,7 +14,9 @@ internal static class VRRopeTwist
 
     public static float Pending { get; private set; }
 
-    public static bool Enabled => Plugin.VrEnabled && VRHandItems.Enabled;
+    public static bool IsFeatureOn = false;
+
+    public static bool Enabled => IsFeatureOn && Plugin.VrEnabled && VRHandItems.Enabled;
 
     public static void Step(RopeSpool spool)
     {

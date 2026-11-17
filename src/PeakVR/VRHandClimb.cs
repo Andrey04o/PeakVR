@@ -107,7 +107,6 @@ internal static class VRHandClimb
     private const float FollowTime = 0.08f;
     private const float BodyNormalDistance = 0.4f;
     private const float FloorAngle = 50f;
-    private const float SlideSpeed = 0.6f;
     private const float SlideProbe = 0.15f;
     private const float InputSpeed = 1.5f;
     private const float HandFollowTime = 0.05f;
@@ -139,11 +138,31 @@ internal static class VRHandClimb
     private const float DynoSpeedMax = 9f;
     private const float DynoStaminaMin = 0.1f;
     private const float DynoStaminaMax = 0.2f;
-    private const float FallSlideDecay = 0.97f;
-    private const float FallSlideDrop = 15f;
-    private const float FallSlideUnit = 0.35f;
+    private const float SlideDrag = 0.97f;
+    private const float SlideDrop = 15f;
+    private const float SlideSampleRatio = 0.4f / 1.4f;
+    private const float SlideTiredForce = 200f;
+    private const float SlideTiredScale = 0.15f;
+    private const float SlideTiredMax = 5f;
+    private const float SlideJumpDelay = 0.5f;
+    private const float SlideSlippy = 0.5f;
+    private const float SlideReachScale = 1.5f;
+    private const float SlideReachMin = 0.1f;
+    private const float SlideFootProbe = 0.15f;
+    private const float SlideDamageStart = 15f;
+    private const float SlideDamageScale = 0.035f;
+    private const float SlideDamageMin = 0.1f;
+    private const float SlideDamageOffset = 0.05f;
+    private const float SlideDamageFall = 0.3f;
+    private const float SlideDamageFallScale = 5f;
+    private const float SlideSpeedMargin = 2f;
+    private const float HangSlideMin = 3f;
+    private const float HangSlideProbe = 0.02f;
 
-    private static float fallSlide;
+    private static float wallSlide;
+    private static float ropeSlide;
+    private static float ropeSlideSign;
+    private static Rope ropeSlideRope;
 
     private static readonly Vector3[] VelocityHistory = new Vector3[5];
     private static int indexVelocity;
@@ -321,13 +340,13 @@ internal static class VRHandClimb
         {
             hand.IsRope = true;
             hand.Rope = rope;
+            StartRopeSlide(c, rope, percent);
         }
         else
         {
             hand.IsVine = true;
             hand.Vine = vine;
             percent = Mathf.Clamp(percent, VinePercentMin, VinePercentMax);
-            AttachVel(c.refs.vineClimbing) = 0f;
         }
         hand.Percent = percent;
         hand.Normal = Vector3.zero;
@@ -470,12 +489,14 @@ internal static class VRHandClimb
             int index = Mathf.RoundToInt(hand.Percent * Mathf.Max(0, hand.Rope.SegmentCount - 1));
             c.refs.view.RPC("GrabRopeRpc", RpcTarget.All, objectView, index);
             data.ropePercent = hand.Percent;
+            StartRopeSlide(c, hand.Rope, hand.Percent);
         }
         else if (hand.IsVine)
         {
             c.refs.view.RPC("GrabVineRpc", RpcTarget.All, objectView, hand.Vine.GetIndexFromPercentage(hand.Percent));
             data.vinePercent = Mathf.Clamp(hand.Percent, VinePercentMin, VinePercentMax);
-            AttachVel(c.refs.vineClimbing) = 0f;
+            if (c.refs.vineClimbing.Sliding())
+                Log($"vine grab slides at {AttachVel(c.refs.vineClimbing):F1} m/s");
         }
         else
             objectView.RPC("RPCA_Hang", RpcTarget.All, c.refs.view);
@@ -881,7 +902,7 @@ internal static class VRHandClimb
         if (!IsHoldingObject && (!Left.IsGripping || !Right.IsGripping))
         {
             StartClimb(c, anchor);
-            StartFallSlide(c);
+            StartWallSlide(c, anchor);
             PlayWallStartSound(c);
         }
         else if (IsHoldingObject)
@@ -1196,11 +1217,12 @@ internal static class VRHandClimb
 
         RopeClimbingAPI api = rope.climbingAPI;
         float dt = Time.fixedDeltaTime;
+        float slideSpeed = StepRopeSlide(c, rope, dt);
         Vector3 torso = c.TorsoPos();
         if (!GetDriveDelta(c, torso, out Vector3 delta))
             return;
 
-        ApplyServo(c, delta);
+        ApplyServo(c, delta, slideSpeed);
 
         if (GetClosestPercent(rope, torso + delta, out float percent, out float distance))
             c.data.ropePercent = percent;
@@ -1227,21 +1249,30 @@ internal static class VRHandClimb
             return;
 
         CharacterVineClimbing vineClimbing = c.refs.vineClimbing;
-        AttachVel(vineClimbing) = 0f;
-
         float dt = Time.fixedDeltaTime;
+        float slideSpeed = 0f;
+        if (vineClimbing.Sliding())
+        {
+            float velocityVine = AttachVel(vineClimbing);
+            float step = vineClimbing.slideFactor * vine.LengthFactor() * dt * velocityVine;
+            if (SlideHangHands(vine, step, VinePercentMin, VinePercentMax))
+                slideSpeed = Mathf.Abs(vineClimbing.slideFactor * velocityVine);
+            else
+                AttachVel(vineClimbing) = 0f;
+        }
+
         Vector3 torso = c.TorsoPos();
         if (!GetDriveDelta(c, torso, out Vector3 delta))
             return;
 
-        ApplyServo(c, delta);
+        ApplyServo(c, delta, slideSpeed);
 
         if (GetClosestVinePercent(vine, torso + delta + Vector3.up * VineHangDistance, out float percent, out float distance))
             c.data.vinePercent = Mathf.Clamp(percent, VinePercentMin, VinePercentMax);
 
         TurnBody(c, dt);
 
-        if (c.data.avarageVelocity.magnitude > RopeUpSpeed)
+        if (slideSpeed <= 0f && c.data.avarageVelocity.magnitude > RopeUpSpeed)
             c.UseStamina(Mathf.Max(0f, vineClimbing.staminaUsage - VineIdleStamina) * dt);
 
         UpdateVineSound(c, dt);
@@ -1285,11 +1316,105 @@ internal static class VRHandClimb
         return true;
     }
 
-    private static void ApplyServo(Character c, Vector3 delta)
+    private static void ApplyServo(Character c, Vector3 delta, float slideSpeed = 0f)
     {
-        Vector3 velocityTarget = Vector3.ClampMagnitude(delta / FollowTime, SpeedMax);
+        float speedMax = slideSpeed > 0f ? Mathf.Max(SpeedMax, slideSpeed + SlideSpeedMargin) : SpeedMax;
+        Vector3 velocityTarget = Vector3.ClampMagnitude(delta / FollowTime, speedMax);
         c.AddForce((velocityTarget - c.data.avarageVelocity) * VelocityGain);
         RecordVelocity(velocityTarget);
+    }
+
+    private static bool SlideHangHands(UnityEngine.Object held, float step, float min, float max)
+    {
+        bool isInside = true;
+        isInside &= SlideHangHand(Left, held, step, min, max);
+        isInside &= SlideHangHand(Right, held, step, min, max);
+        return isInside;
+    }
+
+    private static bool SlideHangHand(VRClimbHand hand, UnityEngine.Object held, float step, float min, float max)
+    {
+        if (!hand.HasAnchor || hand.HeldObject != held)
+            return true;
+
+        float percent = hand.Percent + step;
+        hand.Percent = Mathf.Clamp(percent, min, max);
+        return percent > min && percent < max;
+    }
+
+    private static void StartRopeSlide(Character c, Rope rope, float percent)
+    {
+        StopRopeSlide();
+        if (!GetRopeTangent(rope, percent, out Vector3 tangent, out float metersPerPercent))
+            return;
+
+        CharacterClimbing climbing = c.refs.climbing;
+        float along = Vector3.Dot(c.data.avarageVelocity, tangent);
+        Vector3 move = along < 0f ? -tangent : tangent;
+        float speed = Mathf.Abs(along) * Mathf.InverseLerp(0f, -0.5f, move.y);
+        if (speed <= HangSlideMin || climbing == null || climbing.convertFallVelToSlideCurve == null)
+            return;
+
+        ropeSlide = climbing.convertFallVelToSlideCurve.Evaluate(speed);
+        ropeSlideSign = along < 0f ? -1f : 1f;
+        ropeSlideRope = rope;
+        Log($"rope grab at {speed:F1} m/s -> slide {ropeSlide:F1} ({ropeSlide * GetSlideUnit(climbing):F2} m/s)");
+    }
+
+    private static void StopRopeSlide()
+    {
+        ropeSlide = 0f;
+        ropeSlideRope = null;
+    }
+
+    private static float StepRopeSlide(Character c, Rope rope, float dt)
+    {
+        if (ropeSlideRope == null || ropeSlideRope != rope)
+        {
+            StopRopeSlide();
+            return 0f;
+        }
+
+        CharacterClimbing climbing = c.refs.climbing;
+        VRClimbHand hand = Left.HasAnchor && Left.HeldObject == rope ? Left : Right;
+        if (ropeSlide <= 0f || climbing == null || !hand.HasAnchor || hand.HeldObject != rope
+            || !GetRopeTangent(rope, hand.Percent, out _, out float metersPerPercent))
+        {
+            StopRopeSlide();
+            return 0f;
+        }
+
+        float speed = ropeSlide * GetSlideUnit(climbing);
+        ropeSlide = Mathf.MoveTowards(ropeSlide * SlideDrag, 0f, SlideDrop * dt);
+        if (!SlideHangHands(rope, ropeSlideSign * speed * dt / metersPerPercent, 0f, 1f))
+        {
+            Log($"rope slide hit the rope end at {hand.Percent:F2}");
+            StopRopeSlide();
+            return 0f;
+        }
+        return speed;
+    }
+
+    private static bool GetRopeTangent(Rope rope, float percent, out Vector3 tangent, out float metersPerPercent)
+    {
+        tangent = Vector3.zero;
+        metersPerPercent = 0f;
+        if (rope == null || rope.climbingAPI == null)
+            return false;
+
+        float from = Mathf.Clamp01(percent - HangSlideProbe);
+        float to = Mathf.Clamp01(percent + HangSlideProbe);
+        if (to - from < 1e-4f)
+            return false;
+
+        Vector3 span = rope.climbingAPI.GetPosition(to) - rope.climbingAPI.GetPosition(from);
+        float length = span.magnitude;
+        if (length < 1e-4f)
+            return false;
+
+        tangent = span / length;
+        metersPerPercent = length / (to - from);
+        return true;
     }
 
     private static void RecordVelocity(Vector3 velocity)
@@ -1473,7 +1598,9 @@ internal static class VRHandClimb
             SendStop(c);
 
         if (!HasWallHand)
-            fallSlide = 0f;
+            wallSlide = 0f;
+        if (!IsHoldingObject)
+            StopRopeSlide();
 
         if (!IsHoldingAny)
             StartInertia(c);
@@ -1507,7 +1634,8 @@ internal static class VRHandClimb
         surfaceSounds = null;
         VRClimbPose.Clear();
         inertiaLeft = 0f;
-        fallSlide = 0f;
+        wallSlide = 0f;
+        StopRopeSlide();
         countVelocity = 0;
         indexVelocity = 0;
         soundOwner = null;
@@ -1522,12 +1650,18 @@ internal static class VRHandClimb
         float dt = Time.fixedDeltaTime;
         c.data.isGrounded = false;
         c.data.sinceClimb = 0f;
-        float slide = StepFallSlide(c, dt);
-        if (!c.OutOfStamina())
+        bool isTired = c.OutOfStamina();
+        float slideSpeed = StepWallSlide(c, isTired, dt);
+        float slide = slideSpeed * dt;
+        if (!isTired)
             c.data.sinceGrounded = 0f;
-        else
-            slide += SlideSpeed * dt;
 
+        if (slide > 0f && IsSlideLanded(c, slide))
+        {
+            LandWallSlide(c);
+            slide = 0f;
+            slideSpeed = 0f;
+        }
         if (slide > 0f)
         {
             SlideHand(c, Left, slide);
@@ -1553,7 +1687,9 @@ internal static class VRHandClimb
             return;
 
         delta /= count;
-        Vector3 velocityTarget = Vector3.ClampMagnitude(delta / FollowTime, SpeedMax);
+        if (isTired && delta.y > 0f)
+            delta.y = 0f;
+        Vector3 velocityTarget = Vector3.ClampMagnitude(delta / FollowTime, Mathf.Max(SpeedMax, slideSpeed + SlideSpeedMargin));
         Vector3 velocity = c.data.avarageVelocity;
         c.AddForce((velocityTarget - velocity) * VelocityGain);
         RecordVelocity(velocityTarget);
@@ -1588,27 +1724,97 @@ internal static class VRHandClimb
         return hand.GetAnchor() - palm - hand.Residual;
     }
 
-    private static void StartFallSlide(Character c)
+    private static void StartWallSlide(Character c, Vector3 anchor)
     {
-        fallSlide = 0f;
+        wallSlide = 0f;
+        CharacterData data = c.data;
         CharacterClimbing climbing = c.refs.climbing;
-        float fallSpeed = -c.data.avarageVelocity.y;
-        if (climbing == null || climbing.convertFallVelToSlideCurve == null || fallSpeed <= 0f)
+        if (climbing == null)
             return;
 
-        fallSlide = climbing.convertFallVelToSlideCurve.Evaluate(fallSpeed);
-        if (fallSlide > 0f)
-            Log($"fall grab at {fallSpeed:F1} m/s -> slide {fallSlide:F1} ({fallSlide * FallSlideUnit:F2} m/s)");
+        float slide = 0f;
+        if (data.hasClimbedSinceGrounded && c.OutOfStamina())
+        {
+            Vector3 reach = Vector3.ProjectOnPlane((anchor - (c.Center + Vector3.up * 0.5f)) * SlideReachScale, GetBodyNormal(c));
+            float distance = Vector3.Dot(reach, Vector3.up) < 0f ? 0f : reach.magnitude;
+            slide -= Mathf.Max(distance, SlideReachMin) * climbing.outOfStamAttachSlide;
+        }
+
+        float fallSpeed = -data.avarageVelocity.y;
+        if (fallSpeed > 0f && climbing.convertFallVelToSlideCurve != null)
+            slide -= climbing.convertFallVelToSlideCurve.Evaluate(fallSpeed);
+
+        wallSlide = slide;
+        if (slide < 0f && data.outOfStaminaClimbingFor < climbing.maxOutOfStamClimbTimeOnStartClimb)
+        {
+            float tired = data.outOfStaminaClimbingFor * 0.5f - slide * climbing.newSlideToOutOfStamClimbTimeFactor;
+            data.outOfStaminaClimbingFor = Mathf.Clamp(tired, 0f, climbing.maxOutOfStamClimbTimeOnStartClimb);
+        }
+        data.hasClimbedSinceGrounded = true;
+
+        if (slide < 0f)
+            Log($"wall grab at {fallSpeed:F1} m/s -> slide {-slide:F1} ({-slide * GetSlideUnit(climbing):F2} m/s)");
     }
 
-    private static float StepFallSlide(Character c, float dt)
+    private static float GetSlideUnit(CharacterClimbing climbing)
     {
-        if (fallSlide <= 0f)
+        return climbing.climbSpeed * climbing.climbSpeedMod * SlideSampleRatio;
+    }
+
+    private static float StepWallSlide(Character c, bool isTired, float dt)
+    {
+        CharacterData data = c.data;
+        CharacterClimbing climbing = c.refs.climbing;
+        if (climbing == null)
             return 0f;
 
-        float distance = fallSlide * FallSlideUnit * dt;
-        fallSlide = Mathf.MoveTowards(fallSlide * FallSlideDecay, 0f, FallSlideDrop * dt);
-        return distance;
+        if (isTired)
+            data.outOfStaminaClimbingFor += dt;
+        if (data.sinceClimbJump > SlideJumpDelay)
+        {
+            float tired = Mathf.Clamp(data.outOfStaminaClimbingFor, 0f, SlideTiredMax) * SlideTiredScale;
+            wallSlide -= SlideTiredForce * Mathf.Clamp01(tired * tired) * dt;
+        }
+
+        float speed = (-wallSlide + SlideSlippy * Mathf.Clamp01(data.slippy)) * GetSlideUnit(climbing);
+        wallSlide = Mathf.MoveTowards(wallSlide * SlideDrag, 0f, SlideDrop * dt);
+        return Mathf.Max(0f, speed);
+    }
+
+    private static bool IsSlideLanded(Character c, float slide)
+    {
+        return IsFootLanded(c, BodypartType.Foot_L, slide) || IsFootLanded(c, BodypartType.Foot_R, slide);
+    }
+
+    private static bool IsFootLanded(Character c, BodypartType part, float slide)
+    {
+        Rigidbody foot = c.GetBodypartRig(part);
+        if (foot == null)
+            return false;
+
+        if (!Physics.Raycast(foot.position, Vector3.down, out RaycastHit hit, SlideFootProbe + slide,
+                HelperFunctions.terrainMapMask, QueryTriggerInteraction.Ignore))
+            return false;
+        return Vector3.Angle(hit.normal, Vector3.up) < FloorAngle;
+    }
+
+    private static void LandWallSlide(Character c)
+    {
+        float slide = -wallSlide;
+        wallSlide = 0f;
+        float damage = (slide - SlideDamageStart) * SlideDamageScale;
+        if (slide > 1f)
+            Log($"wall slide landed at slide {slide:F1} -> damage {Mathf.Max(0f, damage - SlideDamageOffset):F2}");
+        if (damage < SlideDamageMin)
+            return;
+
+        damage -= SlideDamageOffset;
+        c.data.sinceGrounded = 0f;
+        if (damage > SlideDamageFall)
+            c.Fall(damage * SlideDamageFallScale);
+        damage *= Ascents.fallDamageMultiplier;
+        if (c.refs.afflictions.AddStatus(CharacterAfflictions.STATUSTYPE.Injury, damage) && damage >= 0.025f)
+            Singleton<AchievementManager>.Instance.AddToRunBasedFloat(RUNBASEDVALUETYPE.FallDamageTaken, damage);
     }
 
     private static void Log(string message)

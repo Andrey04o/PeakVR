@@ -1227,6 +1227,7 @@ internal class VRHandItems : MonoBehaviour
                 item.rig.linearVelocity = velocity;
         }
 
+        VRItemUse.ClearRopeHold(item);
         item.GetComponent<ItemPhysicsSyncer>()?.ForceSyncForFrames();
         Log($"right released '{item.name}' from outside the inventory");
     }
