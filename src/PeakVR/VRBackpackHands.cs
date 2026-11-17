@@ -92,6 +92,8 @@ internal static class VRBackpackHands
 
     public static bool Enabled => Plugin.VrEnabled && VRHandItems.Enabled;
 
+    public static bool IsStashPending => isPending && Time.time - pendingSince <= PendingTimeout;
+
     public static bool IsPackTarget(IInteractible target)
     {
         if (target is VRBackpackStashTarget)
@@ -153,6 +155,9 @@ internal static class VRBackpackHands
         if (!Enabled || item == null || item.itemState != ItemState.InBackpack)
             return false;
 
+        if (isLeft)
+            VRHandItems.ParkRightForSlot(local, item.itemID);
+
         CharacterItems items = local.refs != null ? local.refs.items : null;
         float lastEquip = items != null ? items.lastEquippedSlotTime : 0f;
         if (items != null && lastEquip <= Time.time)
@@ -206,6 +211,7 @@ internal static class VRBackpackHands
         pendingItemId = item.itemID;
         pendingSince = Time.time;
 
+        VRHandItems.ParkRightForSlot(local, item.itemID);
         VRHandItems.SetBypass(item);
         item.Interact(local);
         VRHandItems.SetBypass(null);

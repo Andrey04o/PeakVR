@@ -112,6 +112,13 @@ internal static class HandInteractPatch
             return;
         }
 
+        if (VRCooking.TryGetLine(right, out Vector3 cookStart, out Vector3 cookEnd)
+            && VRLine.ShouldShow(Plugin.Config.InteractionLine.Value, true) && !VRInteractPrompt.IsQuiet())
+        {
+            VRHands.SetInteractRay(right, true, cookStart, cookEnd, VRLine.CharacterColor());
+            return;
+        }
+
         var show = VRLine.ShouldShow(Plugin.Config.InteractionLine.Value, hovering);
         var aimed = right ? VRAim.TryRight(out var origin, out var dir) : VRAim.TryLeft(out origin, out dir);
         bool busy = VRHandItems.IsBusy(local, !right);

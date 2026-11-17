@@ -1272,7 +1272,7 @@ internal static class VRHandClimb
 
         TurnBody(c, dt);
 
-        if (slideSpeed <= 0f && c.data.avarageVelocity.magnitude > RopeUpSpeed)
+        if (slideSpeed <= 0f && Vector3.Dot(c.data.avarageVelocity, Vector3.up) > RopeUpSpeed)
             c.UseStamina(Mathf.Max(0f, vineClimbing.staminaUsage - VineIdleStamina) * dt);
 
         UpdateVineSound(c, dt);

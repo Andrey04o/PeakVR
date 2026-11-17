@@ -41,6 +41,10 @@ internal static class VRItemUse
     {
         get
         {
+            float cooking = VRCooking.LeftProgress;
+            if (cooking > 0f)
+                return cooking;
+
             if (spikeItem != null && spikeItem.usingTimePrimary > 0f)
                 return Mathf.Clamp01(spikeTick / spikeItem.usingTimePrimary);
 

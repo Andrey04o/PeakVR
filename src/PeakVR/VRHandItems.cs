@@ -104,6 +104,7 @@ internal class VRHandItems : MonoBehaviour
     private const float RestoreDelay = 0.5f;
     private const int IgnoreRefreshFrames = 15;
     private const byte WornSlot = 3;
+    private const byte TempSlot = 250;
 
     private static readonly System.Collections.Generic.List<Collider> ArmBuffer =
         new System.Collections.Generic.List<Collider>();
@@ -181,6 +182,8 @@ internal class VRHandItems : MonoBehaviour
     private Item rightLoose;
     private Item rightLoosePending;
     private float rightLoosePendingSince;
+    private Item rightParked;
+    private float rightParkedSince;
     private Joint rightLooseJoint;
 
     public static bool Enabled => Plugin.Config != null && Plugin.Config.ImmersiveHands.Value;
@@ -731,6 +734,7 @@ internal class VRHandItems : MonoBehaviour
         StepRightPending(character);
         StepRightPack(character);
         StepRightLoose(character);
+        StepRightParked(character);
 
         if (grip.WasPressedThisFrame())
         {
@@ -1242,6 +1246,50 @@ internal class VRHandItems : MonoBehaviour
         VRLeftSlot.EmptyLoose(character);
     }
 
+    public static bool ParkRightForSlot(Character character, ushort itemID)
+    {
+        if (instance == null || !Enabled || character == null || character.player == null || character.refs == null
+            || instance.rightParked != null || character.player.HasEmptySlot(itemID))
+            return false;
+
+        Item right = character.data.currentItem;
+        CharacterItems items = character.refs.items;
+        if (right == null || right is Backpack || right == instance.leftItem || items == null
+            || !items.currentSelectedSlot.IsSome || items.currentSelectedSlot.Value != TempSlot)
+            return false;
+
+        instance.LoosenRight(character);
+        if (instance.rightLoose != right)
+            return false;
+
+        instance.rightParked = right;
+        instance.rightParkedSince = Time.time;
+        Log($"right parks '{right.name}' outside the inventory to free the full slot");
+        return true;
+    }
+
+    private void StepRightParked(Character character)
+    {
+        if (ReferenceEquals(rightParked, null))
+            return;
+
+        bool isWaiting = isLeftTakeExpected || VRBackpackHands.IsStashPending;
+        if (isWaiting && Time.time - rightParkedSince <= ArrivalTimeout)
+            return;
+
+        Item item = rightParked;
+        rightParked = null;
+        if (item == null || rightLoose != item || character.data.currentItem != null || character.player == null
+            || !character.player.HasEmptySlot(item.itemID))
+            return;
+
+        DropRightLooseState(character);
+        CaptureExact(character, item);
+        isRightRequested = VRControls.RightGrip.IsPressed();
+        Equip(character, item);
+        Log($"right takes '{item.name}' back into the full slot");
+    }
+
     private void LoosenRight(Character character)
     {
         Item item = character.data.currentItem;
@@ -1259,6 +1307,7 @@ internal class VRHandItems : MonoBehaviour
 
         character.player.EmptySlot(Optionable<byte>.Some(slotId));
         item.SetState(ItemState.Ground);
+        VRNetworking.SendGround(item);
 
         isRightGripped = false;
         isRightSliding = false;
@@ -1809,6 +1858,7 @@ internal class VRHandItems : MonoBehaviour
 
         character.player.EmptySlot(Optionable<byte>.Some(slotId));
         item.SetState(ItemState.Ground);
+        VRNetworking.SendGround(item);
 
         if (item.rig != null)
             item.rig.useGravity = false;
@@ -1944,6 +1994,7 @@ internal class VRHandItems : MonoBehaviour
 
         character.player.EmptySlot(Optionable<byte>.Some(slotId));
         item.SetState(ItemState.Ground);
+        VRNetworking.SendGround(item);
         VRItemUse.ClearRopeHold(item);
 
         if (item.rig != null)

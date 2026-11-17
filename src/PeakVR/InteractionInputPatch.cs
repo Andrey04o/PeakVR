@@ -54,6 +54,8 @@ internal static class InteractionInputPatch
                 __instance.scrollBackwardIsPressed = true;
         }
 
+        VRCooking.Step(local, playerMovementActive && !VRKeyboard.IsOpen && local.CanDoInput());
+
         if (VRKeyboard.IsOpen)
         {
             __instance.jumpWasPressed = false;
@@ -131,7 +133,7 @@ internal static class InteractionInputPatch
         bool isRightFriend = VRHandItems.Enabled && VRItemUse.RightFriend != null;
         InjectUse(__instance, VRControls.RightTrigger,
             VRGripProfiles.IsUseAllowed(local, false) && !VREmoteWheel.RightTriggerConsumed
-            && !VRChatButton.RightTriggerConsumed,
+            && !VRChatButton.RightTriggerConsumed && !VRCooking.IsOverFire(false),
             isRightFriend, ref rightMode);
 
         if (VRHandItems.Enabled && VRItemUse.IsLeftOwnItem(local))
@@ -139,7 +141,8 @@ internal static class InteractionInputPatch
             Release(__instance, leftMode);
             leftMode = ModeNone;
             VRItemUse.StepLeft(local, VRControls.LeftTrigger,
-                !VRControllerHud.LeftTriggerConsumed && VRHandItems.IsGripHolding(local, VRHandItems.LeftItem));
+                !VRControllerHud.LeftTriggerConsumed && VRHandItems.IsGripHolding(local, VRHandItems.LeftItem)
+                && !VRCooking.IsOverFire(true));
         }
         else
         {

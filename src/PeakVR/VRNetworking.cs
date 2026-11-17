@@ -10,6 +10,7 @@ internal static class VRNetworking
 {
     private const byte EventCode = 199;
     private const byte ExitCode = 198;
+    private const byte GroundCode = 197;
     public const float StaleTime = 1f;
 
     private static bool registered;
@@ -30,6 +31,8 @@ internal static class VRNetworking
         public Vector3 rightShoulder;
         public bool hasShoulders;
         public bool hasHands;
+        public int leftItemView;
+        public int rightItemView;
         public float sinceReceived;
     }
 
@@ -90,7 +93,8 @@ internal static class VRNetworking
         Vector3 ls = root.InverseTransformPoint(VRArmIKPatch.LastShoulderLeft);
         Vector3 rs = root.InverseTransformPoint(VRArmIKPatch.LastShoulderRight);
 
-        object[] content = { VRHeadRoll.LocalRoll, lp, lr, rp, rr, lh, rh, ls, rs };
+        object[] content = { VRHeadRoll.LocalRoll, lp, lr, rp, rr, lh, rh, ls, rs,
+            GetViewID(VRHandItems.LeftItem), GetViewID(VRHandItems.RightLoose) };
         PhotonNetwork.RaiseEvent(EventCode, content, SendOptionsToOthers, SendOptions.SendUnreliable);
     }
 
@@ -101,6 +105,49 @@ internal static class VRNetworking
 
         PhotonNetwork.RaiseEvent(ExitCode, null, SendOptionsToOthers, SendOptions.SendReliable);
         Plugin.Log.LogInfo("[PeakVR][Net] told the lobby this player left VR");
+    }
+
+    public static void SendGround(Item item)
+    {
+        if (!PhotonNetwork.InRoom || item == null || item.photonView == null)
+            return;
+
+        PhotonNetwork.RaiseEvent(GroundCode, item.photonView.ViewID, SendOptionsToOthers, SendOptions.SendReliable);
+    }
+
+    private static void ReceiveGround(int view)
+    {
+        PhotonView photonView = PhotonNetwork.GetPhotonView(view);
+        Item item = photonView != null ? photonView.GetComponent<Item>() : null;
+        if (item == null || item.itemState != ItemState.Held)
+            return;
+
+        item.SetState(ItemState.Ground);
+        Plugin.Log.LogInfo($"[PeakVR][Net] '{item.name}' left a remote VR hand slot - now a ground item");
+    }
+
+    public static bool IsHeldByRemote(Item item)
+    {
+        if (Remotes.Count == 0 || item == null || item.photonView == null)
+            return false;
+
+        int view = item.photonView.ViewID;
+        if (view == 0)
+            return false;
+
+        foreach (KeyValuePair<int, RemotePose> remote in Remotes)
+        {
+            RemotePose pose = remote.Value;
+            if (pose.sinceReceived <= StaleTime && (pose.leftItemView == view || pose.rightItemView == view))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static int GetViewID(Item item)
+    {
+        return item != null && item.photonView != null ? item.photonView.ViewID : 0;
     }
 
     public static bool IsActiveRemote(Character c)
@@ -121,6 +168,13 @@ internal static class VRNetworking
             return;
         }
 
+        if (e.Code == GroundCode)
+        {
+            if (e.CustomData is int groundView)
+                ReceiveGround(groundView);
+            return;
+        }
+
         if (e.Code != EventCode)
             return;
 
@@ -138,8 +192,21 @@ internal static class VRNetworking
             rightShoulder = content.Length >= 9 ? (Vector3)content[8] : Vector3.zero,
             hasShoulders = content.Length >= 9,
             hasHands = true,
+            leftItemView = content.Length >= 11 ? (int)content[9] : 0,
+            rightItemView = content.Length >= 11 ? (int)content[10] : 0,
             sinceReceived = 0f,
         };
         Remotes[e.Sender] = pose;
+    }
+}
+
+[HarmonyLib.HarmonyPatch(typeof(Item), nameof(Item.IsInteractible))]
+internal static class RemoteHeldItemPatch
+{
+    [HarmonyLib.HarmonyPostfix]
+    private static void Postfix(Item __instance, ref bool __result)
+    {
+        if (__result && VRNetworking.IsHeldByRemote(__instance))
+            __result = false;
     }
 }

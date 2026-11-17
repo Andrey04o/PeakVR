@@ -12,6 +12,16 @@ internal static class GuidebookVRPatch
     [HarmonyPrefix]
     private static bool Prefix(Guidebook __instance)
     {
+        if (__instance.isOpen && __instance.holderCharacter == null)
+        {
+            if (__instance.photonView != null && __instance.photonView.IsMine)
+            {
+                __instance.photonView.RPC("ToggleGuidebook_RPC", Photon.Pun.RpcTarget.All, false);
+                Plugin.Log.LogInfo($"[PeakVR] '{__instance.name}' left the hand open - closed it");
+            }
+            return false;
+        }
+
         if (!Plugin.VrEnabled)
             return true;
 
