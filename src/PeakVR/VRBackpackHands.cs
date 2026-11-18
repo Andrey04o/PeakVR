@@ -211,6 +211,7 @@ internal static class VRBackpackHands
         pendingItemId = item.itemID;
         pendingSince = Time.time;
 
+        VRHandItems.ForgetOthersHeld(item);
         VRHandItems.ParkRightForSlot(local, item.itemID);
         VRHandItems.SetBypass(item);
         item.Interact(local);
@@ -261,6 +262,7 @@ internal static class VRBackpackHands
         if (item is not Backpack pack)
             return;
 
+        VRHandItems.ForgetOthersHeld(item);
         CharacterItems items = local.refs != null ? local.refs.items : null;
         if (items != null && local.data.currentItem == null && items.currentSelectedSlot.IsSome
             && items.currentSelectedSlot.Value == WornSlot)

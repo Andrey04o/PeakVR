@@ -71,19 +71,18 @@ internal class VRItemAim : MonoBehaviour
         if (leftItem == rightItem)
             leftItem = null;
 
-        bool isShootable = Show(right, rightItem, true);
-        isShootable |= Show(left, leftItem, VRItemUse.IsLeftPlacement(leftItem));
+        bool isShootable = Show(right, rightItem);
+        isShootable |= Show(left, leftItem);
 
         if (isShootable)
             HideGameReticle();
     }
 
-    private bool Show(AimView view, Item item, bool isPlacementAllowed)
+    private bool Show(AimView view, Item item)
     {
         bool isShootable = item != null && item.UIData.isShootable;
-        bool isPlacement = isPlacementAllowed && item != null && IsPlacementItem(item);
 
-        if (!(isShootable || isPlacement) || !ItemAim.TryGetAim(item, out Vector3 origin, out Vector3 direction))
+        if (!isShootable || !ItemAim.TryGetAim(item, out Vector3 origin, out Vector3 direction))
         {
             Hide(view);
             return false;
@@ -98,7 +97,7 @@ internal class VRItemAim : MonoBehaviour
         view.Line.SetPosition(0, origin);
         view.Line.SetPosition(1, end);
 
-        if (isShootable && item.CanUsePrimary() && TryGetReachHit(item, origin, direction, out RaycastHit reachHit))
+        if (item.CanUsePrimary() && TryGetReachHit(item, origin, direction, out RaycastHit reachHit))
         {
             EnsureReticleSprite(view);
             Transform head = MainCamera.instance != null ? MainCamera.instance.cam.transform : null;
@@ -113,7 +112,7 @@ internal class VRItemAim : MonoBehaviour
             view.Reticle.gameObject.SetActive(false);
         }
 
-        return isShootable;
+        return true;
     }
 
     private static bool TryGetReachHit(Item item, Vector3 origin, Vector3 direction, out RaycastHit hit)
@@ -163,13 +162,6 @@ internal class VRItemAim : MonoBehaviour
 
         if (reticleSprite != null && view.Reticle.sprite != reticleSprite)
             view.Reticle.sprite = reticleSprite;
-    }
-
-    private static bool IsPlacementItem(Item item)
-    {
-        return item.GetComponentInChildren<Constructable>() != null
-            || item.GetComponentInChildren<ClimbingSpikeComponent>() != null
-            || item.GetComponentInChildren<RopeTier>() != null;
     }
 
     private void CreateMaterial()

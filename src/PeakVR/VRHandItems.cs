@@ -185,6 +185,7 @@ internal class VRHandItems : MonoBehaviour
     private Item rightParked;
     private float rightParkedSince;
     private Joint rightLooseJoint;
+    private Item othersHeld;
 
     public static bool Enabled => Plugin.Config != null && Plugin.Config.ImmersiveHands.Value;
 
@@ -495,6 +496,7 @@ internal class VRHandItems : MonoBehaviour
             ClearRight();
             ClearLeftInput();
             VRBackpackHands.StepCollisions(null);
+            StepOthersHeld(character);
             return;
         }
 
@@ -503,6 +505,7 @@ internal class VRHandItems : MonoBehaviour
 
         TickRight(character);
         TickLeft(character);
+        StepOthersHeld(character);
         VRBackpackHands.StepCollisions(character);
         StepJoints(character);
         StepIgnore(character);
@@ -1852,9 +1855,13 @@ internal class VRHandItems : MonoBehaviour
         if (!isKeepPose)
             CaptureLeft(character, item);
 
+        if (othersHeld != null && othersHeld != item)
+            StepOthersHeld(character);
+
         SuppressStashDestroy = true;
-        character.photonView.RPC("EquipSlotRpc", RpcTarget.All, -1, -1);
+        items.EquipSlotRpc(-1, -1);
         SuppressStashDestroy = false;
+        othersHeld = item;
 
         character.player.EmptySlot(Optionable<byte>.Some(slotId));
         item.SetState(ItemState.Ground);
@@ -1869,7 +1876,68 @@ internal class VRHandItems : MonoBehaviour
             AttachLeft(character, item, false);
 
         character.refs.afflictions?.UpdateWeight();
-        Log($"moved '{item.name}' from the right to the left hand");
+        Log($"moved '{item.name}' from the right to the left hand (other players still see it in the right hand)");
+    }
+
+    public static void ForgetOthersHeld(Item item)
+    {
+        if (instance != null && item != null && instance.othersHeld == item)
+            instance.othersHeld = null;
+    }
+
+    private void StepOthersHeld(Character character)
+    {
+        if (othersHeld == null)
+        {
+            othersHeld = null;
+            return;
+        }
+
+        if (character != null && character.data != null && othersHeld == character.data.currentItem)
+        {
+            othersHeld = null;
+            return;
+        }
+
+        if (othersHeld == leftItem || othersHeld == rightLoose || !othersHeld.gameObject.activeInHierarchy)
+            return;
+
+        Item item = othersHeld;
+        othersHeld = null;
+        if (item.itemState == ItemState.Ground && character != null)
+            RespawnForOthers(character, item);
+    }
+
+    private static void RespawnForOthers(Character character, Item item)
+    {
+        if (item.photonView == null || !item.photonView.IsMine || !ItemDatabase.TryGetItem(item.itemID, out Item prefab))
+            return;
+
+        Vector3 position = item.transform.position;
+        Quaternion rotation = item.transform.rotation;
+        Vector3 velocity = item.rig != null ? item.rig.linearVelocity : Vector3.zero;
+        Vector3 spin = item.rig != null ? item.rig.angularVelocity : Vector3.zero;
+        ItemInstanceData data = item.data;
+        string name = item.name;
+
+        PhotonNetwork.Destroy(item.photonView);
+        GameObject spawned = PhotonNetwork.IsMasterClient
+            ? PhotonNetwork.InstantiateItemRoom(prefab.gameObject.name, position, rotation)
+            : PhotonNetwork.Instantiate("0_Items/" + prefab.gameObject.name, position, rotation, 0);
+        PhotonView view = spawned != null ? spawned.GetComponent<PhotonView>() : null;
+        if (view == null)
+            return;
+
+        if (data != null)
+            view.RPC("SetItemInstanceDataRPC", RpcTarget.All, data);
+        view.RPC("SetKinematicRPC", RpcTarget.AllBuffered, false, position, rotation);
+        float step = Time.fixedDeltaTime;
+        if (step > 0f)
+            view.RPC("ApplyForceRPC", RpcTarget.All, velocity / step, spin / step);
+        if (GameUtils.instance != null)
+            GameUtils.instance.IgnoreCollisions(character.gameObject, spawned, 0.5f);
+
+        Log($"'{name}' left the hands - respawned as a dropped item so every player sees it fall");
     }
 
     private static void RestoreRightHold(Character character, Item item)

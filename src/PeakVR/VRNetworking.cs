@@ -122,6 +122,14 @@ internal static class VRNetworking
         if (item == null || item.itemState != ItemState.Held)
             return;
 
+        Character holder = item.holderCharacter;
+        if (holder != null && holder != Character.localCharacter && holder.data != null && holder.data.currentItem == item
+            && holder.refs != null && holder.refs.items != null)
+            holder.refs.items.EquipSlotRpc(-1, -1);
+
+        if (item.itemState != ItemState.Held)
+            return;
+
         item.SetState(ItemState.Ground);
         Plugin.Log.LogInfo($"[PeakVR][Net] '{item.name}' left a remote VR hand slot - now a ground item");
     }

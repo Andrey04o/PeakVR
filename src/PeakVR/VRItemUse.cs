@@ -200,11 +200,6 @@ internal static class VRItemUse
         return GetSpike(item) != null;
     }
 
-    public static bool IsLeftPlacement(Item item)
-    {
-        return IsSpike(item) || GetRope(item) != null || IsConstructable(item);
-    }
-
     private static RopeTier GetRope(Item item)
     {
         if (item == null)
