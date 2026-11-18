@@ -37,6 +37,12 @@ internal static class VRNetworking
         public byte[] climbState;
         public Vector3 legInto;
         public Vector3 ropeOffset;
+        public bool hasGrip;
+        public int gripRightView;
+        public Vector3 gripRightPos;
+        public Quaternion gripRightRot;
+        public Vector3 gripLeftPos;
+        public Quaternion gripLeftRot;
         public float sinceReceived;
     }
 
@@ -98,10 +104,27 @@ internal static class VRNetworking
         Vector3 rs = root.InverseTransformPoint(VRArmIKPatch.LastShoulderRight);
 
         VRClimbPose.TryGetNetState(c, out byte[] climbState, out Vector3 legInto, out Vector3 ropeOffset);
+        Item gripRight = VRHandItems.RightLoose != null ? VRHandItems.RightLoose : c.data.currentItem;
+        GetGrip(c, BodypartType.Hand_R, gripRight, out Vector3 gripRightPos, out Quaternion gripRightRot);
+        GetGrip(c, BodypartType.Hand_L, VRHandItems.LeftItem, out Vector3 gripLeftPos, out Quaternion gripLeftRot);
         object[] content = { VRHeadRoll.LocalRoll, lp, lr, rp, rr, lh, rh, ls, rs,
             GetViewID(VRHandItems.LeftItem), GetViewID(VRHandItems.RightLoose),
-            climbState ?? new byte[0], legInto, ropeOffset };
+            climbState ?? new byte[0], legInto, ropeOffset,
+            GetViewID(gripRight), gripRightPos, gripRightRot, gripLeftPos, gripLeftRot };
         PhotonNetwork.RaiseEvent(EventCode, content, SendOptionsToOthers, SendOptions.SendUnreliable);
+    }
+
+    private static void GetGrip(Character c, BodypartType part, Item item, out Vector3 dir, out Quaternion rot)
+    {
+        dir = Vector3.zero;
+        rot = Quaternion.identity;
+        Rigidbody hand = c.GetBodypartRig(part);
+        if (item == null || item.rig == null || hand == null)
+            return;
+
+        Quaternion inverse = Quaternion.Inverse(item.rig.rotation);
+        dir = inverse * (hand.position - item.rig.position);
+        rot = inverse * hand.rotation;
     }
 
     public static void SendGhost(Character c)
@@ -246,6 +269,12 @@ internal static class VRNetworking
             climbState = content.Length >= 14 ? content[11] as byte[] : null,
             legInto = content.Length >= 14 ? (Vector3)content[12] : Vector3.zero,
             ropeOffset = content.Length >= 14 ? (Vector3)content[13] : Vector3.zero,
+            hasGrip = content.Length >= 19,
+            gripRightView = content.Length >= 19 ? (int)content[14] : 0,
+            gripRightPos = content.Length >= 19 ? (Vector3)content[15] : Vector3.zero,
+            gripRightRot = content.Length >= 19 ? (Quaternion)content[16] : Quaternion.identity,
+            gripLeftPos = content.Length >= 19 ? (Vector3)content[17] : Vector3.zero,
+            gripLeftRot = content.Length >= 19 ? (Quaternion)content[18] : Quaternion.identity,
             sinceReceived = 0f,
         };
         Remotes[e.Sender] = pose;

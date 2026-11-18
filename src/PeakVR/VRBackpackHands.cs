@@ -12,6 +12,7 @@ internal struct BackpackZone
     public BackpackReference Reference;
     public Backpack Item;
     public CharacterBackpackHandler Handler;
+    public Transform FuelPoint;
     public int SlotCount;
     public float Reach;
     public string Name;
@@ -22,13 +23,14 @@ internal struct BackpackSlotTarget
     public bool IsFound;
     public bool IsStash;
     public bool IsLine;
+    public bool IsFuel;
     public BackpackZone Zone;
     public byte Slot;
     public Item Held;
     public Item SlotItem;
     public Vector3 Probe;
 
-    public Transform SlotTransform => Zone.Visuals.backpackSlots[Slot];
+    public Transform SlotTransform => IsFuel ? Zone.FuelPoint : Zone.Visuals.backpackSlots[Slot];
 }
 
 internal struct BackpackMark
@@ -59,6 +61,10 @@ internal static class VRBackpackHands
     private const float ShoulderBelow = -0.15f;
     private const float ShoulderWidth = 0.45f;
     private const float ShoulderRange = 0.7f;
+    private const float FuelTouch = 0.2f;
+    private const float FuelFull = 100f;
+    private const float FuelWorn = 50f;
+    private const int FuelDefault = 25;
     private const byte WornSlot = 3;
 
     private static readonly List<BackpackZone> Zones = new List<BackpackZone>();
@@ -89,6 +95,8 @@ internal static class VRBackpackHands
     private static byte pendingSlot;
     private static ushort pendingItemId;
     private static float pendingSince;
+    private static bool isPendingFuel;
+    private static float pendingFuel;
 
     public static bool Enabled => Plugin.VrEnabled && VRHandItems.Enabled;
 
@@ -126,7 +134,7 @@ internal static class VRBackpackHands
             return target.SlotItem;
 
         VRBackpackStashTarget stash = GetStashTarget(isRight);
-        stash.Set(target.Zone.Name, target.Held, target.SlotTransform);
+        stash.Set(target.Zone.Name, target.Held, target.SlotTransform, target.IsFuel);
         return stash;
     }
 
@@ -184,6 +192,17 @@ internal static class VRBackpackHands
         if (!target.IsFound || !target.IsStash)
             return false;
 
+        if (target.IsFuel)
+        {
+            if (target.Zone.Item != null)
+                target.Zone.Item.AddFuel(local);
+            else
+                target.Zone.Handler.AddFuelToJetpack(local);
+
+            Log($"right burned '{held.name}' as fuel for {target.Zone.Name}{(target.IsLine ? " by line" : "")}");
+            return true;
+        }
+
         if (target.Zone.Item != null)
             target.Zone.Item.Stash(local, target.Slot);
         else
@@ -210,13 +229,41 @@ internal static class VRBackpackHands
         pendingSlot = target.Slot;
         pendingItemId = item.itemID;
         pendingSince = Time.time;
+        isPendingFuel = target.IsFuel;
+        pendingFuel = target.Zone.Item != null ? GetFuelAmount(item) : FuelWorn;
+
+        if (target.IsFuel)
+            Log($"left burning '{item.name}' as {pendingFuel:F0} fuel for {target.Zone.Name}{(target.IsLine ? " by line" : "")}");
+        else
+            Log($"left stashing '{item.name}' into {target.Zone.Name} slot {target.Slot}{(target.IsLine ? " by line" : "")}");
 
         VRHandItems.ForgetOthersHeld(item);
         VRHandItems.ParkRightForSlot(local, item.itemID);
         VRHandItems.SetBypass(item);
         item.Interact(local);
         VRHandItems.SetBypass(null);
-        Log($"left stashing '{item.name}' into {target.Zone.Name} slot {target.Slot}{(target.IsLine ? " by line" : "")}");
+    }
+
+    private static float GetFuelAmount(Item item)
+    {
+        if (item.TryGetComponent(out RopeSpool spool))
+            return Mathf.CeilToInt(spool.RopeFuel);
+
+        if (item.HasData(DataEntryKey.Fuel))
+            return item.overrideJetpackFuelAmount
+                + Mathf.RoundToInt(item.GetData<FloatItemData>(DataEntryKey.Fuel).Value * item.overrideJetpackFuelPerFuelMult);
+
+        if (item is Backpack)
+            return item.overrideJetpackFuelAmount;
+
+        if (!item.overrideJetpackFuel)
+            return FuelDefault;
+
+        if (!item.HasData(DataEntryKey.ItemUses))
+            return item.overrideJetpackFuelAmount;
+
+        return item.overrideJetpackFuelAmount
+            + item.GetData<OptionableIntItemData>(DataEntryKey.ItemUses).Value * item.overrideJetpackFuelPerUse;
     }
 
     public static bool TryWearRight(Character local, Item held)
@@ -319,6 +366,9 @@ internal static class VRBackpackHands
         if (slot == null || slot.IsEmpty() || slot.prefab == null || slot.prefab.itemID != pendingItemId)
             return false;
 
+        if (isPendingFuel)
+            return CompleteFuel(local, items, slotID);
+
         BackpackData data = pendingZone.Reference.GetData();
         int target = data.itemSlots[pendingSlot].IsEmpty() ? pendingSlot : FirstEmpty(data, pendingZone.SlotCount);
         if (target < 0)
@@ -332,6 +382,33 @@ internal static class VRBackpackHands
         items.RefreshAllCharacterCarryWeight();
         Log($"left stash done into {pendingZone.Name} slot {target}");
         return true;
+    }
+
+    private static bool CompleteFuel(Character local, CharacterItems items, byte slotID)
+    {
+        JetpackItem jetpack = pendingZone.Item != null ? pendingZone.Item.GetComponent<JetpackItem>() : null;
+        if (pendingZone.Item != null && jetpack == null)
+            return false;
+
+        local.player.EmptySlot(Optionable<byte>.Some(slotID));
+        local.refs.afflictions.UpdateWeight();
+        items.RefreshAllCharacterCarryWeight();
+        if (jetpack != null)
+            jetpack.AddFuel(pendingFuel);
+        else
+            pendingZone.Reference.view.RPC("RPCAddFuelToJetpack", RpcTarget.All, pendingFuel);
+
+        Log($"left fuel done: {pendingFuel:F0} into {pendingZone.Name}");
+        return true;
+    }
+
+    private static bool CanFuel(BackpackZone zone)
+    {
+        if (zone.FuelPoint == null)
+            return false;
+
+        ItemInstanceData data = zone.Reference.GetItemInstanceData();
+        return data != null && data.TryGetDataEntry(DataEntryKey.Fuel, out FloatItemData fuel) && fuel.Value < FuelFull;
     }
 
     public static void StepCollisions(Character local)
@@ -550,7 +627,7 @@ internal static class VRBackpackHands
                 bool isNear = dist <= zone.Reach;
                 if (isStash)
                 {
-                    bool isTouching = hasSurface ? IsTouching(slot) : Vector3.Distance(probe, slot) <= SlotTouch;
+                    bool isTouching = hasSurface ? IsTouching(slot, SlotTouch) : Vector3.Distance(probe, slot) <= SlotTouch;
                     if (isTouching)
                     {
                         isNear = true;
@@ -573,6 +650,25 @@ internal static class VRBackpackHands
                 bestDist = dist;
                 SetFound(ref result, zone, k, slotItem, false);
             }
+
+            if (!isStash || !CanFuel(zone))
+                continue;
+
+            Vector3 fuel = zone.FuelPoint.position;
+            float fuelDist = Vector3.Distance(controller, fuel);
+            bool isFuelNear = fuelDist <= zone.Reach;
+            bool isFuelTouching = hasSurface ? IsTouching(fuel, FuelTouch) : Vector3.Distance(probe, fuel) <= FuelTouch;
+            if (isFuelTouching)
+            {
+                isFuelNear = true;
+                fuelDist = Mathf.Min(fuelDist, Vector3.Distance(probe, fuel));
+            }
+
+            if (!isFuelNear || fuelDist >= bestDist)
+                continue;
+
+            bestDist = fuelDist;
+            SetFuel(ref result, zone, false);
         }
 
         if (result.IsFound)
@@ -610,6 +706,22 @@ internal static class VRBackpackHands
                 bestSlope = slope;
                 SetFound(ref result, zone, k, slotItem, true);
             }
+
+            if (!isStash || !CanFuel(zone))
+                continue;
+
+            Vector3 toFuel = zone.FuelPoint.position - origin;
+            float fuelAlong = Vector3.Dot(toFuel, dir);
+            if (fuelAlong <= 0.01f || fuelAlong > LineRange)
+                continue;
+
+            float fuelOff = (toFuel - dir * fuelAlong).magnitude;
+            float fuelSlope = fuelOff / fuelAlong;
+            if (fuelOff > Mathf.Max(radius, fuelAlong * spread) || fuelSlope >= bestSlope)
+                continue;
+
+            bestSlope = fuelSlope;
+            SetFuel(ref result, zone, true);
         }
 
         return result;
@@ -642,12 +754,12 @@ internal static class VRBackpackHands
         return isFound;
     }
 
-    private static bool IsTouching(Vector3 point)
+    private static bool IsTouching(Vector3 point, float radius)
     {
-        if (heldBounds.SqrDistance(point) > SlotTouch * SlotTouch)
+        if (heldBounds.SqrDistance(point) > radius * radius)
             return false;
 
-        int count = Physics.OverlapSphereNonAlloc(point, SlotTouch, OverlapBuffer, ~0, QueryTriggerInteraction.Ignore);
+        int count = Physics.OverlapSphereNonAlloc(point, radius, OverlapBuffer, ~0, QueryTriggerInteraction.Ignore);
         for (int i = 0; i < count; i++)
         {
             if (HeldColliders.Contains(OverlapBuffer[i]))
@@ -666,9 +778,20 @@ internal static class VRBackpackHands
     {
         result.IsFound = true;
         result.IsLine = isLine;
+        result.IsFuel = false;
         result.Zone = zone;
         result.Slot = (byte)slot;
         result.SlotItem = slotItem;
+    }
+
+    private static void SetFuel(ref BackpackSlotTarget result, BackpackZone zone, bool isLine)
+    {
+        result.IsFound = true;
+        result.IsLine = isLine;
+        result.IsFuel = true;
+        result.Zone = zone;
+        result.Slot = 0;
+        result.SlotItem = null;
     }
 
     private static bool IsUsable(BackpackZone zone, BackpackData data, int slot, bool isStash, out Item slotItem)
@@ -781,11 +904,13 @@ internal static class VRBackpackHands
         if (visuals == null || visuals.backpackSlots == null)
             return;
 
+        JetpackItem jetpack = pack.backpackType == BackpackSlot.BackpackType.Jetpack ? pack.GetComponent<JetpackItem>() : null;
         Zones.Add(new BackpackZone
         {
             Visuals = visuals,
             Reference = BackpackReference.GetFromBackpackItem(pack),
             Item = pack,
+            FuelPoint = jetpack != null && jetpack.fuelFlame != null ? jetpack.fuelFlame.transform : null,
             SlotCount = SlotCount(visuals, pack.slotCount, pack.GetData<BackpackData>(DataEntryKey.BackpackData)),
             Reach = ReachPack,
             Name = pack.GetItemName()
@@ -814,6 +939,8 @@ internal static class VRBackpackHands
             Visuals = visuals,
             Reference = reference,
             Handler = handler,
+            FuelPoint = slot.backpackType == BackpackSlot.BackpackType.Jetpack && handler.fuelFlame != null
+                ? handler.fuelFlame.transform : null,
             SlotCount = SlotCount(visuals, visuals.slotCount, reference.GetData()),
             Reach = ReachWorn,
             Name = visuals.GetName()
@@ -872,12 +999,14 @@ internal class VRBackpackStashTarget : MonoBehaviour, IInteractible
     private string packName = "";
     private Item held;
     private Transform slot;
+    private bool isFuel;
 
-    public void Set(string name, Item item, Transform slotTransform)
+    public void Set(string name, Item item, Transform slotTransform, bool isFuelSlot)
     {
         packName = name;
         held = item;
         slot = slotTransform;
+        isFuel = isFuelSlot;
         if (slot != null)
             transform.position = slot.position;
     }
@@ -911,6 +1040,9 @@ internal class VRBackpackStashTarget : MonoBehaviour, IInteractible
 
     public string GetInteractionText()
     {
+        if (isFuel)
+            return LocalizedText.GetText("CONVERTITEM").Replace("#", held != null ? held.GetItemName() : "").Trim();
+
         return LocalizedText.GetText("STASHITEM").Replace("#", "").Trim();
     }
 

@@ -56,6 +56,17 @@ internal static class VRCooking
         return hand.Fire != null && hand.Item != null;
     }
 
+    public static Campfire GetFire(bool isLeft)
+    {
+        CookHand hand = isLeft ? Left : Right;
+        return Enabled && hand.Item != null ? hand.Fire : null;
+    }
+
+    public static bool IsCookFire(IInteractible target)
+    {
+        return Enabled && target is Campfire fire && fire != null && fire.Lit;
+    }
+
     public static bool TryGetLine(bool isRight, out Vector3 start, out Vector3 end)
     {
         start = default;

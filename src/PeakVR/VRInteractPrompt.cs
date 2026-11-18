@@ -1,4 +1,6 @@
 using UnityEngine;
+using Zorro.ControllerSupport;
+using Zorro.Core;
 
 namespace PeakVR;
 
@@ -24,6 +26,10 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
         public TMPro.TextMeshProUGUI NameText;
         public TMPro.TextMeshProUGUI PrimaryText;
         public TMPro.TextMeshProUGUI SecondaryText;
+        public InputIcon PrimaryIcon;
+        public TMPro.TMP_Text PrimaryIconText;
+        public bool IsCookIcon;
+        public string CookTag;
     }
 
     private Canvas canvas;
@@ -197,6 +203,11 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
     private void UpdateRight(GUIManager gui, bool isRefresh, bool isQuiet)
     {
         IInteractible target = Interaction.instance != null ? Interaction.instance.currentHovered : null;
+        if (HandInteractPatch.IsFresh && HandInteractPatch.RightTarget is VRBackpackStashTarget)
+            target = HandInteractPatch.RightTarget;
+        Campfire fire = VRCooking.GetFire(false);
+        if (fire != null)
+            target = fire;
         if (!Exists(target) || isQuiet)
             target = null;
 
@@ -209,6 +220,7 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
         }
 
         ShowPrompt(rightPrompt, target, isPiton, isRefresh, VRHands.Right);
+        SetCookIcon(rightPrompt, fire != null && ReferenceEquals(target, fire), InputSpriteData.InputAction.UsePrimary);
     }
 
     private void UpdateLeft(GUIManager gui, bool isRefresh, bool isQuiet)
@@ -221,6 +233,10 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
 
         SetLeftHover(ReferenceEquals(target, right) ? null : target, right);
 
+        Campfire fire = VRHands.Left != null ? VRCooking.GetFire(true) : null;
+        if (fire != null)
+            target = fire;
+
         if (isQuiet)
             target = null;
 
@@ -232,6 +248,27 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
         }
 
         ShowPrompt(leftPrompt, target, false, isRefresh, VRHands.Left);
+        SetCookIcon(leftPrompt, fire != null && ReferenceEquals(target, fire), InputSpriteData.InputAction.UseSecondary);
+    }
+
+    private static void SetCookIcon(HandPrompt prompt, bool isCook, InputSpriteData.InputAction action)
+    {
+        if (prompt.PrimaryIcon == null || prompt.PrimaryIconText == null || (!isCook && !prompt.IsCookIcon))
+            return;
+
+        if (isCook && prompt.IsCookIcon && prompt.CookTag != null && prompt.PrimaryIconText.text == prompt.CookTag)
+            return;
+
+        InputSpriteData data = SingletonAsset<InputSpriteData>.Instance;
+        if (data == null)
+            return;
+
+        InputSpriteData.InputAction shown = isCook ? action : prompt.PrimaryIcon.action;
+        string tag = data.GetSpriteTag(shown, InputHandler.GetCurrentUsedInputScheme());
+        if (!string.IsNullOrEmpty(tag))
+            prompt.PrimaryIconText.text = tag;
+        prompt.IsCookIcon = isCook;
+        prompt.CookTag = isCook ? tag : null;
     }
 
     private void ShowPrompt(HandPrompt prompt, IInteractible target, bool isPiton, bool isRefresh, Transform hand)
@@ -307,6 +344,8 @@ internal class VRInteractPrompt : MonoBehaviour, IVRRestorable
         created.Secondary = FindCopy(promptsSource, created.Prompts.transform, gui.interactPromptSecondary);
         created.SecondaryText = FindCopy<TMPro.TextMeshProUGUI>(promptsSource, created.Prompts.transform,
             gui.secondaryInteractPromptText);
+        created.PrimaryIcon = created.Primary != null ? created.Primary.GetComponentInChildren<InputIcon>(true) : null;
+        created.PrimaryIconText = created.PrimaryIcon != null ? created.PrimaryIcon.GetComponent<TMPro.TMP_Text>() : null;
 
         UIOverlay.SweepForegroundLayer(created.Canvas);
         UIOverlay.MakeAlwaysVisible(created.Canvas, true);

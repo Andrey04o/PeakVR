@@ -60,6 +60,7 @@ public partial class Plugin : BaseUnityPlugin
         PeakAssets.Load();
 
         gameObject.AddComponent<VRRemoteBinoculars>();
+        gameObject.AddComponent<InitialSetupPrompt>();
 
         if (!PreloadRuntimeDependencies())
         {

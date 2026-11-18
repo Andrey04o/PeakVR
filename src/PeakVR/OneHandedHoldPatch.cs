@@ -86,6 +86,11 @@ internal static class OneHandedHoldPatch
             gripLocalRot = grabbedRot;
             gripLocalDir = grabbedDir;
         }
+        else if (!IsLocalVR(items) && VRRemoteGrip.TryGetOffset(items.character, item, out Vector3 remoteDir, out Quaternion remoteRot))
+        {
+            gripLocalRot = remoteRot;
+            gripLocalDir = remoteDir;
+        }
         else
         {
             Transform grip = item.transform.Find("Hand_R");
@@ -142,6 +147,11 @@ internal static class OneHandedHoldPatch
             {
                 handR.transform.position = item.transform.position + item.transform.rotation * grabbedDir;
                 handR.transform.rotation = item.transform.rotation * grabbedRot;
+            }
+            else if (!IsLocalVR(__instance) && VRRemoteGrip.TryGetOffset(__instance.character, item, out Vector3 remoteDir, out Quaternion remoteRot))
+            {
+                handR.transform.position = item.transform.position + item.transform.rotation * remoteDir;
+                handR.transform.rotation = item.transform.rotation * remoteRot;
             }
             else
             {

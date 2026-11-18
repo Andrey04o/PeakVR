@@ -184,7 +184,7 @@ internal static class HandInteractPatch
             return false;
 
         var candidate = h.collider.GetComponentInParent<IInteractible>();
-        if (candidate == null || candidate is ClimbHandle)
+        if (candidate == null || candidate is ClimbHandle || VRCooking.IsCookFire(candidate))
             return false;
 
         if (busy && candidate is not CharacterInteractible)

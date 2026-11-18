@@ -31,6 +31,7 @@ internal static class VRSettingsPage
     private const float TabLabelSize = 26f;
 
     private const float AboutGap = 92f;
+    private const float SetupWidth = 230f;
     private const float ContentLeft = 428f;
     private const float ContentRight = 110f;
     private const float ContentTop = 70f;
@@ -259,6 +260,20 @@ internal static class VRSettingsPage
         aboutRt.anchoredPosition = backRt.anchoredPosition + new Vector2(0f, -AboutGap);
 
         about.OnClick(() => VRAboutPanel.Open());
+
+        PeakMenuButton setup = MenuAPI.CreateMenuButton("Initial Setup")
+            .SetColor(ButtonPurple)
+            .ParentTo(page)
+            .SetWidth(SetupWidth);
+
+        RectTransform setupRt = setup.RectTransform;
+        setupRt.anchorMin = backRt.anchorMin;
+        setupRt.anchorMax = backRt.anchorMax;
+        setupRt.pivot = backRt.pivot;
+        float setupShift = (SetupWidth - backRt.sizeDelta.x) * backRt.pivot.x;
+        setupRt.anchoredPosition = backRt.anchoredPosition + new Vector2(setupShift, -AboutGap * 2f);
+
+        setup.OnClick(() => VRInitialSetup.Open());
 
         var content = new GameObject("Content")
             .AddComponent<PeakElement>()

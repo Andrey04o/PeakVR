@@ -264,7 +264,7 @@ internal class VRClimbPose
         float grip = VRControls.GripValue(isLeft);
         float trigger = VRControls.TriggerValue(isLeft);
         bool isTouched = VRControls.IsThumbTouched(isLeft);
-        bool isFree = !hand.IsGripping;
+        bool isFree = !hand.IsGripping && Plugin.Config.FingerPoses.Value;
         bool isSliding = isHolding && VRHandItems.IsSliding(isLeft);
         bool isLike = isFree && !isHolding && !isTouched && grip >= LikePress && trigger >= LikePress;
         state.CurlIndex = Mathf.MoveTowards(state.CurlIndex, trigger, stepCurl);

@@ -65,6 +65,7 @@ internal class VRNetReceiver : MonoBehaviour
 
         RemoteRolls.Remove(gone);
         Poses.Remove(gone);
+        VRRemoteGrip.Drop(gone);
         HeadTiltPatch.RestoreFor(gone);
         VRHandDebug.Hide(gone);
 
@@ -186,7 +187,7 @@ internal class VRNetReceiver : MonoBehaviour
             if (pose.hasHands)
                 Poses[character] = s;
 
-            RemoteRolls[character] = s.headRoll;
+            VRRemoteGrip.Apply(character, pose);            RemoteRolls[character] = s.headRoll;
         }
 
         foreach (var key in stale)

@@ -32,6 +32,7 @@ public class Config
     public ConfigEntry<bool> ImmersiveHands { get; }
     public ConfigEntry<float> ThrowStrength { get; }
     public ConfigEntry<bool> TriggerGrab { get; }
+    public ConfigEntry<bool> FingerPoses { get; }
     public ConfigEntry<bool> ThrowableBackpack { get; }
 
     public ConfigEntry<bool> SmoothTurn { get; }
@@ -71,6 +72,7 @@ public class Config
     public ConfigEntry<float> ControllerOffsetZ { get; }
 
     public ConfigEntry<string> OpenXRRuntimeFile { get; }
+    public ConfigEntry<bool> InitialSetupDone { get; }
 
     public Config(string assemblyPath, ConfigFile file)
     {
@@ -143,8 +145,14 @@ public class Config
                 new AcceptableValueRange<float>(0.5f, 4f)));
 
         TriggerGrab = file.Bind("Immersive", "Trigger Grab And Slide", false,
-            "Also pick items up with the trigger, and keep holding the trigger after letting go of the grip to "
-            + "let a long item slide through your hand. Off means only the grip picks items up.");
+            new ConfigDescription(
+                "Also pick items up with the trigger, and keep holding the trigger after letting go of the grip to "
+                + "let a long item slide through your hand. Off means only the grip picks items up.",
+                null, "Hidden"));
+
+        FingerPoses = file.Bind("Immersive", "Finger Poses", true,
+            "Curl your character's fingers with the trigger, grip and thumb rest of your controllers. "
+            + "Turn off to keep the game's own hand poses.");
 
         ThrowableBackpack = file.Bind("Immersive", "Throwable Backpack", false,
             new ConfigDescription(
@@ -315,6 +323,10 @@ public class Config
         OpenXRRuntimeFile.Value = OpenXR.ResolveRuntimePath(OpenXRRuntime.Value);
         OpenXRRuntime.SettingChanged += (_, _) =>
             OpenXRRuntimeFile.Value = OpenXR.ResolveRuntimePath(OpenXRRuntime.Value);
+
+        InitialSetupDone = file.Bind("Internal", "InitialSetupDone", false,
+            new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT - the first-run VR setup was completed or skipped",
+                null, "Hidden"));
 
         ConfigVersion = file.Bind("Internal", "ConfigVersion", 0,
             new ConfigDescription("FOR INTERNAL USE ONLY, DO NOT EDIT", null, "Hidden"));
