@@ -52,6 +52,7 @@ internal static class MenuCanvasPatch
 
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
+        VRCanvasSize.Apply(canvas);
 
         var raycaster = VRPointer.Attach(canvas);
 

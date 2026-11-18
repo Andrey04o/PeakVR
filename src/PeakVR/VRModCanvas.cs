@@ -107,6 +107,7 @@ internal class VRModCanvas : MonoBehaviour
                 c.worldCamera = cam;
             }
 
+            VRCanvasSize.Apply(c);
             var rt = (RectTransform)c.transform;
 
             if (atMenu)

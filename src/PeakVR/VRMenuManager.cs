@@ -193,6 +193,7 @@ internal class VRMenuManager : MonoBehaviour
 
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
+        VRCanvasSize.Apply(canvas);
 
         var kiosk = GetKioskFor(canvas);
         if (kiosk != null)

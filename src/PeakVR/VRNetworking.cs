@@ -11,6 +11,7 @@ internal static class VRNetworking
     private const byte EventCode = 199;
     private const byte ExitCode = 198;
     private const byte GroundCode = 197;
+    private const byte GhostCode = 196;
     public const float StaleTime = 1f;
 
     private static bool registered;
@@ -33,6 +34,9 @@ internal static class VRNetworking
         public bool hasHands;
         public int leftItemView;
         public int rightItemView;
+        public byte[] climbState;
+        public Vector3 legInto;
+        public Vector3 ropeOffset;
         public float sinceReceived;
     }
 
@@ -93,9 +97,22 @@ internal static class VRNetworking
         Vector3 ls = root.InverseTransformPoint(VRArmIKPatch.LastShoulderLeft);
         Vector3 rs = root.InverseTransformPoint(VRArmIKPatch.LastShoulderRight);
 
+        VRClimbPose.TryGetNetState(c, out byte[] climbState, out Vector3 legInto, out Vector3 ropeOffset);
         object[] content = { VRHeadRoll.LocalRoll, lp, lr, rp, rr, lh, rh, ls, rs,
-            GetViewID(VRHandItems.LeftItem), GetViewID(VRHandItems.RightLoose) };
+            GetViewID(VRHandItems.LeftItem), GetViewID(VRHandItems.RightLoose),
+            climbState ?? new byte[0], legInto, ropeOffset };
         PhotonNetwork.RaiseEvent(EventCode, content, SendOptionsToOthers, SendOptions.SendUnreliable);
+    }
+
+    public static void SendGhost(Character c)
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom.PlayerCount < 2)
+            return;
+        if (!VRGhostSync.TryGetSend(c, out Vector3 offset, out Quaternion rotation))
+            return;
+
+        object[] content = { offset, rotation };
+        PhotonNetwork.RaiseEvent(GhostCode, content, SendOptionsToOthers, SendOptions.SendUnreliable);
     }
 
     public static void SendVrOff()
@@ -166,11 +183,28 @@ internal static class VRNetworking
             && p.hasHands && p.sinceReceived <= StaleTime;
     }
 
+    public static bool TryGetClimbPose(Character c, out byte[] state, out Vector3 legInto, out Vector3 ropeOffset)
+    {
+        state = null;
+        legInto = Vector3.zero;
+        ropeOffset = Vector3.zero;
+        if (c == null || c.photonView == null || !Remotes.TryGetValue(c.photonView.OwnerActorNr, out RemotePose pose))
+            return false;
+        if (!pose.hasHands || pose.sinceReceived > StaleTime || pose.climbState == null)
+            return false;
+
+        state = pose.climbState;
+        legInto = pose.legInto;
+        ropeOffset = pose.ropeOffset;
+        return true;
+    }
+
     private static void OnEvent(EventData e)
     {
         if (e.Code == ExitCode)
         {
             Remotes.Remove(e.Sender);
+            VRGhostSync.Drop(e.Sender);
             Plugin.Log.LogInfo($"[PeakVR][Net] actor {e.Sender} left VR — dropping their pose");
             VRNetReceiver.Drop(e.Sender);
             return;
@@ -180,6 +214,13 @@ internal static class VRNetworking
         {
             if (e.CustomData is int groundView)
                 ReceiveGround(groundView);
+            return;
+        }
+
+        if (e.Code == GhostCode)
+        {
+            if (e.CustomData is object[] ghost && ghost.Length >= 2)
+                VRGhostSync.Receive(e.Sender, (Vector3)ghost[0], (Quaternion)ghost[1]);
             return;
         }
 
@@ -202,6 +243,9 @@ internal static class VRNetworking
             hasHands = true,
             leftItemView = content.Length >= 11 ? (int)content[9] : 0,
             rightItemView = content.Length >= 11 ? (int)content[10] : 0,
+            climbState = content.Length >= 14 ? content[11] as byte[] : null,
+            legInto = content.Length >= 14 ? (Vector3)content[12] : Vector3.zero,
+            ropeOffset = content.Length >= 14 ? (Vector3)content[13] : Vector3.zero,
             sinceReceived = 0f,
         };
         Remotes[e.Sender] = pose;

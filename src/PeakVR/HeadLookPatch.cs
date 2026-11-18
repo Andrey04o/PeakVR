@@ -19,7 +19,10 @@ internal static class HeadLookPatch
         if (__instance.GetComponent<Character>() != character)
             return;
 
-        Vector3 forward = Quaternion.Inverse(VRHeadRig.ViewTilt) * MainCamera.instance.cam.transform.forward;
+        Transform head = MainCamera.instance.cam.transform;
+        Vector3 forward = Quaternion.Inverse(VRHeadRig.ViewTilt) * head.forward;
+        if ((character.data.fullyPassedOut || character.data.dead) && VRGhostSync.TryGetLook(character, head.position, out Vector3 ghostLook))
+            forward = ghostLook;
         character.data.lookValues = HelperFunctions.DirectionToLook(forward);
         character.RecalculateLookDirections();
     }

@@ -80,6 +80,7 @@ internal class VRLoadingScreen : MonoBehaviour
             originalState = VRCanvasState.Capture(loadingScreen.canvas);
             loadingScreen.canvas.renderMode = RenderMode.WorldSpace;
             loadingScreen.canvas.worldCamera = cam;
+            VRCanvasSize.Apply(loadingScreen.canvas);
             UIOverlay.MakeAlwaysVisible(loadingScreen.canvas, true);
             converted = true;
         }

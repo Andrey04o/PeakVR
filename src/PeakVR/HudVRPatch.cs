@@ -61,6 +61,7 @@ internal class VRHud : MonoBehaviour
 
         canvas.renderMode = RenderMode.WorldSpace;
         canvas.worldCamera = cam;
+        VRCanvasSize.Apply(canvas);
 
         rt.SetParent(cam.transform, false);
         rt.localScale = Vector3.one * Scale;

@@ -108,6 +108,7 @@ internal class VRMenuPopup : MonoBehaviour
             UIOverlay.MakeAlwaysVisible(c, true);
         }
 
+        VRCanvasSize.Apply(c);
         var rt = (RectTransform)c.transform;
         var menu = MenuCanvasPatch.MenuCanvas;
 
