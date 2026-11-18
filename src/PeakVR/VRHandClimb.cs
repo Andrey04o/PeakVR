@@ -2080,6 +2080,27 @@ internal static class HandClimbGroundPatch
     }
 }
 
+[HarmonyPatch(typeof(CharacterClimbing), "Climbing")]
+internal static class HandClimbRemoteWallPatch
+{
+    private const float BodyDistance = 0.4f;
+
+    [HarmonyPrefix]
+    private static bool Prefix(CharacterClimbing __instance)
+    {
+        Character c = __instance.character;
+        if (c == null || c.IsLocal || !VRNetworking.IsActiveRemote(c) || !VRClimbPose.TryGetRemoteWall(c, out Vector3 normal))
+            return true;
+
+        c.data.climbNormal = normal;
+        if (!c.OutOfStamina())
+            c.data.sinceGrounded = 0f;
+        c.refs.movement.ApplyExtraDrag(__instance.climbDrag);
+        c.AddForce((c.data.climbPos + normal * BodyDistance - c.TorsoPos()) * __instance.climbForce);
+        return false;
+    }
+}
+
 [HarmonyPatch(typeof(ClimbSFX), "Update")]
 internal static class HandClimbSoundPatch
 {

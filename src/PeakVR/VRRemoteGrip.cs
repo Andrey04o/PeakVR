@@ -61,6 +61,28 @@ internal static class VRRemoteGrip
         return true;
     }
 
+    public static Character GetHolder(Item item)
+    {
+        if (item == null)
+            return null;
+
+        foreach (KeyValuePair<Character, Hold[]> pair in Holds)
+        {
+            if (pair.Key != null && (pair.Value[0].Item == item || pair.Value[1].Item == item))
+                return pair.Key;
+        }
+
+        return null;
+    }
+
+    public static Item GetItem(Character character, bool isLeft)
+    {
+        if (character == null || !Holds.TryGetValue(character, out Hold[] holds))
+            return null;
+
+        return holds[isLeft ? 1 : 0].Item;
+    }
+
     public static void Drop(Character character)
     {
         if (character == null || !Holds.TryGetValue(character, out Hold[] holds))

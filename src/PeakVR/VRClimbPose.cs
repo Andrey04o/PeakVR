@@ -116,6 +116,18 @@ internal class VRClimbPose
         return true;
     }
 
+    public static bool TryGetRemoteWall(Character c, out Vector3 normal)
+    {
+        normal = Vector3.zero;
+        if (c == null || !Poses.TryGetValue(c, out VRClimbPose pose))
+            return false;
+        if (pose.weightWallLeft <= 0f && pose.weightWallRight <= 0f || pose.legInto.sqrMagnitude < 0.5f)
+            return false;
+
+        normal = -pose.legInto;
+        return true;
+    }
+
     public static void Clear()
     {
         foreach (KeyValuePair<Character, VRClimbPose> entry in Poses)
