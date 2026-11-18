@@ -8,6 +8,8 @@ internal static class VRRemoteGrip
 {
     private const float SnapDistance = 0.015f;
     private const float SnapAngle = 4f;
+    private const float RestoreDelay = 0.5f;
+    private const int RefreshFrames = 15;
 
     private class Hold
     {
@@ -21,6 +23,8 @@ internal static class VRRemoteGrip
         public Quaternion Rot;
         public Collider[] ItemColliders;
         public Collider[] LocalColliders;
+        public List<Collider> HolderColliders;
+        public int Refresh;
     }
 
     private static readonly Dictionary<Character, Hold[]> Holds = new();
@@ -41,8 +45,8 @@ internal static class VRRemoteGrip
 
         int right = pose.hasGrip ? pose.gripRightView : 0;
         int left = pose.hasGrip && pose.leftItemView != right ? pose.leftItemView : 0;
-        Step(character, holds[0], BodypartType.Hand_R, right, pose.gripRightPos, pose.gripRightRot);
-        Step(character, holds[1], BodypartType.Hand_L, left, pose.gripLeftPos, pose.gripLeftRot);
+        Step(character, holds[0], BodypartType.Hand_R, right, left, pose.gripRightPos, pose.gripRightRot);
+        Step(character, holds[1], BodypartType.Hand_L, left, right, pose.gripLeftPos, pose.gripLeftRot);
     }
 
     public static bool TryGetOffset(Character character, Item item, out Vector3 dir, out Quaternion rot)
@@ -88,24 +92,31 @@ internal static class VRRemoteGrip
         if (character == null || !Holds.TryGetValue(character, out Hold[] holds))
             return;
 
-        Release(character, holds[0]);
-        Release(character, holds[1]);
+        Release(character, holds[0], false);
+        Release(character, holds[1], false);
         Holds.Remove(character);
     }
 
-    private static void Step(Character character, Hold hold, BodypartType part, int view, Vector3 dir, Quaternion rot)
+    private static void Step(Character character, Hold hold, BodypartType part, int view, int otherView, Vector3 dir, Quaternion rot)
     {
         if (hold.View != view)
         {
-            Release(character, hold);
+            Release(character, hold, hold.View == otherView);
             hold.View = view;
             hold.Item = Find(view);
-            SetIgnoreLocal(hold, true);
+            Collect(character, hold);
+            SetIgnore(hold, true);
         }
 
         Item item = hold.Item;
         if (item == null || item.rig == null || item.rig.isKinematic || item.itemState == ItemState.InBackpack)
             return;
+
+        if (++hold.Refresh >= RefreshFrames)
+        {
+            hold.Refresh = 0;
+            SetIgnore(hold, true);
+        }
 
         hold.Dir = dir;
         hold.Rot = rot;
@@ -156,7 +167,7 @@ internal static class VRRemoteGrip
         }
     }
 
-    private static void Release(Character character, Hold hold)
+    private static void Release(Character character, Hold hold, bool isKept)
     {
         Item item = hold.Item;
         bool isCurrent = item != null && character != null && character.data != null && character.data.currentItem == item;
@@ -170,27 +181,34 @@ internal static class VRRemoteGrip
         if (hold.IsGravityOff && item != null && item.rig != null && item.itemState == ItemState.Ground)
             item.rig.useGravity = true;
 
-        SetIgnoreLocal(hold, false);
+        if (!isKept)
+            SetIgnore(hold, false);
         hold.View = 0;
         hold.Item = null;
         hold.Joint = null;
         hold.Syncer = null;
         hold.IsSyncOff = false;
         hold.IsGravityOff = false;
+        hold.ItemColliders = null;
+        hold.LocalColliders = null;
+        hold.HolderColliders = null;
+        hold.Refresh = 0;
     }
 
-    private static void SetIgnoreLocal(Hold hold, bool isIgnored)
+    private static void Collect(Character character, Hold hold)
     {
-        if (isIgnored)
-        {
-            Character local = Character.localCharacter;
-            if (hold.Item == null || local == null)
-                return;
-            hold.ItemColliders = hold.Item.GetComponentsInChildren<Collider>(true);
-            hold.LocalColliders = local.GetComponentsInChildren<Collider>(true);
-        }
+        if (hold.Item == null)
+            return;
 
-        if (hold.ItemColliders == null || hold.LocalColliders == null)
+        hold.ItemColliders = hold.Item.GetComponentsInChildren<Collider>(true);
+        Character local = Character.localCharacter;
+        hold.LocalColliders = local != null && local != character ? local.GetComponentsInChildren<Collider>(true) : null;
+        hold.HolderColliders = character.refs != null && character.refs.ragdoll != null ? character.refs.ragdoll.colliderList : null;
+    }
+
+    private static void SetIgnore(Hold hold, bool isIgnored)
+    {
+        if (hold.ItemColliders == null)
             return;
 
         for (int i = 0; i < hold.ItemColliders.Length; i++)
@@ -198,18 +216,48 @@ internal static class VRRemoteGrip
             Collider itemCollider = hold.ItemColliders[i];
             if (itemCollider == null)
                 continue;
-            for (int k = 0; k < hold.LocalColliders.Length; k++)
+
+            if (hold.LocalColliders != null)
             {
-                if (hold.LocalColliders[k] != null)
-                    Physics.IgnoreCollision(itemCollider, hold.LocalColliders[k], isIgnored);
+                for (int k = 0; k < hold.LocalColliders.Length; k++)
+                {
+                    if (hold.LocalColliders[k] != null)
+                        Physics.IgnoreCollision(itemCollider, hold.LocalColliders[k], isIgnored);
+                }
+            }
+
+            if (isIgnored && hold.HolderColliders != null)
+            {
+                for (int k = 0; k < hold.HolderColliders.Count; k++)
+                {
+                    if (hold.HolderColliders[k] != null)
+                        Physics.IgnoreCollision(itemCollider, hold.HolderColliders[k], true);
+                }
             }
         }
 
-        if (!isIgnored)
+        if (!isIgnored && hold.HolderColliders != null && GameUtils.instance != null)
+            GameUtils.instance.IgnoreCollisions(GetAlive(hold.ItemColliders), GetAlive(hold.HolderColliders), RestoreDelay);
+    }
+
+    private static Collider[] GetAlive(IList<Collider> colliders)
+    {
+        int count = 0;
+        for (int i = 0; i < colliders.Count; i++)
         {
-            hold.ItemColliders = null;
-            hold.LocalColliders = null;
+            if (colliders[i] != null)
+                count++;
         }
+
+        Collider[] alive = new Collider[count];
+        int index = 0;
+        for (int i = 0; i < colliders.Count; i++)
+        {
+            if (colliders[i] != null)
+                alive[index++] = colliders[i];
+        }
+
+        return alive;
     }
 
     private static Item Find(int view)
