@@ -12,6 +12,7 @@ internal static class VRNetworking
     private const byte ExitCode = 198;
     private const byte GroundCode = 197;
     private const byte GhostCode = 196;
+    private const byte CaptureCode = 195;
     public const float StaleTime = 1f;
 
     private static bool registered;
@@ -105,17 +106,18 @@ internal static class VRNetworking
 
         VRClimbPose.TryGetNetState(c, out byte[] climbState, out Vector3 legInto, out Vector3 ropeOffset);
         Item gripRight = VRHandItems.RightLoose != null ? VRHandItems.RightLoose : c.data.currentItem;
-        GetGrip(c, BodypartType.Hand_R, gripRight, out Vector3 gripRightPos, out Quaternion gripRightRot);
-        GetGrip(c, BodypartType.Hand_L, VRHandItems.LeftItem, out Vector3 gripLeftPos, out Quaternion gripLeftRot);
+        GetGrip(c, BodypartType.Hand_R, gripRight, out bool isRightReady, out Vector3 gripRightPos, out Quaternion gripRightRot);
+        GetGrip(c, BodypartType.Hand_L, VRHandItems.LeftItem, out _, out Vector3 gripLeftPos, out Quaternion gripLeftRot);
         object[] content = { VRHeadRoll.LocalRoll, lp, lr, rp, rr, lh, rh, ls, rs,
             GetViewID(VRHandItems.LeftItem), GetViewID(VRHandItems.RightLoose),
             climbState ?? new byte[0], legInto, ropeOffset,
-            GetViewID(gripRight), gripRightPos, gripRightRot, gripLeftPos, gripLeftRot };
+            isRightReady ? GetViewID(gripRight) : 0, gripRightPos, gripRightRot, gripLeftPos, gripLeftRot };
         PhotonNetwork.RaiseEvent(EventCode, content, SendOptionsToOthers, SendOptions.SendUnreliable);
     }
 
-    private static void GetGrip(Character c, BodypartType part, Item item, out Vector3 dir, out Quaternion rot)
+    private static void GetGrip(Character c, BodypartType part, Item item, out bool isReady, out Vector3 dir, out Quaternion rot)
     {
+        isReady = false;
         dir = Vector3.zero;
         rot = Quaternion.identity;
         Rigidbody hand = c.GetBodypartRig(part);
@@ -125,6 +127,7 @@ internal static class VRNetworking
         Quaternion inverse = Quaternion.Inverse(item.rig.rotation);
         dir = inverse * (hand.position - item.rig.position);
         rot = inverse * hand.rotation;
+        isReady = VRFollowHold.IsFollow(item) || VRRemoteGrip.IsJointed(hand, item);
     }
 
     public static void SendGhost(Character c)
@@ -136,6 +139,15 @@ internal static class VRNetworking
 
         object[] content = { offset, rotation };
         PhotonNetwork.RaiseEvent(GhostCode, content, SendOptionsToOthers, SendOptions.SendUnreliable);
+    }
+
+    public static void SendCapture(Item item, Vector3 dir, Quaternion rot)
+    {
+        if (!PhotonNetwork.InRoom || PhotonNetwork.CurrentRoom.PlayerCount < 2 || item == null)
+            return;
+
+        object[] content = { (int)item.itemID, dir, rot };
+        PhotonNetwork.RaiseEvent(CaptureCode, content, SendOptionsToOthers, SendOptions.SendReliable);
     }
 
     public static void SendVrOff()
@@ -244,6 +256,13 @@ internal static class VRNetworking
         {
             if (e.CustomData is object[] ghost && ghost.Length >= 2)
                 VRGhostSync.Receive(e.Sender, (Vector3)ghost[0], (Quaternion)ghost[1]);
+            return;
+        }
+
+        if (e.Code == CaptureCode)
+        {
+            if (e.CustomData is object[] capture && capture.Length >= 3)
+                VRRemoteGrip.ReceiveCapture(e.Sender, (ushort)(int)capture[0], (Vector3)capture[1], (Quaternion)capture[2]);
             return;
         }
 

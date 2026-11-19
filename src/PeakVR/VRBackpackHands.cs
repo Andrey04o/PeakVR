@@ -71,7 +71,7 @@ internal static class VRBackpackHands
     private const float ShoulderRange = 0.7f;
     private const float LowBehind = 0.05f;
     private const float LowBottom = -0.65f;
-    private const float LowTop = -0.15f;
+    private const float LowTop = 0.2f;
     private const float LowWidth = 0.4f;
     private const float LowRange = 0.85f;
     private const float FuelTouch = 0.2f;

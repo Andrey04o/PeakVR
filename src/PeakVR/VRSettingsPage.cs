@@ -877,6 +877,10 @@ internal static class VRSettingsPage
             return new GenericEnumSetting<LineVisibility>(name, line.Value, (LineVisibility)entry.DefaultValue,
                 saveCallback: value => line.Value = value);
 
+        if (entry is ConfigEntry<BackpackBackGrab> backGrab)
+            return new GenericEnumSetting<BackpackBackGrab>(name, backGrab.Value, (BackpackBackGrab)entry.DefaultValue,
+                saveCallback: value => backGrab.Value = value);
+
         if (entry is ConfigEntry<string> text
             && entry.Description?.AcceptableValues is AcceptableValueList<string> choices)
             return new ChoiceSetting(name, () => text.Value, value => text.Value = value,

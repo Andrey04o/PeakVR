@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.0.0
+
+- Added: Hand climbing
+- Added: Immersive hand interactions
+- Added: Immersive backpack
+- Added: Finger poses
+- Added: Initial setup screen on the first launch
+- Changed: Other players now see your hands, fingers, climbing pose and how you hold each item
+- Changed: VR menus and HUD use a 16:9 layout
+- Changed: Climbing reticles and some icons are hidden from the center of the view
+
 ## 1.6.0
 
 - Updated for the latest PEAK

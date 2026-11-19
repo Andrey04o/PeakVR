@@ -25,7 +25,7 @@ internal class VRControllerHud : MonoBehaviour, IVRRestorable
     private bool isLeftCellShown;
     private static readonly System.Reflection.FieldInfo StartingSize =
         HarmonyLib.AccessTools.Field(typeof(InventoryItemUI), "startingSizeDelta");
-    private static readonly Vector2 LeftCellPos = new(0f, 110f);
+    private static readonly Vector2 LeftCellPos = new(-190f, -170f);
 
     private const float PromptsY = 165f;
     private const float PromptSpacing = 0f;

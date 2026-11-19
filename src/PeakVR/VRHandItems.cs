@@ -2182,6 +2182,7 @@ internal class VRHandItems : MonoBehaviour
         capturedId = target.itemID;
         capturedAt = Time.time;
         captured = true;
+        VRNetworking.SendCapture(target, dir, rot);
     }
 
     public static bool TryGripOffset(Item item, out Vector3 dir, out Quaternion rot)

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using HarmonyLib;
 using Photon.Pun;
 using UnityEngine;
 
@@ -27,8 +28,75 @@ internal static class VRRemoteGrip
         public int Refresh;
     }
 
+    private const float PendingTime = 3f;
+    private const float AttachWait = 0.5f;
+
+    private struct Pending
+    {
+        public ushort ItemID;
+        public Vector3 Dir;
+        public Quaternion Rot;
+        public float Time;
+    }
+
     private static readonly Dictionary<Character, Hold[]> Holds = new();
+    private static readonly Dictionary<int, Pending> Captures = new();
     private static readonly List<Joint> Joints = new();
+
+    public static void ReceiveCapture(int actor, ushort itemID, Vector3 dir, Quaternion rot)
+    {
+        Captures[actor] = new Pending { ItemID = itemID, Dir = dir, Rot = rot, Time = Time.time };
+    }
+
+    public static void PlaceOnEquip(Character character, Item item)
+    {
+        if (character == null || character.data == null || item == null || item.rig == null
+            || character == Character.localCharacter || !VRNetworking.IsActiveRemote(character))
+            return;
+
+        character.data.sinceItemAttach = 0f;
+        if (!TryGetOffset(character, item, out Vector3 dir, out Quaternion rot))
+            return;
+
+        Rigidbody hand = character.GetBodypartRig(BodypartType.Hand_R);
+        if (hand == null)
+            return;
+
+        Quaternion itemRot = hand.rotation * Quaternion.Inverse(rot);
+        Vector3 itemPos = hand.position - itemRot * dir;
+        item.transform.SetPositionAndRotation(itemPos, itemRot);
+        item.rig.position = itemPos;
+        item.rig.rotation = itemRot;
+        item.rig.linearVelocity = hand.linearVelocity;
+        item.rig.angularVelocity = Vector3.zero;
+    }
+
+    public static void IgnoreHolder(Character character, Item item)
+    {
+        if (character == null || item == null || character == Character.localCharacter
+            || !VRNetworking.IsActiveRemote(character) || character.refs == null || character.refs.ragdoll == null)
+            return;
+
+        List<Collider> body = character.refs.ragdoll.colliderList;
+        if (body == null)
+            return;
+
+        Collider[] colliders = item.colliders;
+        if (colliders == null)
+            return;
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            if (colliders[i] == null)
+                continue;
+
+            for (int k = 0; k < body.Count; k++)
+            {
+                if (body[k] != null)
+                    Physics.IgnoreCollision(colliders[i], body[k], true);
+            }
+        }
+    }
 
     public static void Apply(Character character, VRNetworking.RemotePose pose)
     {
@@ -53,15 +121,22 @@ internal static class VRRemoteGrip
     {
         dir = Vector3.zero;
         rot = Quaternion.identity;
-        if (character == null || item == null || !Holds.TryGetValue(character, out Hold[] holds))
+        if (character == null || item == null)
             return false;
 
-        Hold hold = holds[0];
-        if (hold.Item != item)
+        if (Holds.TryGetValue(character, out Hold[] holds) && holds[0].Item == item)
+        {
+            dir = holds[0].Dir;
+            rot = holds[0].Rot;
+            return true;
+        }
+
+        if (character.photonView == null || !Captures.TryGetValue(character.photonView.OwnerActorNr, out Pending pending)
+            || pending.ItemID != item.itemID || Time.time - pending.Time > PendingTime)
             return false;
 
-        dir = hold.Dir;
-        rot = hold.Rot;
+        dir = pending.Dir;
+        rot = pending.Rot;
         return true;
     }
 
@@ -92,8 +167,8 @@ internal static class VRRemoteGrip
         if (character == null || !Holds.TryGetValue(character, out Hold[] holds))
             return;
 
-        Release(character, holds[0], false);
-        Release(character, holds[1], false);
+        Release(character, holds[0], BodypartType.Hand_R, false);
+        Release(character, holds[1], BodypartType.Hand_L, false);
         Holds.Remove(character);
     }
 
@@ -101,7 +176,7 @@ internal static class VRRemoteGrip
     {
         if (hold.View != view)
         {
-            Release(character, hold, hold.View == otherView);
+            Release(character, hold, part, hold.View == otherView);
             hold.View = view;
             hold.Item = Find(view);
             Collect(character, hold);
@@ -129,6 +204,15 @@ internal static class VRRemoteGrip
             PauseSync(hold, item);
 
         Joint joint = FindJoint(hand, item.rig);
+        if (joint == null && item == character.data.currentItem && character.data.sinceItemAttach < AttachWait)
+            return;
+
+        if (joint != null && joint != hold.Joint)
+        {
+            hold.Joint = joint;
+            SetIgnore(hold, true);
+        }
+
         Quaternion inverse = Quaternion.Inverse(item.rig.rotation);
         Vector3 seenDir = inverse * (hand.position - item.rig.position);
         Quaternion seenRot = inverse * hand.rotation;
@@ -167,13 +251,23 @@ internal static class VRRemoteGrip
         }
     }
 
-    private static void Release(Character character, Hold hold, bool isKept)
+    private static void Release(Character character, Hold hold, BodypartType part, bool isKept)
     {
         Item item = hold.Item;
         bool isCurrent = item != null && character != null && character.data != null && character.data.currentItem == item;
 
-        if (hold.Joint != null && !isCurrent)
+        if (part == BodypartType.Hand_L)
+        {
+            Rigidbody hand = character != null ? character.GetBodypartRig(part) : null;
+            if (hand != null && item != null && item.rig != null)
+                DestroyJoints(hand, item.rig);
+            else if (hold.Joint != null)
+                Object.Destroy(hold.Joint);
+        }
+        else if (hold.Joint != null && !isCurrent)
+        {
             Object.Destroy(hold.Joint);
+        }
 
         if (hold.IsSyncOff && hold.Syncer != null)
             hold.Syncer.shouldSync = true;
@@ -282,6 +376,11 @@ internal static class VRRemoteGrip
         return null;
     }
 
+    public static bool IsJointed(Rigidbody hand, Item item)
+    {
+        return hand != null && item != null && item.rig != null && FindJoint(hand, item.rig) != null;
+    }
+
     private static void DestroyJoints(Rigidbody hand, Rigidbody rig)
     {
         Joints.Clear();
@@ -291,5 +390,26 @@ internal static class VRRemoteGrip
             if (Joints[i] != null && Joints[i].connectedBody == rig)
                 Object.DestroyImmediate(Joints[i]);
         }
+    }
+}
+
+[HarmonyPatch(typeof(CharacterItems), nameof(CharacterItems.Equip))]
+internal static class RemoteEquipPlacePatch
+{
+    [HarmonyPostfix]
+    private static void Postfix(CharacterItems __instance, Item item)
+    {
+        if (item != null && __instance.character != null && __instance.character.data.currentItem == item)
+            VRRemoteGrip.PlaceOnEquip(__instance.character, item);
+    }
+}
+
+[HarmonyPatch(typeof(CharacterItems), "AttachItem")]
+internal static class RemoteAttachIgnorePatch
+{
+    [HarmonyPostfix]
+    private static void Postfix(CharacterItems __instance, Item item)
+    {
+        VRRemoteGrip.IgnoreHolder(__instance.character, item);
     }
 }
