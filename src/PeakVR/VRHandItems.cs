@@ -255,6 +255,24 @@ internal class VRHandItems : MonoBehaviour
         return instance.SpawnLeft(character, items, slotID, slot);
     }
 
+    public static bool TryEquipClimbPick(CharacterItems items, byte slotID)
+    {
+        Character character = Character.localCharacter;
+        if (instance == null || !Enabled || character == null || items.character != character || character.data == null
+            || slotID == WornSlot || !character.data.isClimbingAnything)
+            return false;
+
+        bool isRight = instance.isRightRequested && !VRHandClimb.IsGripping(false);
+        bool isLeft = instance.isLeftDeferred && !VRHandClimb.IsGripping(true);
+        if (!isRight && !isLeft)
+            return false;
+
+        items.EquipSlot(Optionable<byte>.Some(slotID));
+        items.RefreshAllCharacterCarryWeight();
+        Log($"{(isRight ? "right" : "left")} pick while climbing equipped slot {slotID}");
+        return true;
+    }
+
     private bool SpawnLeft(Character character, CharacterItems items, byte slotID, ItemSlot slot)
     {
         Rigidbody bone = character.GetBodypartRig(BodypartType.Hand_L);
@@ -911,7 +929,8 @@ internal class VRHandItems : MonoBehaviour
 
     private bool TryGrabRight(Character character, Item item)
     {
-        if (item is Backpack && character.player != null && !character.player.HasEmptySlot(item.itemID))
+        if (item is Backpack && character.player != null
+            && (!character.player.HasEmptySlot(item.itemID) || character.data.carriedPlayer != null))
             return TryGrabRightLoose(character, item);
 
         if (item == leftItem)
@@ -1260,8 +1279,16 @@ internal class VRHandItems : MonoBehaviour
 
     public static bool ParkRightForSlot(Character character, ushort itemID)
     {
+        if (character == null || character.player == null || character.player.HasEmptySlot(itemID))
+            return false;
+
+        return ParkRightTemp(character);
+    }
+
+    public static bool ParkRightTemp(Character character)
+    {
         if (instance == null || !Enabled || character == null || character.player == null || character.refs == null
-            || instance.rightParked != null || character.player.HasEmptySlot(itemID))
+            || instance.rightParked != null)
             return false;
 
         Item right = character.data.currentItem;
@@ -1285,7 +1312,7 @@ internal class VRHandItems : MonoBehaviour
         if (ReferenceEquals(rightParked, null))
             return;
 
-        bool isWaiting = isLeftTakeExpected || VRBackpackHands.IsStashPending;
+        bool isWaiting = isLeftTakeExpected || isLeftPickExpected || VRBackpackHands.IsStashPending;
         if (isWaiting && Time.time - rightParkedSince <= ArrivalTimeout)
             return;
 

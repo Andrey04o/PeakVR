@@ -34,6 +34,7 @@ public class Config
     public ConfigEntry<bool> TriggerGrab { get; }
     public ConfigEntry<bool> FingerPoses { get; }
     public ConfigEntry<bool> ThrowableBackpack { get; }
+    public ConfigEntry<PeakVR.BackpackBackGrab> BackpackBackGrab { get; }
 
     public ConfigEntry<bool> SmoothTurn { get; }
     public ConfigEntry<float> SnapTurnAngle { get; }
@@ -159,6 +160,11 @@ public class Config
                 "Let go of a backpack with a flick of the hand and it flies with the hand speed, like other "
                 + "items. Off means a released backpack just drops, the same as for flat players.",
                 null, "Hidden"));
+
+        BackpackBackGrab = file.Bind("Immersive", "Backpack Back Grab", PeakVR.BackpackBackGrab.UpAndDown,
+            "Where you reach behind you to take your worn backpack off and to put a held one on: over the "
+            + "shoulder (Up), behind the lower back (Down), both (UpAndDown), or not at all (Disabled). "
+            + "Disabled leaves the backpack to the inventory slot.");
         SmoothTurn =file.Bind("Comfort", "Smooth Turn", false,
             "Turn smoothly with the right stick instead of snapping by a fixed angle.");
         SnapTurnAngle = file.Bind("Comfort", "Snap Turn Angle", 45f,

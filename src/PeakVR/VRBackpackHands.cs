@@ -33,6 +33,14 @@ internal struct BackpackSlotTarget
     public Transform SlotTransform => IsFuel ? Zone.FuelPoint : Zone.Visuals.backpackSlots[Slot];
 }
 
+public enum BackpackBackGrab
+{
+    UpAndDown,
+    Up,
+    Down,
+    Disabled
+}
+
 internal struct BackpackMark
 {
     public Transform Slot;
@@ -61,6 +69,11 @@ internal static class VRBackpackHands
     private const float ShoulderBelow = -0.15f;
     private const float ShoulderWidth = 0.45f;
     private const float ShoulderRange = 0.7f;
+    private const float LowBehind = 0.05f;
+    private const float LowBottom = -0.65f;
+    private const float LowTop = -0.15f;
+    private const float LowWidth = 0.4f;
+    private const float LowRange = 0.85f;
     private const float FuelTouch = 0.2f;
     private const float FuelFull = 100f;
     private const float FuelWorn = 50f;
@@ -292,6 +305,12 @@ internal static class VRBackpackHands
             || local.refs == null || hand == null || !IsBehindShoulder(local, hand.position))
             return false;
 
+        if (local.data.carriedPlayer != null)
+        {
+            Log($"{(isLeft ? "left" : "right")} does not wear '{held.name}': carrying a player");
+            return false;
+        }
+
         if (local.player.backpackSlot.IsEmpty())
             return true;
 
@@ -345,7 +364,10 @@ internal static class VRBackpackHands
         }
 
         if (!isRight)
+        {
+            VRHandItems.ParkRightTemp(local);
             VRHandItems.ExpectLeftPick(local);
+        }
         items.EquipSlot(Optionable<byte>.Some(WornSlot));
         Log($"{(isRight ? "right" : "left")} takes the pack off the back");
         return true;
@@ -817,17 +839,32 @@ internal static class VRBackpackHands
         });
     }
 
+    private static BackpackBackGrab BackGrab =>
+        Plugin.Config != null ? Plugin.Config.BackpackBackGrab.Value : BackpackBackGrab.Up;
+
+    private static bool IsUpAllowed => BackGrab == BackpackBackGrab.UpAndDown || BackGrab == BackpackBackGrab.Up;
+
+    private static bool IsDownAllowed => BackGrab == BackpackBackGrab.UpAndDown || BackGrab == BackpackBackGrab.Down;
+
     private static bool IsBehindShoulder(Character local, Vector3 point)
     {
-        return IsInShoulderZone(local, point, ShoulderBehind, ShoulderBelow, ShoulderWidth);
+        return (IsUpAllowed && IsInShoulderZone(local, point, ShoulderBehind, ShoulderBelow, float.MaxValue, ShoulderWidth, ShoulderRange))
+            || (IsDownAllowed && IsInLowBack(local, point));
     }
 
     private static bool IsOverShoulder(Character local, Vector3 point)
     {
-        return IsInShoulderZone(local, point, TakeOffBehind, TakeOffAbove, TakeOffWidth);
+        return (IsUpAllowed && IsInShoulderZone(local, point, TakeOffBehind, TakeOffAbove, float.MaxValue, TakeOffWidth, ShoulderRange))
+            || (IsDownAllowed && IsInLowBack(local, point));
     }
 
-    private static bool IsInShoulderZone(Character local, Vector3 point, float minBehind, float minAbove, float maxWidth)
+    private static bool IsInLowBack(Character local, Vector3 point)
+    {
+        return IsInShoulderZone(local, point, LowBehind, LowBottom, LowTop, LowWidth, LowRange);
+    }
+
+    private static bool IsInShoulderZone(Character local, Vector3 point, float minBehind, float minAbove, float maxAbove,
+        float maxWidth, float range)
     {
         Bodypart torso = local.GetBodypart(BodypartType.Torso);
         if (torso == null)
@@ -844,8 +881,8 @@ internal static class VRBackpackHands
         Vector3 side = offset - back * behind;
         side.y = 0f;
 
-        return behind > minBehind && offset.y > minAbove && side.magnitude < maxWidth
-            && offset.magnitude < ShoulderRange;
+        return behind > minBehind && offset.y > minAbove && offset.y < maxAbove && side.magnitude < maxWidth
+            && offset.magnitude < range;
     }
 
     private static int FirstEmpty(BackpackData data, int slotCount)
@@ -1077,6 +1114,9 @@ internal static class BackpackStashPickupPatch
         if (VRBackpackHands.TryCompleteStash(__instance, slotID))
             return false;
 
-        return !VRHandItems.TryCompleteLeftTake(__instance, slotID);
+        if (VRHandItems.TryCompleteLeftTake(__instance, slotID))
+            return false;
+
+        return !VRHandItems.TryEquipClimbPick(__instance, slotID);
     }
 }

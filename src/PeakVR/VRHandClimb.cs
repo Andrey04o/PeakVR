@@ -15,6 +15,8 @@ internal class VRClimbHand
     public bool IsInputConsumed;
     public float AutoGrabLeft;
     public Collider GripCollider;
+    public Collider ModCollider;
+    public ClimbModifierSurface ClimbMod;
     public Vector3 AnchorLocal;
     public Vector3 Normal;
     public Vector3 Residual;
@@ -107,6 +109,7 @@ internal static class VRHandClimb
     private const float FollowTime = 0.08f;
     private const float BodyNormalDistance = 0.4f;
     private const float FloorAngle = 50f;
+    private const float LedgeHeight = 0.5f;
     private const float SlideProbe = 0.15f;
     private const float InputSpeed = 1.5f;
     private const float HandFollowTime = 0.05f;
@@ -146,6 +149,7 @@ internal static class VRHandClimb
     private const float SlideTiredMax = 5f;
     private const float SlideJumpDelay = 0.5f;
     private const float SlideSlippy = 0.5f;
+    private const float SlideOnlyDown = 3f;
     private const float SlideReachScale = 1.5f;
     private const float SlideReachMin = 0.1f;
     private const float SlideFootProbe = 0.15f;
@@ -891,6 +895,11 @@ internal static class VRHandClimb
         if (!isFound)
             return false;
 
+        VRClimbHand other = hand == Left ? Right : Left;
+        bool isStart = !IsHoldingObject && !other.IsGripping;
+        if (isStart && !CanStartOn(c, hit))
+            return false;
+
         Vector3 anchor = hit.point + hit.normal * PalmThickness;
         hand.ClearKind();
         hand.GripCollider = hit.collider;
@@ -910,6 +919,25 @@ internal static class VRHandClimb
         else
             PlayGrabSound(c);
         return true;
+    }
+
+    private static bool CanStartOn(Character c, RaycastHit hit)
+    {
+        if (c.refs.climbing.AcceptableGrabAngle(hit.normal, hit.collider))
+            return true;
+        if (Vector3.Angle(hit.normal, Vector3.up) >= FloorAngle)
+            return false;
+
+        return hit.point.y - GetFeetHeight(c) >= LedgeHeight;
+    }
+
+    private static float GetFeetHeight(Character c)
+    {
+        Rigidbody left = c.GetBodypartRig(BodypartType.Foot_L);
+        Rigidbody right = c.GetBodypartRig(BodypartType.Foot_R);
+        if (left == null || right == null)
+            return c.Center.y - 1f;
+        return Mathf.Min(left.position.y, right.position.y);
     }
 
     private static bool TryGrabRope(Character c, VRClimbHand hand, Vector3 palm)
@@ -1651,7 +1679,11 @@ internal static class VRHandClimb
         c.data.isGrounded = false;
         c.data.sinceClimb = 0f;
         bool isTired = c.OutOfStamina();
-        float slideSpeed = StepWallSlide(c, isTired, dt);
+        ClimbModifierSurface climbMod = GetWallMod(out bool isOnlySlide);
+        c.data.climbMod = climbMod;
+        if (climbMod != null)
+            climbMod.OnClimb(c);
+        float slideSpeed = StepWallSlide(c, isTired, isOnlySlide, dt);
         float slide = slideSpeed * dt;
         if (!isTired)
             c.data.sinceGrounded = 0f;
@@ -1687,7 +1719,7 @@ internal static class VRHandClimb
             return;
 
         delta /= count;
-        if (isTired && delta.y > 0f)
+        if ((isTired || isOnlySlide) && delta.y > 0f)
             delta.y = 0f;
         Vector3 velocityTarget = Vector3.ClampMagnitude(delta / FollowTime, Mathf.Max(SpeedMax, slideSpeed + SlideSpeedMargin));
         Vector3 velocity = c.data.avarageVelocity;
@@ -1698,7 +1730,7 @@ internal static class VRHandClimb
         c.data.climbNormal = normal;
         c.data.climbPos = torso + delta - normal * BodyNormalDistance;
 
-        UseStamina(c, velocity.magnitude, normal, dt);
+        UseStamina(c, velocity.magnitude, normal, climbMod, dt);
         UpdateMoveSound(c, dt);
 
         PinHand(c, Left);
@@ -1708,14 +1740,49 @@ internal static class VRHandClimb
         Right.Residual = Vector3.MoveTowards(Right.Residual, Vector3.zero, ResidualRelax * dt);
     }
 
-    private static void UseStamina(Character c, float speed, Vector3 normal, float dt)
+    private static void UseStamina(Character c, float speed, Vector3 normal, ClimbModifierSurface climbMod, float dt)
     {
         CharacterClimbing climbing = c.refs.climbing;
         float usage = Mathf.Lerp(climbing.minStaminaUsage, climbing.maxStaminaUsage, Mathf.Clamp01(speed / InputSpeed));
-        float angle = Vector3.Angle(Vector3.up, normal);
-        usage *= Mathf.Lerp(0.2f, 1f, Mathf.InverseLerp(40f, 60f, angle));
+        if (climbMod == null || !climbMod.staticClimbCost)
+        {
+            float angle = Vector3.Angle(Vector3.up, normal);
+            usage *= Mathf.Lerp(0.2f, 1f, Mathf.InverseLerp(40f, 60f, angle));
+        }
         usage *= c.data.staminaMod;
+        if (climbMod != null)
+            usage *= climbMod.staminaUsageMultiplier;
         c.UseStamina(usage * dt);
+    }
+
+    private static ClimbModifierSurface GetWallMod(out bool isOnlySlide)
+    {
+        ClimbModifierSurface modLeft = GetClimbMod(Left);
+        ClimbModifierSurface modRight = GetClimbMod(Right);
+        bool isLeftWall = IsWallHand(Left);
+        bool isRightWall = IsWallHand(Right);
+        bool isLeftSlide = !isLeftWall || (modLeft != null && modLeft.onlySlideDown);
+        bool isRightSlide = !isRightWall || (modRight != null && modRight.onlySlideDown);
+        isOnlySlide = (isLeftWall || isRightWall) && isLeftSlide && isRightSlide;
+        return modRight != null ? modRight : modLeft;
+    }
+
+    private static bool IsWallHand(VRClimbHand hand)
+    {
+        return hand.IsGripping && !hand.IsObject && hand.GripCollider != null;
+    }
+
+    private static ClimbModifierSurface GetClimbMod(VRClimbHand hand)
+    {
+        if (!IsWallHand(hand))
+            return null;
+
+        if (hand.ModCollider != hand.GripCollider)
+        {
+            hand.ModCollider = hand.GripCollider;
+            hand.ClimbMod = hand.GripCollider.GetComponent<ClimbModifierSurface>();
+        }
+        return hand.ClimbMod;
     }
 
     private static Vector3 GetHandDelta(Character c, VRClimbHand hand, Vector3 torso)
@@ -1761,7 +1828,7 @@ internal static class VRHandClimb
         return climbing.climbSpeed * climbing.climbSpeedMod * SlideSampleRatio;
     }
 
-    private static float StepWallSlide(Character c, bool isTired, float dt)
+    private static float StepWallSlide(Character c, bool isTired, bool isOnlySlide, float dt)
     {
         CharacterData data = c.data;
         CharacterClimbing climbing = c.refs.climbing;
@@ -1776,7 +1843,8 @@ internal static class VRHandClimb
             wallSlide -= SlideTiredForce * Mathf.Clamp01(tired * tired) * dt;
         }
 
-        float speed = (-wallSlide + SlideSlippy * Mathf.Clamp01(data.slippy)) * GetSlideUnit(climbing);
+        float speed = (-wallSlide + SlideSlippy * Mathf.Clamp01(data.slippy) + (isOnlySlide ? SlideOnlyDown : 0f))
+            * GetSlideUnit(climbing);
         wallSlide = Mathf.MoveTowards(wallSlide * SlideDrag, 0f, SlideDrop * dt);
         return Mathf.Max(0f, speed);
     }
