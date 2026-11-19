@@ -12,7 +12,7 @@ Forked from [LCVR](https://github.com/DaXcess/LCVR) by DaXcess.
 
 # Videos
 
-- [PeakVR 2.0.0 trailer](https://youtu.be/tGuPRKLCrDk)
+- [PeakVR 2.0.0 trailer](https://www.youtube.com/watch?v=DHC-QOf50gQ)
 - [Old VR gameplay](https://www.youtube.com/watch?v=tGuPRKLCrDk)
 - [Copy Head Rotation, in flat mode](https://www.youtube.com/watch?v=k4QVnr2x-jU)
 
