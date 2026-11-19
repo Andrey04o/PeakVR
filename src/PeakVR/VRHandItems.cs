@@ -445,6 +445,15 @@ internal class VRHandItems : MonoBehaviour
             && character.data.currentItem == item;
     }
 
+    public static bool IsInHand(Character character, Item item)
+    {
+        if (IsGripHolding(character, item))
+            return true;
+
+        return instance != null && !instance.isRightSliding && character != null && character.data != null
+            && character.data.currentItem == item;
+    }
+
     private void OnEnable() => instance = this;
 
     private void OnDisable()

@@ -581,7 +581,7 @@ internal static class VRGripProfiles
         if (item == null)
             return true;
 
-        if (!VRHandItems.IsGripHolding(character, item))
+        if (!VRHandItems.IsInHand(character, item))
         {
             snapRight = null;
             return false;

@@ -121,7 +121,7 @@ internal static class VRCooking
         if (item == null)
             item = VRHandItems.RightLoose;
 
-        return item != null && VRHandItems.IsGripHolding(local, item) ? item : null;
+        return item != null && VRHandItems.IsInHand(local, item) ? item : null;
     }
 
     private static Item GetLeftItem(Character local)
